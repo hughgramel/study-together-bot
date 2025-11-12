@@ -32,15 +32,29 @@ dotenv.config();
 let serviceAccount: admin.ServiceAccount;
 
 // Check if running in production with environment variable
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+if (process.env.FIREBASE_SERVICE_ACCOUNT && process.env.FIREBASE_SERVICE_ACCOUNT.trim().length > 0) {
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    console.log('✅ Loaded Firebase credentials from environment variable');
+  } catch (error) {
+    console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT environment variable:', error);
+    process.exit(1);
+  }
 } else {
   // Local development - load from file
   const serviceAccountPath = path.join(
     __dirname,
     '../firebase-service-account.json'
   );
+
+  if (!fs.existsSync(serviceAccountPath)) {
+    console.error('❌ Firebase service account file not found and FIREBASE_SERVICE_ACCOUNT env var not set');
+    console.error('Please set FIREBASE_SERVICE_ACCOUNT environment variable or provide firebase-service-account.json');
+    process.exit(1);
+  }
+
   serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+  console.log('✅ Loaded Firebase credentials from local file');
 }
 
 admin.initializeApp({
