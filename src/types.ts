@@ -41,6 +41,10 @@ export interface UserStats {
   longestStreak: number;    // Best streak ever
   lastSessionAt: Timestamp; // Most recent session timestamp
   firstSessionAt: Timestamp; // First ever session timestamp
+  longestSessionDuration: number; // Longest single session in seconds (PR)
+  mostHoursInDay: number;   // Most hours logged in a single day in seconds (PR)
+  mostHoursInWeek: number;  // Most hours logged in a single week in seconds (PR)
+  achievements: string[];   // Array of achievement IDs earned by user
 }
 
 /**

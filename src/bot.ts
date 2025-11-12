@@ -66,6 +66,41 @@ const db: Firestore = admin.firestore();
 const sessionService = new SessionService(db);
 const statsService = new StatsService(db);
 
+// Achievement definitions
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  color: number;
+}
+
+const ACHIEVEMENTS: { [key: string]: Achievement } = {
+  // Session count milestones
+  first_session: { id: 'first_session', name: 'First Steps', description: 'Completed your first session', emoji: '🎉', color: 0x00FF00 },
+  sessions_5: { id: 'sessions_5', name: 'On a Roll', description: 'Completed 5 sessions', emoji: '🎯', color: 0x0080FF },
+  sessions_10: { id: 'sessions_10', name: 'Double Digits', description: 'Completed 10 sessions', emoji: '🔟', color: 0x0080FF },
+  sessions_25: { id: 'sessions_25', name: 'Quarter Century', description: 'Completed 25 sessions', emoji: '🌟', color: 0xFFD700 },
+  sessions_50: { id: 'sessions_50', name: 'Halfway to 100', description: 'Completed 50 sessions', emoji: '⚡', color: 0xFFD700 },
+  sessions_100: { id: 'sessions_100', name: 'Century Club', description: 'Completed 100 sessions', emoji: '💯', color: 0xFF0000 },
+
+  // Streak milestones
+  streak_7: { id: 'streak_7', name: 'Week Warrior', description: 'Maintained a 7-day streak', emoji: '🔥', color: 0xFF6B00 },
+  streak_30: { id: 'streak_30', name: 'Month Master', description: 'Maintained a 30-day streak', emoji: '🔥🔥', color: 0xFF0000 },
+
+  // Hour milestones (weekly)
+  week_10h: { id: 'week_10h', name: 'First 10 Hour Week', description: 'Logged 10+ hours in a week', emoji: '📚', color: 0x0080FF },
+  week_25h: { id: 'week_25h', name: 'Part-Time Grinder', description: 'Logged 25+ hours in a week', emoji: '💼', color: 0xFFD700 },
+  week_40h: { id: 'week_40h', name: 'Full-Time Grinder', description: 'Logged 40+ hours in a week', emoji: '🔥', color: 0xFF0000 },
+
+  // Hour milestones (monthly)
+  month_50h: { id: 'month_50h', name: '50 Hour Month', description: 'Logged 50+ hours in a month', emoji: '💪', color: 0x0080FF },
+  month_100h: { id: 'month_100h', name: 'Beast Mode', description: 'Logged 100+ hours in a month', emoji: '🦁', color: 0xFF0000 },
+
+  // Special achievements
+  speedster: { id: 'speedster', name: 'Speedster', description: 'Completed 5 sessions in one day', emoji: '⚡', color: 0xFFD700 },
+};
+
 // Create Discord client
 const client = new Client({
   intents: [
@@ -238,6 +273,151 @@ async function getServerConfig(serverId: string): Promise<ServerConfig | null> {
   return doc.data() as ServerConfig;
 }
 
+// Helper function to check for new achievements after completing a session
+async function checkAndAwardAchievements(
+  userId: string,
+  totalSessions: number,
+  currentStreak: number,
+  duration: number
+): Promise<string[]> {
+  const newAchievements: string[] = [];
+
+  // Check session count milestones
+  const sessionMilestones = [
+    { count: 1, id: 'first_session' },
+    { count: 5, id: 'sessions_5' },
+    { count: 10, id: 'sessions_10' },
+    { count: 25, id: 'sessions_25' },
+    { count: 50, id: 'sessions_50' },
+    { count: 100, id: 'sessions_100' },
+  ];
+
+  for (const milestone of sessionMilestones) {
+    if (totalSessions === milestone.count) {
+      const awarded = await statsService.awardAchievement(userId, milestone.id);
+      if (awarded) {
+        newAchievements.push(milestone.id);
+      }
+    }
+  }
+
+  // Check streak milestones
+  const streakMilestones = [
+    { days: 7, id: 'streak_7' },
+    { days: 30, id: 'streak_30' },
+  ];
+
+  for (const milestone of streakMilestones) {
+    if (currentStreak === milestone.days) {
+      const awarded = await statsService.awardAchievement(userId, milestone.id);
+      if (awarded) {
+        newAchievements.push(milestone.id);
+      }
+    }
+  }
+
+  // Check weekly hour milestones
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekSessions = await sessionService.getCompletedSessions(
+    userId,
+    Timestamp.fromDate(weekAgo)
+  );
+  const weekHours = weekSessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
+
+  const weekMilestones = [
+    { hours: 10, id: 'week_10h' },
+    { hours: 25, id: 'week_25h' },
+    { hours: 40, id: 'week_40h' },
+  ];
+
+  for (const milestone of weekMilestones) {
+    if (weekHours >= milestone.hours && weekHours - (duration / 3600) < milestone.hours) {
+      const awarded = await statsService.awardAchievement(userId, milestone.id);
+      if (awarded) {
+        newAchievements.push(milestone.id);
+      }
+    }
+  }
+
+  // Check monthly hour milestones
+  const monthAgo = new Date();
+  monthAgo.setDate(monthAgo.getDate() - 30);
+  const monthSessions = await sessionService.getCompletedSessions(
+    userId,
+    Timestamp.fromDate(monthAgo)
+  );
+  const monthHours = monthSessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
+
+  const monthMilestones = [
+    { hours: 50, id: 'month_50h' },
+    { hours: 100, id: 'month_100h' },
+  ];
+
+  for (const milestone of monthMilestones) {
+    if (monthHours >= milestone.hours && monthHours - (duration / 3600) < milestone.hours) {
+      const awarded = await statsService.awardAchievement(userId, milestone.id);
+      if (awarded) {
+        newAchievements.push(milestone.id);
+      }
+    }
+  }
+
+  // Check speedster (5 sessions in one day)
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const todaySessions = await sessionService.getCompletedSessions(
+    userId,
+    Timestamp.fromDate(today)
+  );
+  if (todaySessions.length === 5) {
+    const awarded = await statsService.awardAchievement(userId, 'speedster');
+    if (awarded) {
+      newAchievements.push('speedster');
+    }
+  }
+
+  return newAchievements;
+}
+
+// Helper function to post achievements to feed
+async function postAchievementsToFeed(
+  interaction: CommandInteraction,
+  username: string,
+  avatarUrl: string,
+  achievementIds: string[]
+) {
+  if (achievementIds.length === 0) return;
+
+  try {
+    const config = await getServerConfig(interaction.guildId!);
+    if (!config || !config.feedChannelId) return;
+
+    const channel = await client.channels.fetch(config.feedChannelId);
+    if (!channel || !channel.isTextBased()) return;
+
+    // Post each achievement
+    for (const achievementId of achievementIds) {
+      const achievement = ACHIEVEMENTS[achievementId];
+      if (!achievement) continue;
+
+      const embed = new EmbedBuilder()
+        .setColor(achievement.color)
+        .setAuthor({
+          name: `${username} ${achievement.emoji}`,
+          iconURL: avatarUrl
+        })
+        .setTitle(`Achievement Unlocked: ${achievement.name}!`)
+        .setDescription(achievement.description);
+
+      const message = await (channel as TextChannel).send({ embeds: [embed] });
+      await message.react(achievement.emoji);
+    }
+  } catch (error) {
+    console.error('Error posting achievements to feed:', error);
+  }
+}
+
 // Helper function to post session start to feed channel
 async function postSessionStartToFeed(
   interaction: CommandInteraction,
@@ -289,7 +469,10 @@ async function postToFeed(
   title: string,
   description: string,
   duration: number,
-  endTime: Timestamp
+  endTime: Timestamp,
+  isFirstSessionOfDay: boolean,
+  newStreak: number,
+  newPRs: string[]
 ) {
   try {
     const config = await getServerConfig(interaction.guildId!);
@@ -307,6 +490,56 @@ async function postToFeed(
     }
 
     const durationStr = formatDuration(duration);
+    const durationHours = duration / 3600;
+
+    // Determine session type based on duration
+    let sessionType = '';
+    let sessionEmoji = '⏱️';
+    if (durationHours < 0.5) {
+      sessionType = 'Quick session';
+      sessionEmoji = '🏃';
+    } else if (durationHours < 2) {
+      sessionType = 'Session';
+      sessionEmoji = '⏱️';
+    } else if (durationHours < 4) {
+      sessionType = 'Deep work session';
+      sessionEmoji = '🧠';
+    } else {
+      sessionType = 'Marathon session';
+      sessionEmoji = '🔥🏆';
+    }
+
+    // Build description with streak info if first session of day
+    let fullDescription = description;
+
+    if (isFirstSessionOfDay) {
+      // Check for streak milestones
+      if (newStreak === 7 || newStreak === 30) {
+        // Milestone streak - let the achievement handle the celebration
+        fullDescription += `\n\n🔥 **${newStreak}-day streak!**`;
+      } else if (newStreak > 1) {
+        // Regular streak extension
+        const streakEmojis = newStreak >= 30 ? '🔥🔥🔥' : newStreak >= 7 ? '🔥🔥' : newStreak >= 3 ? '🔥' : '🔥';
+        fullDescription += `\n\n${streakEmojis} Extended their **${newStreak}-day streak!**`;
+      }
+    }
+
+    // Add PR celebrations
+    if (newPRs.length > 0) {
+      const prMessages = [];
+      if (newPRs.includes('session')) {
+        prMessages.push('🏅 New PR: Longest session');
+      }
+      if (newPRs.includes('day')) {
+        prMessages.push('🏅 New PR: Most hours in a day');
+      }
+      if (newPRs.includes('week')) {
+        prMessages.push('🏅 New PR: Most hours in a week');
+      }
+      if (prMessages.length > 0) {
+        fullDescription += '\n\n' + prMessages.join('\n');
+      }
+    }
 
     // Create the Strava-like embed
     const embed = new EmbedBuilder()
@@ -315,8 +548,8 @@ async function postToFeed(
         name: username,
         iconURL: avatarUrl
       })
-      .setTitle(title)
-      .setDescription(description)
+      .setTitle(`${sessionEmoji} ${title}`)
+      .setDescription(fullDescription)
       .addFields(
         { name: '⏱️ Time', value: durationStr, inline: true },
         { name: '🎯 Activity', value: activity, inline: true }
@@ -328,89 +561,13 @@ async function postToFeed(
 
     // React with a heart
     await message.react('❤️');
+
+    // Add fire reaction for long sessions or PRs
+    if (durationHours >= 4 || newPRs.length > 0) {
+      await message.react('🔥');
+    }
   } catch (error) {
     console.error('Error posting to feed:', error);
-    // Don't throw - we don't want to fail the session completion
-  }
-}
-
-// Helper function to post streak milestone celebrations to feed
-async function postStreakMilestone(
-  interaction: CommandInteraction,
-  username: string,
-  avatarUrl: string,
-  streak: number,
-  totalSessions: number
-) {
-  try {
-    const config = await getServerConfig(interaction.guildId!);
-
-    if (!config || !config.feedChannelId) {
-      // No feed channel configured - skip posting
-      return;
-    }
-
-    const channel = await client.channels.fetch(config.feedChannelId);
-
-    if (!channel || !channel.isTextBased()) {
-      console.error('Feed channel not found or not text-based');
-      return;
-    }
-
-    // Determine message and emoji based on milestones
-    let message = '';
-    let emoji = '';
-    let color = 0x00FF00; // Green
-    let shouldCelebrate = false;
-
-    if (totalSessions === 1) {
-      // First session ever - only triggers once
-      message = `**@${username}** just completed their first session! 🎉`;
-      emoji = '🎉';
-      color = 0x00FF00; // Green
-      shouldCelebrate = true;
-    } else if (streak === 7) {
-      message = `**@${username}** hit a 7-day streak! 🔥🔥 A full week of grinding!`;
-      emoji = '🔥';
-      color = 0xFF6B00; // Orange
-      shouldCelebrate = true;
-    } else if (streak === 30) {
-      message = `**@${username}** reached a 30-day streak! 🔥🔥🔥 Unstoppable! 🚀`;
-      emoji = '🔥';
-      color = 0xFF0000; // Red
-      shouldCelebrate = true;
-    }
-
-    // Only post if this is a milestone worth celebrating
-    if (!shouldCelebrate) {
-      return;
-    }
-
-    // Create milestone embed
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setAuthor({
-        name: `${username} ${emoji}`,
-        iconURL: avatarUrl
-      })
-      .setDescription(message);
-
-    const milestoneMessage = await (channel as TextChannel).send({
-      embeds: [embed]
-    });
-
-    // React with appropriate emoji
-    await milestoneMessage.react(emoji);
-
-    // Add fire reactions for streaks
-    if (streak === 7) {
-      await milestoneMessage.react('💪');
-    } else if (streak === 30) {
-      await milestoneMessage.react('👑');
-      await milestoneMessage.react('💪');
-    }
-  } catch (error) {
-    console.error('Error posting streak milestone:', error);
     // Don't throw - we don't want to fail the session completion
   }
 }
@@ -646,8 +803,8 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         endTime,
       });
 
-      // Update stats
-      await statsService.updateUserStats(user.id, user.username, duration);
+      // Update stats and get streak/PR info
+      const statsUpdate = await statsService.updateUserStats(user.id, user.username, duration);
 
       // Delete active session
       await sessionService.deleteActiveSession(user.id);
@@ -662,7 +819,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       // Get user's avatar URL
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
-      // Post to feed channel
+      // Post to feed channel with streak and PR info
       await postToFeed(
         interaction,
         user.username,
@@ -672,19 +829,28 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         title,
         description,
         duration,
-        endTime
+        endTime,
+        statsUpdate.isFirstSessionOfDay,
+        statsUpdate.newStreak,
+        statsUpdate.newPRs
       );
 
-      // Get updated stats to check for streak milestones
+      // Check and award achievements
       const updatedStats = await statsService.getUserStats(user.id);
       if (updatedStats) {
-        // Post streak milestone celebration if applicable
-        await postStreakMilestone(
+        const newAchievements = await checkAndAwardAchievements(
+          user.id,
+          updatedStats.totalSessions,
+          updatedStats.currentStreak,
+          duration
+        );
+
+        // Post achievements to feed
+        await postAchievementsToFeed(
           interaction,
           user.username,
           avatarUrl,
-          updatedStats.currentStreak,
-          updatedStats.totalSessions
+          newAchievements
         );
       }
 
@@ -773,6 +939,54 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       const currentStreakEmojis = getStreakEmojis(stats.currentStreak);
       const longestStreakEmojis = getStreakEmojis(stats.longestStreak);
 
+      // Calculate progress to next milestone
+      const progressLines: string[] = [];
+
+      // Session milestones
+      const sessionMilestones = [5, 10, 25, 50, 100];
+      const nextSessionMilestone = sessionMilestones.find(m => m > stats.totalSessions);
+      if (nextSessionMilestone) {
+        const remaining = nextSessionMilestone - stats.totalSessions;
+        progressLines.push(`${remaining} more session${remaining > 1 ? 's' : ''} to ${nextSessionMilestone} sessions 🎯`);
+      }
+
+      // Streak milestones
+      if (stats.currentStreak < 7) {
+        const remaining = 7 - stats.currentStreak;
+        progressLines.push(`${remaining} more day${remaining > 1 ? 's' : ''} to 🔥🔥 (7-day streak)`);
+      } else if (stats.currentStreak < 30) {
+        const remaining = 30 - stats.currentStreak;
+        progressLines.push(`${remaining} more day${remaining > 1 ? 's' : ''} to 🔥🔥🔥 (30-day streak)`);
+      }
+
+      // Weekly hour milestones
+      const weekMilestones = [10, 25, 40];
+      const nextWeekMilestone = weekMilestones.find(m => m > weeklyHours);
+      if (nextWeekMilestone) {
+        const remaining = (nextWeekMilestone - weeklyHours).toFixed(1);
+        progressLines.push(`${remaining}h more this week to ${nextWeekMilestone}h 📚`);
+      }
+
+      const progressText = progressLines.slice(0, 3).join('\n') || 'Keep crushing it! 💪';
+
+      // Format achievements
+      const achievements = stats.achievements || [];
+      let achievementText = '';
+      if (achievements.length > 0) {
+        const achievementEmojis = achievements
+          .map(id => ACHIEVEMENTS[id]?.emoji)
+          .filter(emoji => emoji)
+          .slice(-10); // Show last 10 achievements
+        achievementText = achievementEmojis.join(' ');
+      } else {
+        achievementText = 'Complete sessions to earn achievements!';
+      }
+
+      // Personal Records
+      const longestSessionHours = (stats.longestSessionDuration || 0) / 3600;
+      const mostDayHours = (stats.mostHoursInDay || 0) / 3600;
+      const mostWeekHours = (stats.mostHoursInWeek || 0) / 3600;
+
       // Create embed with separate fields for better formatting
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
@@ -788,7 +1002,10 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
           { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true }
+          { name: '\u200B', value: '\u200B', inline: true },
+          { name: '🏅 Personal Records', value: `Longest session: **${longestSessionHours.toFixed(1)}h**\nBest day: **${mostDayHours.toFixed(1)}h**\nBest week: **${mostWeekHours.toFixed(1)}h**`, inline: false },
+          { name: '🎯 Progress to Next Milestone', value: progressText, inline: false },
+          { name: '🏆 Achievements (' + achievements.length + ')', value: achievementText, inline: false }
         )
         .setFooter({
           text: user.username,
