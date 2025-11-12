@@ -783,11 +783,9 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
           { name: '📅 Timeframe', value: '**Daily**\n**Weekly**\n**Monthly**\n**All-time**', inline: true },
           { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
           { name: '🏆 Place', value: `${dailyRankText}\n${weeklyRankText}\n${monthlyRankText}\n${allTimeRankText}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: false },
           { name: '📚 Total Sessions', value: `**${stats.totalSessions}**`, inline: true },
           { name: '📈 Hours/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
-          { name: '\u200B', value: '\u200B', inline: false },
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
           { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true }
         )
