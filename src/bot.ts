@@ -5,10 +5,15 @@ import {
   Routes,
   SlashCommandBuilder,
   CommandInteraction,
+  ModalSubmitInteraction,
   PermissionFlagsBits,
   ChannelType,
   TextChannel,
   EmbedBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
 } from 'discord.js';
 import * as admin from 'firebase-admin';
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
@@ -93,19 +98,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('end')
-    .setDescription('Complete your active session')
-    .addStringOption((option) =>
-      option
-        .setName('title')
-        .setDescription('Session title')
-        .setRequired(true)
-    )
-    .addStringOption((option) =>
-      option
-        .setName('description')
-        .setDescription('What you accomplished')
-        .setRequired(true)
-    ),
+    .setDescription('End your session! Add a title, description of what you did, and post it to the feed'),
 
   new SlashCommandBuilder()
     .setName('pause')
@@ -240,7 +233,7 @@ async function getServerConfig(serverId: string): Promise<ServerConfig | null> {
 
 // Helper function to post session start to feed channel
 async function postSessionStartToFeed(
-  interaction: CommandInteraction,
+  interaction: CommandInteraction | ModalSubmitInteraction,
   username: string,
   userId: string,
   avatarUrl: string,
@@ -304,7 +297,7 @@ async function postSessionStartToFeed(
 
 // Helper function to post to feed channel
 async function postToFeed(
-  interaction: CommandInteraction,
+  interaction: CommandInteraction | ModalSubmitInteraction,
   username: string,
   userId: string,
   avatarUrl: string,
@@ -388,7 +381,7 @@ async function postToFeed(
 
 // Helper function to post streak milestone celebrations to feed
 async function postStreakMilestone(
-  interaction: CommandInteraction,
+  interaction: CommandInteraction | ModalSubmitInteraction,
   username: string,
   avatarUrl: string,
   streak: number,
@@ -482,6 +475,110 @@ async function postStreakMilestone(
 
 // Handle interactions
 client.on('interactionCreate', async (interaction) => {
+  // Handle modal submissions
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId === 'endSessionModal') {
+      try {
+        const user = interaction.user;
+        const guildId = interaction.guildId;
+
+        // Get modal inputs
+        const title = interaction.fields.getTextInputValue('title');
+        const description = interaction.fields.getTextInputValue('description');
+
+        // Get active session
+        const session = await sessionService.getActiveSession(user.id);
+
+        if (!session) {
+          await interaction.reply({
+            content: 'No active session found! It may have been cancelled or already ended.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        // Calculate final duration
+        const duration = calculateDuration(
+          session.startTime,
+          session.pausedDuration,
+          session.isPaused ? session.pausedAt : undefined
+        );
+
+        const endTime = Timestamp.now();
+
+        // Create completed session
+        await sessionService.createCompletedSession({
+          userId: user.id,
+          username: user.username,
+          serverId: guildId!,
+          activity: session.activity,
+          title,
+          description,
+          duration,
+          startTime: session.startTime,
+          endTime,
+        });
+
+        // Update stats
+        await statsService.updateUserStats(user.id, user.username, duration);
+
+        // Delete active session
+        await sessionService.deleteActiveSession(user.id);
+
+        const durationStr = formatDuration(duration);
+
+        await interaction.reply({
+          content: `✅ Session completed! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
+          ephemeral: true,
+        });
+
+        // Get user's avatar URL
+        const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+        // Post to feed channel
+        await postToFeed(
+          interaction,
+          user.username,
+          user.id,
+          avatarUrl,
+          session.activity,
+          title,
+          description,
+          duration,
+          endTime
+        );
+
+        // Get updated stats to check for streak milestones
+        const updatedStats = await statsService.getUserStats(user.id);
+        if (updatedStats) {
+          // Post streak milestone celebration if applicable
+          await postStreakMilestone(
+            interaction,
+            user.username,
+            avatarUrl,
+            updatedStats.currentStreak,
+            updatedStats.totalSessions
+          );
+        }
+      } catch (error) {
+        console.error('Error handling end session modal:', error);
+
+        const errorMessage = 'An error occurred while completing your session. Please try again.';
+
+        try {
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({ content: errorMessage, ephemeral: true });
+          } else {
+            await interaction.reply({ content: errorMessage, ephemeral: true });
+          }
+        } catch (replyError) {
+          console.error('Could not send error message to user:', replyError);
+        }
+      }
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, user, guildId } = interaction;
@@ -677,8 +774,6 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
     // /end command
     if (commandName === 'end') {
-      const title = interaction.options.getString('title', true);
-      const description = interaction.options.getString('description', true);
       const session = await sessionService.getActiveSession(user.id);
 
       if (!session) {
@@ -689,70 +784,44 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         return;
       }
 
-      // Calculate final duration
+      // Calculate duration to show in modal
       const duration = calculateDuration(
         session.startTime,
         session.pausedDuration,
         session.isPaused ? session.pausedAt : undefined
       );
-
-      const endTime = Timestamp.now();
-
-      // Create completed session
-      await sessionService.createCompletedSession({
-        userId: user.id,
-        username: user.username,
-        serverId: guildId!,
-        activity: session.activity,
-        title,
-        description,
-        duration,
-        startTime: session.startTime,
-        endTime,
-      });
-
-      // Update stats
-      await statsService.updateUserStats(user.id, user.username, duration);
-
-      // Delete active session
-      await sessionService.deleteActiveSession(user.id);
-
       const durationStr = formatDuration(duration);
 
-      await interaction.reply({
-        content: `✅ Session completed! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
-        ephemeral: true,
-      });
+      // Create modal for session completion
+      const modal = new ModalBuilder()
+        .setCustomId('endSessionModal')
+        .setTitle(`Complete Session (${durationStr})`);
 
-      // Get user's avatar URL
-      const avatarUrl = user.displayAvatarURL({ size: 128 });
+      // Title input
+      const titleInput = new TextInputBuilder()
+        .setCustomId('title')
+        .setLabel('Session Title')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g., Finished chapter 5, Fixed login bug')
+        .setRequired(true)
+        .setMaxLength(100);
 
-      // Post to feed channel
-      await postToFeed(
-        interaction,
-        user.username,
-        user.id,
-        avatarUrl,
-        session.activity,
-        title,
-        description,
-        duration,
-        endTime
-      );
+      // Description input
+      const descriptionInput = new TextInputBuilder()
+        .setCustomId('description')
+        .setLabel('What did you accomplish?')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Share what you worked on and what you achieved...')
+        .setRequired(true)
+        .setMaxLength(1000);
 
-      // Get updated stats to check for streak milestones
-      const updatedStats = await statsService.getUserStats(user.id);
-      if (updatedStats) {
-        // Post streak milestone celebration if applicable
-        await postStreakMilestone(
-          interaction,
-          user.username,
-          avatarUrl,
-          updatedStats.currentStreak,
-          updatedStats.totalSessions
-        );
-      }
+      // Add inputs to action rows
+      const titleRow = new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput);
+      const descriptionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
 
+      modal.addComponents(titleRow, descriptionRow);
+
+      await interaction.showModal(modal);
       return;
     }
 
