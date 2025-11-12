@@ -772,7 +772,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
           { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
           { name: '\u200B', value: '\u200B', inline: false },
           { name: '🏆 Place', value: `${rankText}`, inline: true },
-          { name: '📈 Average/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
+          { name: '📈 Hours/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
           { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true }
