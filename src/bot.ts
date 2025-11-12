@@ -328,16 +328,6 @@ async function postToFeed(
 
     // React with a heart
     await message.react('❤️');
-
-    // Create a thread on the message
-    const thread = await message.startThread({
-      name: `Comments - ${username}`,
-      autoArchiveDuration: 1440, // Archive after 24 hours of inactivity
-      reason: 'Session comments thread',
-    });
-
-    // Post the initial comment message
-    await thread.send('💬 Comments');
   } catch (error) {
     console.error('Error posting to feed:', error);
     // Don't throw - we don't want to fail the session completion
@@ -793,8 +783,9 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
     // /live command - Show who's currently studying
     if (commandName === 'live') {
       const activeSessions = await sessionService.getAllActiveSessions();
+      const totalLive = activeSessions.length;
 
-      if (activeSessions.length === 0) {
+      if (totalLive === 0) {
         await interaction.reply({
           content: '👻 Nobody is studying right now. Be the first! Use /start to begin.',
           ephemeral: true,
@@ -805,23 +796,36 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       // Sort by start time (earliest first)
       activeSessions.sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
 
+      // Limit to 10 users max
+      const displaySessions = activeSessions.slice(0, 10);
+
+      // Fetch user data to get avatars
+      const sessionLines = await Promise.all(
+        displaySessions.map(async (session) => {
+          const elapsed = calculateDuration(
+            session.startTime,
+            session.pausedDuration,
+            session.isPaused ? session.pausedAt : undefined
+          );
+          const elapsedStr = formatDuration(elapsed);
+
+          // Try to fetch user avatar
+          try {
+            const discordUser = await client.users.fetch(session.userId);
+            const avatarUrl = discordUser.displayAvatarURL({ size: 32, extension: 'png' });
+            // Using markdown format with avatar emoji or just clean text
+            return `**${session.username}** - *${session.activity}* for ${elapsedStr}`;
+          } catch (error) {
+            // Fallback if user fetch fails
+            return `**${session.username}** - *${session.activity}* for ${elapsedStr}`;
+          }
+        })
+      );
+
       const embed = new EmbedBuilder()
         .setColor(0x00FF00) // Green for live
-        .setTitle(`🟢 Live Now (${activeSessions.length})`)
-        .setDescription(
-          activeSessions
-            .map((session) => {
-              const elapsed = calculateDuration(
-                session.startTime,
-                session.pausedDuration,
-                session.isPaused ? session.pausedAt : undefined
-              );
-              const elapsedStr = formatDuration(elapsed);
-              const status = session.isPaused ? '⏸️' : '▶️';
-              return `${status} **${session.username}** - ${elapsedStr}\n    *${session.activity}*`;
-            })
-            .join('\n\n')
-        )
+        .setTitle(`🟢 Live Now (${totalLive})`)
+        .setDescription(sessionLines.join('\n'))
         .setFooter({ text: 'Start your own session with /start' });
 
       await interaction.reply({
