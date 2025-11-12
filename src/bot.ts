@@ -736,9 +736,22 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       const monthlyHours = monthlySessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
       const allTimeHours = allSessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
 
-      // Get user ranking
-      const ranking = await statsService.getUserRanking(user.id);
-      const rankText = ranking ? `#${ranking.rank}` : '#-';
+      // Get user rankings for each timeframe
+      const [dailyUsers, weeklyUsers, monthlyUsers] = await Promise.all([
+        sessionService.getTopUsers(Timestamp.fromDate(today), 100),
+        sessionService.getTopUsers(Timestamp.fromDate(weekAgo), 100),
+        sessionService.getTopUsers(Timestamp.fromDate(monthAgo), 100),
+      ]);
+
+      const dailyRank = dailyUsers.findIndex(u => u.userId === user.id);
+      const weeklyRank = weeklyUsers.findIndex(u => u.userId === user.id);
+      const monthlyRank = monthlyUsers.findIndex(u => u.userId === user.id);
+      const allTimeRanking = await statsService.getUserRanking(user.id);
+
+      const dailyRankText = dailyRank >= 0 ? `#${dailyRank + 1}` : '#-';
+      const weeklyRankText = weeklyRank >= 0 ? `#${weeklyRank + 1}` : '#-';
+      const monthlyRankText = monthlyRank >= 0 ? `#${monthlyRank + 1}` : '#-';
+      const allTimeRankText = allTimeRanking ? `#${allTimeRanking.rank}` : '#-';
 
       // Calculate average per day for current month
       const monthName = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -771,9 +784,14 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
           { name: '📚 Sessions', value: `${todaySessions.length}\n${weeklySessions.length}\n${monthlySessions.length}\n${allSessions.length}`, inline: true },
           { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
           { name: '\u200B', value: '\u200B', inline: false },
-          { name: '🏆 Place', value: `${rankText}`, inline: true },
           { name: '📈 Hours/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
+          { name: '\u200B', value: '\u200B', inline: true },
+          { name: '\u200B', value: '\u200B', inline: false },
+          { name: '📅 Timeframe', value: '**Daily**\n**Weekly**\n**Monthly**\n**All-time**', inline: true },
+          { name: '🏆 Place', value: `${dailyRankText}\n${weeklyRankText}\n${monthlyRankText}\n${allTimeRankText}`, inline: true },
+          { name: '\u200B', value: '\u200B', inline: true },
+          { name: '\u200B', value: '\u200B', inline: false },
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
           { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true }
         )
