@@ -261,6 +261,22 @@ async function postSessionStartToFeed(
       return;
     }
 
+    const textChannel = channel as TextChannel;
+
+    // Check bot permissions in the channel
+    const botMember = await interaction.guild?.members.fetch(client.user!.id);
+    const permissions = textChannel.permissionsFor(botMember!);
+
+    if (!permissions?.has(PermissionFlagsBits.ViewChannel)) {
+      console.error(`Bot lacks 'View Channel' permission in feed channel ${config.feedChannelId}`);
+      return;
+    }
+
+    if (!permissions?.has(PermissionFlagsBits.SendMessages)) {
+      console.error(`Bot lacks 'Send Messages' permission in feed channel ${config.feedChannelId}`);
+      return;
+    }
+
     // Create embed for session start
     const embed = new EmbedBuilder()
       .setColor(0x00FF00) // Green for "live"
@@ -270,11 +286,18 @@ async function postSessionStartToFeed(
       })
       .setDescription(`**@${username}** is live now working on **${activity}**!`);
 
-    await (channel as TextChannel).send({
+    await textChannel.send({
       embeds: [embed]
     });
-  } catch (error) {
-    console.error('Error posting session start to feed:', error);
+  } catch (error: any) {
+    // Log detailed error for debugging
+    if (error.code === 50001) {
+      console.error(`Bot lacks access to feed channel. Please ensure the bot has 'View Channel' permission.`);
+    } else if (error.code === 50013) {
+      console.error(`Bot lacks permissions in feed channel. Please ensure the bot has 'Send Messages' and 'Embed Links' permissions.`);
+    } else {
+      console.error('Error posting session start to feed:', error);
+    }
     // Don't throw - we don't want to fail the session start
   }
 }
@@ -306,6 +329,26 @@ async function postToFeed(
       return;
     }
 
+    const textChannel = channel as TextChannel;
+
+    // Check bot permissions in the channel
+    const botMember = await interaction.guild?.members.fetch(client.user!.id);
+    const permissions = textChannel.permissionsFor(botMember!);
+
+    if (!permissions?.has(PermissionFlagsBits.ViewChannel)) {
+      console.error(`Bot lacks 'View Channel' permission in feed channel ${config.feedChannelId}`);
+      return;
+    }
+
+    if (!permissions?.has(PermissionFlagsBits.SendMessages)) {
+      console.error(`Bot lacks 'Send Messages' permission in feed channel ${config.feedChannelId}`);
+      return;
+    }
+
+    if (!permissions?.has(PermissionFlagsBits.AddReactions)) {
+      console.error(`Bot lacks 'Add Reactions' permission in feed channel ${config.feedChannelId}`);
+    }
+
     const durationStr = formatDuration(duration);
 
     // Create the Strava-like embed
@@ -322,14 +365,23 @@ async function postToFeed(
         { name: '🎯 Activity', value: activity, inline: true }
       );
 
-    const message = await (channel as TextChannel).send({
+    const message = await textChannel.send({
       embeds: [embed]
     });
 
-    // React with a heart
-    await message.react('❤️');
-  } catch (error) {
-    console.error('Error posting to feed:', error);
+    // React with a heart if bot has permission
+    if (permissions?.has(PermissionFlagsBits.AddReactions)) {
+      await message.react('❤️');
+    }
+  } catch (error: any) {
+    // Log detailed error for debugging
+    if (error.code === 50001) {
+      console.error(`Bot lacks access to feed channel. Please ensure the bot has 'View Channel' permission.`);
+    } else if (error.code === 50013) {
+      console.error(`Bot lacks permissions in feed channel. Please ensure the bot has 'Send Messages', 'Embed Links', and 'Add Reactions' permissions.`);
+    } else {
+      console.error('Error posting to feed:', error);
+    }
     // Don't throw - we don't want to fail the session completion
   }
 }
@@ -354,6 +406,17 @@ async function postStreakMilestone(
 
     if (!channel || !channel.isTextBased()) {
       console.error('Feed channel not found or not text-based');
+      return;
+    }
+
+    const textChannel = channel as TextChannel;
+
+    // Check bot permissions in the channel
+    const botMember = await interaction.guild?.members.fetch(client.user!.id);
+    const permissions = textChannel.permissionsFor(botMember!);
+
+    if (!permissions?.has(PermissionFlagsBits.ViewChannel) || !permissions?.has(PermissionFlagsBits.SendMessages)) {
+      console.error(`Bot lacks necessary permissions in feed channel ${config.feedChannelId}`);
       return;
     }
 
@@ -395,19 +458,21 @@ async function postStreakMilestone(
       })
       .setDescription(message);
 
-    const milestoneMessage = await (channel as TextChannel).send({
+    const milestoneMessage = await textChannel.send({
       embeds: [embed]
     });
 
-    // React with appropriate emoji
-    await milestoneMessage.react(emoji);
+    // React with appropriate emoji if bot has permission
+    if (permissions?.has(PermissionFlagsBits.AddReactions)) {
+      await milestoneMessage.react(emoji);
 
-    // Add fire reactions for streaks
-    if (streak === 7) {
-      await milestoneMessage.react('💪');
-    } else if (streak === 30) {
-      await milestoneMessage.react('👑');
-      await milestoneMessage.react('💪');
+      // Add fire reactions for streaks
+      if (streak === 7) {
+        await milestoneMessage.react('💪');
+      } else if (streak === 30) {
+        await milestoneMessage.react('👑');
+        await milestoneMessage.react('💪');
+      }
     }
   } catch (error) {
     console.error('Error posting streak milestone:', error);
