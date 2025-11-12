@@ -346,6 +346,9 @@ client.on('interactionCreate', async (interaction) => {
 
   const { commandName, user, guildId } = interaction;
 
+  // Log command usage
+  console.log(`[${new Date().toISOString()}] ${user.username} (${user.id}) used /${commandName} in guild ${guildId}`);
+
   try {
     // /ping command
     if (commandName === 'ping') {
