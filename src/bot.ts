@@ -339,7 +339,8 @@ async function postStreakMilestone(
   interaction: CommandInteraction,
   username: string,
   avatarUrl: string,
-  streak: number
+  streak: number,
+  totalSessions: number
 ) {
   try {
     const config = await getServerConfig(interaction.guildId!);
@@ -356,28 +357,33 @@ async function postStreakMilestone(
       return;
     }
 
-    // Only celebrate specific milestones
-    if (![1, 7, 30].includes(streak)) {
-      return;
-    }
-
-    // Determine message and emoji based on streak
+    // Determine message and emoji based on milestones
     let message = '';
     let emoji = '';
     let color = 0x00FF00; // Green
+    let shouldCelebrate = false;
 
-    if (streak === 1) {
+    if (totalSessions === 1) {
+      // First session ever - only triggers once
       message = `**@${username}** just completed their first session! 🎉`;
       emoji = '🎉';
       color = 0x00FF00; // Green
+      shouldCelebrate = true;
     } else if (streak === 7) {
       message = `**@${username}** hit a 7-day streak! 🔥🔥 A full week of grinding!`;
       emoji = '🔥';
       color = 0xFF6B00; // Orange
+      shouldCelebrate = true;
     } else if (streak === 30) {
       message = `**@${username}** reached a 30-day streak! 🔥🔥🔥 Unstoppable! 🚀`;
       emoji = '🔥';
       color = 0xFF0000; // Red
+      shouldCelebrate = true;
+    }
+
+    // Only post if this is a milestone worth celebrating
+    if (!shouldCelebrate) {
+      return;
     }
 
     // Create milestone embed
@@ -677,7 +683,8 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
           interaction,
           user.username,
           avatarUrl,
-          updatedStats.currentStreak
+          updatedStats.currentStreak,
+          updatedStats.totalSessions
         );
       }
 
@@ -761,10 +768,12 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         .setTitle('📊 Personal Study Statistics')
         .addFields(
           { name: '📅 Timeframe', value: '**Daily**\n**Weekly**\n**Monthly**\n**All-time**', inline: true },
+          { name: '📚 Sessions', value: `${todaySessions.length}\n${weeklySessions.length}\n${monthlySessions.length}\n${allSessions.length}`, inline: true },
           { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
-          { name: '🏆 Place', value: `${rankText}\n${rankText}\n${rankText}\n${rankText}`, inline: true },
           { name: '\u200B', value: '\u200B', inline: false },
+          { name: '🏆 Place', value: `${rankText}`, inline: true },
           { name: '📈 Average/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
+          { name: '\u200B', value: '\u200B', inline: true },
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
           { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true }
         )
