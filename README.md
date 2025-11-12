@@ -1,24 +1,34 @@
-# Ambira Discord Bot
+# Study Together Bot
 
-A Discord bot for intention-based productivity tracking. Users start sessions with their intention, end with a reflection on what they accomplished, and view personal statistics.
+A Discord bot for collaborative productivity tracking with Strava-style social features. Track study/work sessions, compete on leaderboards, and share accomplishments with your community.
 
 ## Features
 
-- **Session Management**: Start, pause, resume, and end productivity sessions
-- **Intention → Reflection Pattern**: Focus on what you intend to do and what you actually accomplish
-- **Personal Statistics**: Track total sessions, time spent, streaks, and more
-- **Feed Channel**: Completed sessions automatically post to a designated server channel
-- **Streak Tracking**: Build consecutive day streaks to stay motivated
+- **Session Tracking**: Start, pause, resume, and complete productivity sessions with live status updates
+- **Personal Stats Dashboard**: View your daily, weekly, monthly, and all-time statistics with streak tracking
+- **Competitive Leaderboards**: See how you rank against others with daily, weekly, and monthly leaderboards
+- **Social Feed**: Completed sessions post as Strava-style embeds with reactions and comment threads
+- **Streak System**: Build consecutive day streaks with fire emoji rewards (🔥🔥🔥 for 30+ days!)
+- **Real-time Updates**: Check your session progress anytime with elapsed time tracking
 
 ## Available Commands
 
-- `/start {intention}` - Start a new productivity session
-- `/end {description}` - Complete your session with what you accomplished
-- `/status` - Check your current session details and elapsed time
-- `/pause` - Pause your active session for a break
-- `/resume` - Resume your paused session
-- `/cancel` - Cancel your active session without saving
-- `/mystats [timeframe]` - View your productivity statistics (today/week/month/all-time)
+### Session Management
+- `/start {activity}` - Start a new productivity session
+- `/time` - Check your current session status and elapsed time
+- `/pause` - Take a break without ending your session
+- `/resume` - Continue your paused session
+- `/end {title} {description}` - Complete and share your session
+- `/cancel` - Discard your active session without saving
+
+### Statistics & Leaderboards
+- `/mystats [timeframe]` - View your personal statistics (daily/weekly/monthly/all-time)
+- `/leaderboard` - See top 3 performers and your position across all timeframes
+- `/d` - View full daily leaderboard (top 10)
+- `/w` - View full weekly leaderboard (top 10)
+- `/m` - View full monthly leaderboard (top 10)
+
+### Admin
 - `/setup-feed {#channel}` - Configure feed channel for completed sessions (Admin only)
 - `/ping` - Test bot responsiveness
 
@@ -111,16 +121,19 @@ git push -u origin main
 ```
 discordbot/
 ├── src/
-│   ├── bot.ts              # Main bot entry point
+│   ├── bot.ts              # Main bot entry point, command handlers
 │   ├── types.ts            # TypeScript interfaces
 │   ├── services/
 │   │   ├── sessions.ts     # Session CRUD operations
-│   │   └── stats.ts        # Statistics calculations
+│   │   └── stats.ts        # Statistics and leaderboard calculations
 │   └── utils/
 │       └── formatters.ts   # Duration formatting and date utilities
+├── .claude/
+│   └── claude.md           # Claude Code rules and project context
 ├── .env                    # Local environment variables (NOT committed)
 ├── .env.example            # Example environment variables
 ├── .gitignore
+├── railway.json            # Railway deployment configuration
 ├── package.json
 ├── tsconfig.json
 ├── firebase-service-account.json  # Firebase credentials (NOT committed)
@@ -140,12 +153,12 @@ All data is stored in Firebase Firestore under the `discord-data/` collection:
 
 1. Start a session:
 ```
-/start "Learn Discord.js and build a bot"
+/start activity: Learn Discord.js and build a bot
 ```
 
 2. Check your progress:
 ```
-/status
+/time
 ```
 
 3. Take a break:
@@ -160,12 +173,18 @@ All data is stored in Firebase Firestore under the `discord-data/` collection:
 
 5. Complete the session:
 ```
-/end "Built a complete Discord bot with Firebase integration"
+/end title: Discord Bot Project description: Built a complete Discord bot with Firebase integration and leaderboards
 ```
 
 6. View your stats:
 ```
-/mystats week
+/mystats timeframe: week
+```
+
+7. Check the leaderboards:
+```
+/d          # Quick daily leaderboard
+/leaderboard  # Overview with your position
 ```
 
 ## Development Commands
