@@ -312,7 +312,7 @@ async function postToFeed(
     const embed = new EmbedBuilder()
       .setColor(0x0080FF) // Electric blue
       .setAuthor({
-        name: username,
+        name: `${username} completed a session!`,
         iconURL: avatarUrl
       })
       .setTitle(title)
