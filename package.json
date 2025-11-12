@@ -1,0 +1,27 @@
+{
+  "name": "ambira-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for intention-based productivity tracking",
+  "main": "dist/bot.js",
+  "scripts": {
+    "dev": "ts-node src/bot.ts",
+    "build": "tsc",
+    "start": "node dist/bot.js"
+  },
+  "keywords": ["discord", "bot", "productivity", "tracking"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "firebase-admin": "^12.0.0",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.5",
+    "ts-node": "^10.9.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
