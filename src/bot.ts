@@ -785,9 +785,10 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
           { name: '🏆 Place', value: `${dailyRankText}\n${weeklyRankText}\n${monthlyRankText}\n${allTimeRankText}`, inline: true },
           { name: '📚 Total Sessions', value: `**${stats.totalSessions}**`, inline: true },
           { name: '📈 Hours/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: false },
+          { name: '\u200B', value: '\u200B', inline: true },
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
-          { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true }
+          { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true },
+          { name: '\u200B', value: '\u200B', inline: true }
         )
         .setFooter({
           text: user.username,
