@@ -156,6 +156,10 @@ const commands = [
     .setDescription('View monthly leaderboard (top 10)'),
 
   new SlashCommandBuilder()
+    .setName('live')
+    .setDescription('See who is currently studying'),
+
+  new SlashCommandBuilder()
     .setName('setup-feed')
     .setDescription('Configure the feed channel for completed sessions (Admin only)')
     .addChannelOption((option) =>
@@ -336,6 +340,81 @@ async function postToFeed(
     await thread.send('💬 Comments');
   } catch (error) {
     console.error('Error posting to feed:', error);
+    // Don't throw - we don't want to fail the session completion
+  }
+}
+
+// Helper function to post streak milestone celebrations to feed
+async function postStreakMilestone(
+  interaction: CommandInteraction,
+  username: string,
+  avatarUrl: string,
+  streak: number
+) {
+  try {
+    const config = await getServerConfig(interaction.guildId!);
+
+    if (!config || !config.feedChannelId) {
+      // No feed channel configured - skip posting
+      return;
+    }
+
+    const channel = await client.channels.fetch(config.feedChannelId);
+
+    if (!channel || !channel.isTextBased()) {
+      console.error('Feed channel not found or not text-based');
+      return;
+    }
+
+    // Only celebrate specific milestones
+    if (![1, 7, 30].includes(streak)) {
+      return;
+    }
+
+    // Determine message and emoji based on streak
+    let message = '';
+    let emoji = '';
+    let color = 0x00FF00; // Green
+
+    if (streak === 1) {
+      message = `**@${username}** just completed their first session! 🎉`;
+      emoji = '🎉';
+      color = 0x00FF00; // Green
+    } else if (streak === 7) {
+      message = `**@${username}** hit a 7-day streak! 🔥🔥 A full week of grinding!`;
+      emoji = '🔥';
+      color = 0xFF6B00; // Orange
+    } else if (streak === 30) {
+      message = `**@${username}** reached a 30-day streak! 🔥🔥🔥 Unstoppable! 🚀`;
+      emoji = '🔥';
+      color = 0xFF0000; // Red
+    }
+
+    // Create milestone embed
+    const embed = new EmbedBuilder()
+      .setColor(color)
+      .setAuthor({
+        name: `${username} ${emoji}`,
+        iconURL: avatarUrl
+      })
+      .setDescription(message);
+
+    const milestoneMessage = await (channel as TextChannel).send({
+      embeds: [embed]
+    });
+
+    // React with appropriate emoji
+    await milestoneMessage.react(emoji);
+
+    // Add fire reactions for streaks
+    if (streak === 7) {
+      await milestoneMessage.react('💪');
+    } else if (streak === 30) {
+      await milestoneMessage.react('👑');
+      await milestoneMessage.react('💪');
+    }
+  } catch (error) {
+    console.error('Error posting streak milestone:', error);
     // Don't throw - we don't want to fail the session completion
   }
 }
@@ -600,6 +679,18 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         endTime
       );
 
+      // Get updated stats to check for streak milestones
+      const updatedStats = await statsService.getUserStats(user.id);
+      if (updatedStats) {
+        // Post streak milestone celebration if applicable
+        await postStreakMilestone(
+          interaction,
+          user.username,
+          avatarUrl,
+          updatedStats.currentStreak
+        );
+      }
+
       return;
     }
 
@@ -699,27 +790,64 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       return;
     }
 
-    // TEMPORARY: Generate fake data for debugging
-    const generateFakeUsers = (count: number) => {
-      const users = [];
-      for (let i = 0; i < count; i++) {
-        users.push({
-          userId: i === 13 ? user.id : `fake_user_${i}`, // Put current user at position 14 (index 13)
-          username: i === 13 ? user.username : `User${i + 1}`,
-          totalDuration: (count - i) * 3600 + Math.random() * 1000, // Decreasing hours
-          sessionCount: Math.floor(Math.random() * 20) + 1,
+    // /live command - Show who's currently studying
+    if (commandName === 'live') {
+      const activeSessions = await sessionService.getAllActiveSessions();
+
+      if (activeSessions.length === 0) {
+        await interaction.reply({
+          content: '👻 Nobody is studying right now. Be the first! Use /start to begin.',
+          ephemeral: true,
         });
+        return;
       }
-      return users;
-    };
+
+      // Sort by start time (earliest first)
+      activeSessions.sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
+
+      const embed = new EmbedBuilder()
+        .setColor(0x00FF00) // Green for live
+        .setTitle(`🟢 Live Now (${activeSessions.length})`)
+        .setDescription(
+          activeSessions
+            .map((session) => {
+              const elapsed = calculateDuration(
+                session.startTime,
+                session.pausedDuration,
+                session.isPaused ? session.pausedAt : undefined
+              );
+              const elapsedStr = formatDuration(elapsed);
+              const status = session.isPaused ? '⏸️' : '▶️';
+              return `${status} **${session.username}** - ${elapsedStr}\n    *${session.activity}*`;
+            })
+            .join('\n\n')
+        )
+        .setFooter({ text: 'Start your own session with /start' });
+
+      await interaction.reply({
+        embeds: [embed],
+        ephemeral: true,
+      });
+      return;
+    }
 
     // /d command - Daily leaderboard with columns
     if (commandName === 'd') {
       await interaction.deferReply({ ephemeral: true });
 
-      const dailyAll = generateFakeUsers(20);
-      const dailyTop = dailyAll.slice(0, 10);
+      // Get today's start time (midnight UTC)
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const dailyUsers = await sessionService.getTopUsers(Timestamp.fromDate(today), 20);
 
+      if (dailyUsers.length === 0) {
+        await interaction.editReply({
+          content: 'No sessions completed today yet! Be the first! 🚀',
+        });
+        return;
+      }
+
+      const dailyTop = dailyUsers.slice(0, 10);
       const ranks: string[] = [];
       const names: string[] = [];
       const hours: string[] = [];
@@ -732,9 +860,9 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       });
 
       // Add current user if not in top 10
-      const userPosition = dailyAll.findIndex(u => u.userId === user.id);
+      const userPosition = dailyUsers.findIndex(u => u.userId === user.id);
       if (userPosition >= 10) {
-        const currentUser = dailyAll[userPosition];
+        const currentUser = dailyUsers[userPosition];
         ranks.push(`**#${userPosition + 1}**`);
         names.push(`**${currentUser.username}**`);
         hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
@@ -758,9 +886,19 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
     if (commandName === 'w') {
       await interaction.deferReply({ ephemeral: true });
 
-      const weeklyAll = generateFakeUsers(20);
-      const weeklyTop = weeklyAll.slice(0, 10);
+      // Get 7 days ago
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weeklyUsers = await sessionService.getTopUsers(Timestamp.fromDate(weekAgo), 20);
 
+      if (weeklyUsers.length === 0) {
+        await interaction.editReply({
+          content: 'No sessions completed this week yet! Be the first! 🚀',
+        });
+        return;
+      }
+
+      const weeklyTop = weeklyUsers.slice(0, 10);
       const ranks: string[] = [];
       const names: string[] = [];
       const hours: string[] = [];
@@ -773,9 +911,9 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       });
 
       // Add current user if not in top 10
-      const userPosition = weeklyAll.findIndex(u => u.userId === user.id);
+      const userPosition = weeklyUsers.findIndex(u => u.userId === user.id);
       if (userPosition >= 10) {
-        const currentUser = weeklyAll[userPosition];
+        const currentUser = weeklyUsers[userPosition];
         ranks.push(`**#${userPosition + 1}**`);
         names.push(`**${currentUser.username}**`);
         hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
@@ -799,9 +937,19 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
     if (commandName === 'm') {
       await interaction.deferReply({ ephemeral: true });
 
-      const monthlyAll = generateFakeUsers(20);
-      const monthlyTop = monthlyAll.slice(0, 10);
+      // Get 30 days ago
+      const monthAgo = new Date();
+      monthAgo.setDate(monthAgo.getDate() - 30);
+      const monthlyUsers = await sessionService.getTopUsers(Timestamp.fromDate(monthAgo), 20);
 
+      if (monthlyUsers.length === 0) {
+        await interaction.editReply({
+          content: 'No sessions completed this month yet! Be the first! 🚀',
+        });
+        return;
+      }
+
+      const monthlyTop = monthlyUsers.slice(0, 10);
       const ranks: string[] = [];
       const names: string[] = [];
       const hours: string[] = [];
@@ -814,9 +962,9 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       });
 
       // Add current user if not in top 10
-      const userPosition = monthlyAll.findIndex(u => u.userId === user.id);
+      const userPosition = monthlyUsers.findIndex(u => u.userId === user.id);
       if (userPosition >= 10) {
-        const currentUser = monthlyAll[userPosition];
+        const currentUser = monthlyUsers[userPosition];
         ranks.push(`**#${userPosition + 1}**`);
         names.push(`**${currentUser.username}**`);
         hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
@@ -840,9 +988,19 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
     if (commandName === 'leaderboard') {
       await interaction.deferReply({ ephemeral: true });
 
-      const dailyAll = generateFakeUsers(20);
-      const weeklyAll = generateFakeUsers(20);
-      const monthlyAll = generateFakeUsers(20);
+      // Get data for all timeframes
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const monthAgo = new Date();
+      monthAgo.setDate(monthAgo.getDate() - 30);
+
+      const [dailyAll, weeklyAll, monthlyAll] = await Promise.all([
+        sessionService.getTopUsers(Timestamp.fromDate(today), 20),
+        sessionService.getTopUsers(Timestamp.fromDate(weekAgo), 20),
+        sessionService.getTopUsers(Timestamp.fromDate(monthAgo), 20),
+      ]);
 
       // Helper to format top 3 + user position
       const formatLeaderboard = (allUsers: Array<{ userId: string; username: string; totalDuration: number }>, emoji: string, label: string) => {
