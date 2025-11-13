@@ -492,7 +492,7 @@ client.on('interactionCreate', async (interaction) => {
         if (!session) {
           await interaction.reply({
             content: 'No active session found! It may have been cancelled or already ended.',
-            ephemeral: true,
+            ephemeral: false,
           });
           return;
         }
@@ -529,7 +529,7 @@ client.on('interactionCreate', async (interaction) => {
 
         await interaction.reply({
           content: `✅ Session completed! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
-          ephemeral: true,
+          ephemeral: false,
         });
 
         // Get user's avatar URL
@@ -604,7 +604,7 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({
           content:
             'You already have an active session! Use /end to complete it first.',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
@@ -619,7 +619,7 @@ client.on('interactionCreate', async (interaction) => {
 
       await interaction.reply({
         content: `🚀 You're live! Your session is now active.\n\n**Working on:** ${activity}\n\nUse /time to check progress, /pause to take a break, or /end when done.`,
-        ephemeral: true,
+        ephemeral: false,
       });
 
       // Get user's avatar URL and post to feed
@@ -643,7 +643,7 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({
           content:
             'No active session. Use /start {activity} to begin tracking!',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
@@ -668,7 +668,7 @@ client.on('interactionCreate', async (interaction) => {
 ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a break'}
 • /end - Complete and share
 • /cancel - Discard session`,
-        ephemeral: true,
+        ephemeral: false,
       });
       return;
     }
@@ -680,7 +680,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       if (!session) {
         await interaction.reply({
           content: 'No active session to pause.',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
@@ -688,7 +688,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       if (session.isPaused) {
         await interaction.reply({
           content: 'Session is already paused.',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
@@ -700,7 +700,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
       await interaction.reply({
         content: '⏸️ Session paused. Use /resume when ready to continue.',
-        ephemeral: true,
+        ephemeral: false,
       });
       return;
     }
@@ -712,7 +712,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       if (!session) {
         await interaction.reply({
           content: 'No active session to resume.',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
@@ -720,7 +720,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       if (!session.isPaused) {
         await interaction.reply({
           content: 'Session is not paused.',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
@@ -745,7 +745,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
       await interaction.reply({
         content: `▶️ Session resumed!\n\n**Elapsed Time:** ${elapsedStr}`,
-        ephemeral: true,
+        ephemeral: false,
       });
       return;
     }
@@ -757,7 +757,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       if (!session) {
         await interaction.reply({
           content: 'No active session to cancel.',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
@@ -767,7 +767,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       await interaction.reply({
         content:
           '❌ Session cancelled. No stats were updated and nothing was posted to the feed.',
-        ephemeral: true,
+        ephemeral: false,
       });
       return;
     }
@@ -779,7 +779,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       if (!session) {
         await interaction.reply({
           content: 'No active session found! Use /start first.',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
