@@ -931,7 +931,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
       await interaction.reply({
         embeds: [embed],
-        ephemeral: true,
+        ephemeral: false,
       });
       return;
     }
@@ -944,7 +944,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       if (totalLive === 0) {
         await interaction.reply({
           content: '👻 Nobody is studying right now. Be the first! Use /start to begin.',
-          ephemeral: true,
+          ephemeral: false,
         });
         return;
       }
@@ -986,14 +986,14 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
       await interaction.reply({
         embeds: [embed],
-        ephemeral: true,
+        ephemeral: false,
       });
       return;
     }
 
     // /d command - Daily leaderboard with columns
     if (commandName === 'd') {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ ephemeral: false });
 
       // Get today's start time (midnight UTC)
       const today = new Date();
@@ -1044,7 +1044,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
     // /w command - Weekly leaderboard with columns
     if (commandName === 'w') {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ ephemeral: false });
 
       // Get 7 days ago
       const weekAgo = new Date();
@@ -1095,7 +1095,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
     // /m command - Monthly leaderboard with columns
     if (commandName === 'm') {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ ephemeral: false });
 
       // Get 30 days ago
       const monthAgo = new Date();
@@ -1146,7 +1146,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
     // /leaderboard command - Show top 3 + user position
     if (commandName === 'leaderboard') {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ ephemeral: false });
 
       // Get data for all timeframes
       const today = new Date();
