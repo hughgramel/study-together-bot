@@ -77,6 +77,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
   ],
 });
 
@@ -163,6 +164,22 @@ const commands = [
         .addChannelTypes(ChannelType.GuildText)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName('setup-focus-room')
+    .setDescription('Configure voice channels for auto-tracking (Admin only)')
+    .addChannelOption((option) =>
+      option
+        .setName('channel')
+        .setDescription('The voice channel to enable auto-tracking')
+        .setRequired(true)
+        .addChannelTypes(ChannelType.GuildVoice)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName('manual')
+    .setDescription('Log a manual session with custom duration'),
 ].map((command) => command.toJSON());
 
 // Register commands
@@ -182,6 +199,44 @@ async function registerCommands() {
   } catch (error) {
     console.error('Error registering commands:', error);
   }
+}
+
+// Helper function to get start of day in Pacific Time
+function getStartOfDayPacific(): Date {
+  const now = new Date();
+
+  // Convert current time to Pacific Time
+  const pacificTimeStr = now.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  // Parse the Pacific time string (MM/DD/YYYY, HH:mm:ss)
+  const [datePart] = pacificTimeStr.split(', ');
+  const [month, day, year] = datePart.split('/');
+
+  // Create a date string for midnight Pacific Time
+  // Use PST offset (-08:00) for winter, PDT (-07:00) for summer
+  // JavaScript will handle the conversion automatically
+  const pacificDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+
+  // Determine if we're in PST or PDT by checking if DST is active
+  const jan = new Date(now.getFullYear(), 0, 1);
+  const jul = new Date(now.getFullYear(), 6, 1);
+  const stdTimezoneOffset = Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+  const isDST = now.getTimezoneOffset() < stdTimezoneOffset;
+
+  // Create midnight Pacific Time (use -07:00 for PDT, -08:00 for PST)
+  const offset = isDST ? '-07:00' : '-08:00';
+  const midnightPacific = new Date(`${pacificDateStr}T00:00:00${offset}`);
+
+  return midnightPacific;
 }
 
 // Helper function to format timestamp for display
@@ -292,6 +347,45 @@ async function postSessionStartToFeed(
       console.error('Error posting session start to feed:', error);
     }
     // Don't throw - we don't want to fail the session start
+  }
+}
+
+// Helper function to post VC session start to feed channel
+async function postVCSessionStartToFeed(
+  guildId: string,
+  username: string,
+  userId: string,
+  avatarUrl: string,
+  vcChannelId: string
+) {
+  try {
+    const config = await getServerConfig(guildId);
+
+    if (!config || !config.feedChannelId) {
+      return;
+    }
+
+    const channel = await client.channels.fetch(config.feedChannelId);
+    if (!channel || !channel.isTextBased()) {
+      return;
+    }
+
+    const textChannel = channel as TextChannel;
+
+    // Create embed for VC session start with link
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00) // Green for "live"
+      .setAuthor({
+        name: `${username} 🟢`,
+        iconURL: avatarUrl
+      })
+      .setDescription(`🎧 **${username}** started studying in <#${vcChannelId}>`);
+
+    await textChannel.send({
+      embeds: [embed]
+    });
+  } catch (error) {
+    console.error('Error posting VC session start to feed:', error);
   }
 }
 
@@ -473,11 +567,245 @@ async function postStreakMilestone(
   }
 }
 
+// Helper function to post basic session completion to feed (for auto-posted VC sessions)
+async function postBasicSessionToFeed(
+  guildId: string,
+  username: string,
+  avatarUrl: string,
+  duration: number,
+  vcChannelId: string
+) {
+  try {
+    const config = await getServerConfig(guildId);
+
+    if (!config || !config.feedChannelId) {
+      return;
+    }
+
+    const channel = await client.channels.fetch(config.feedChannelId);
+    if (!channel || !channel.isTextBased()) {
+      return;
+    }
+
+    const textChannel = channel as TextChannel;
+    const durationStr = formatDuration(duration);
+
+    // Create basic completion embed
+    const embed = new EmbedBuilder()
+      .setColor(0x0080FF) // Electric blue
+      .setAuthor({
+        name: `${username} completed a session!`,
+        iconURL: avatarUrl
+      })
+      .setDescription(`Focused for **${durationStr}** in <#${vcChannelId}>`);
+
+    const message = await textChannel.send({
+      embeds: [embed]
+    });
+
+    // React with a heart
+    await message.react('❤️').catch(() => {});
+  } catch (error) {
+    console.error('Error posting basic session to feed:', error);
+  }
+}
+
+// Map to track auto-post timers
+const autoPostTimers = new Map<string, NodeJS.Timeout>();
+
+// Helper function to schedule auto-post after 1 hour
+function scheduleAutoPost(userId: string, guildId: string) {
+  // Clear existing timer if any
+  if (autoPostTimers.has(userId)) {
+    clearTimeout(autoPostTimers.get(userId)!);
+  }
+
+  // Schedule new timer for 10 minutes
+  const timer = setTimeout(async () => {
+    try {
+      const session = await sessionService.getActiveSession(userId);
+
+      if (!session || !session.pendingCompletion || !session.isVCSession) {
+        return;
+      }
+
+      // Calculate final duration
+      const duration = calculateDuration(
+        session.startTime,
+        session.pausedDuration,
+        session.isPaused ? session.pausedAt : undefined
+      );
+
+      const endTime = Timestamp.now();
+
+      // Create completed session
+      await sessionService.createCompletedSession({
+        userId: session.userId,
+        username: session.username,
+        serverId: session.serverId,
+        activity: 'VC Session',
+        title: `Focus session in voice channel`,
+        description: `Completed ${formatDuration(duration)} of focused work`,
+        duration,
+        startTime: session.startTime,
+        endTime,
+      });
+
+      // Update stats
+      await statsService.updateUserStats(session.userId, session.username, duration);
+
+      // Delete active session
+      await sessionService.deleteActiveSession(session.userId);
+
+      // Fetch user for avatar
+      const user = await client.users.fetch(userId);
+      const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+      // Post basic session to feed
+      await postBasicSessionToFeed(
+        guildId,
+        session.username,
+        avatarUrl,
+        duration,
+        session.vcChannelId!
+      );
+
+      // Clean up timer
+      autoPostTimers.delete(userId);
+    } catch (error) {
+      console.error('Error in auto-post timer:', error);
+    }
+  }, 10 * 60 * 1000); // 10 minutes
+
+  autoPostTimers.set(userId, timer);
+}
+
+// Helper function to cancel auto-post timer
+function cancelAutoPost(userId: string) {
+  if (autoPostTimers.has(userId)) {
+    clearTimeout(autoPostTimers.get(userId)!);
+    autoPostTimers.delete(userId);
+  }
+}
+
 // Handle interactions
 client.on('interactionCreate', async (interaction) => {
   // Handle modal submissions
   if (interaction.isModalSubmit()) {
-    if (interaction.customId === 'endSessionModal') {
+    if (interaction.customId === 'manualSessionModal') {
+      try {
+        const user = interaction.user;
+        const guildId = interaction.guildId;
+
+        // Get modal inputs
+        const activity = interaction.fields.getTextInputValue('activity');
+        const title = interaction.fields.getTextInputValue('title');
+        const description = interaction.fields.getTextInputValue('description');
+        const hoursStr = interaction.fields.getTextInputValue('hours');
+        const minutesStr = interaction.fields.getTextInputValue('minutes');
+
+        // Parse and validate hours and minutes
+        const hours = parseInt(hoursStr, 10);
+        const minutes = parseInt(minutesStr, 10);
+
+        if (isNaN(hours) || isNaN(minutes)) {
+          await interaction.reply({
+            content: '❌ Invalid input. Hours and minutes must be numbers.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        if (hours < 0 || minutes < 0) {
+          await interaction.reply({
+            content: '❌ Hours and minutes must be positive numbers.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        if (hours === 0 && minutes === 0) {
+          await interaction.reply({
+            content: '❌ Duration must be greater than 0.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        // Calculate duration in seconds
+        const duration = (hours * 3600) + (minutes * 60);
+
+        // Create timestamps
+        const endTime = Timestamp.now();
+        const startTime = Timestamp.fromMillis(endTime.toMillis() - (duration * 1000));
+
+        // Create completed session
+        await sessionService.createCompletedSession({
+          userId: user.id,
+          username: user.username,
+          serverId: guildId!,
+          activity,
+          title,
+          description,
+          duration,
+          startTime,
+          endTime,
+        });
+
+        // Update stats
+        await statsService.updateUserStats(user.id, user.username, duration);
+
+        const durationStr = formatDuration(duration);
+
+        await interaction.reply({
+          content: `✅ Manual session logged! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
+          ephemeral: false,
+        });
+
+        // Get user's avatar URL
+        const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+        // Post to feed channel
+        await postToFeed(
+          interaction,
+          user.username,
+          user.id,
+          avatarUrl,
+          activity,
+          title,
+          description,
+          duration,
+          endTime
+        );
+
+        // Get updated stats to check for streak milestones
+        const updatedStats = await statsService.getUserStats(user.id);
+        if (updatedStats) {
+          // Post streak milestone celebration if applicable
+          await postStreakMilestone(
+            interaction,
+            user.username,
+            avatarUrl,
+            updatedStats.currentStreak,
+            updatedStats.totalSessions
+          );
+        }
+      } catch (error) {
+        console.error('Error handling manual session modal:', error);
+
+        const errorMessage = 'An error occurred while logging your manual session. Please try again.';
+
+        try {
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({ content: errorMessage, ephemeral: true });
+          } else {
+            await interaction.reply({ content: errorMessage, ephemeral: true });
+          }
+        } catch (replyError) {
+          console.error('Could not send error message to user:', replyError);
+        }
+      }
+    } else if (interaction.customId === 'endSessionModal') {
       try {
         const user = interaction.user;
         const guildId = interaction.guildId;
@@ -762,6 +1090,11 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         return;
       }
 
+      // Cancel auto-post timer if it's a VC session
+      if (session.isVCSession && session.pendingCompletion) {
+        cancelAutoPost(user.id);
+      }
+
       await sessionService.deleteActiveSession(user.id);
 
       await interaction.reply({
@@ -782,6 +1115,11 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
           ephemeral: false,
         });
         return;
+      }
+
+      // If this is a VC session with pending completion, cancel auto-post timer
+      if (session.isVCSession && session.pendingCompletion) {
+        cancelAutoPost(user.id);
       }
 
       // Calculate duration to show in modal
@@ -841,8 +1179,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       const now = new Date();
 
       // Calculate stats for each timeframe
-      const today = new Date(now);
-      today.setUTCHours(0, 0, 0, 0);
+      const today = getStartOfDayPacific();
       const todaySessions = await sessionService.getCompletedSessions(
         user.id,
         Timestamp.fromDate(today)
@@ -995,9 +1332,8 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
     if (commandName === 'd') {
       await interaction.deferReply({ ephemeral: false });
 
-      // Get today's start time (midnight UTC)
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
+      // Get today's start time (midnight Pacific Time)
+      const today = getStartOfDayPacific();
       const dailyUsers = await sessionService.getTopUsers(Timestamp.fromDate(today), 20);
 
       if (dailyUsers.length === 0) {
@@ -1149,8 +1485,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       await interaction.deferReply({ ephemeral: false });
 
       // Get data for all timeframes
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
+      const today = getStartOfDayPacific();
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       const monthAgo = new Date();
@@ -1199,6 +1534,71 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       return;
     }
 
+    // /manual command - Log a manual session
+    if (commandName === 'manual') {
+      // Create modal for manual session logging
+      const modal = new ModalBuilder()
+        .setCustomId('manualSessionModal')
+        .setTitle('Log Manual Session');
+
+      // Activity input
+      const activityInput = new TextInputBuilder()
+        .setCustomId('activity')
+        .setLabel('Activity')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g., Studying math, Writing essay')
+        .setRequired(true)
+        .setMaxLength(100);
+
+      // Title input
+      const titleInput = new TextInputBuilder()
+        .setCustomId('title')
+        .setLabel('Session Title')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g., Finished chapter 5, Fixed login bug')
+        .setRequired(true)
+        .setMaxLength(100);
+
+      // Description input
+      const descriptionInput = new TextInputBuilder()
+        .setCustomId('description')
+        .setLabel('What did you accomplish?')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Share what you worked on and what you achieved...')
+        .setRequired(true)
+        .setMaxLength(1000);
+
+      // Hours input
+      const hoursInput = new TextInputBuilder()
+        .setCustomId('hours')
+        .setLabel('Hours')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('0')
+        .setRequired(true)
+        .setMaxLength(3);
+
+      // Minutes input
+      const minutesInput = new TextInputBuilder()
+        .setCustomId('minutes')
+        .setLabel('Minutes')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('0')
+        .setRequired(true)
+        .setMaxLength(2);
+
+      // Add inputs to action rows
+      const activityRow = new ActionRowBuilder<TextInputBuilder>().addComponents(activityInput);
+      const titleRow = new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput);
+      const descriptionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
+      const hoursRow = new ActionRowBuilder<TextInputBuilder>().addComponents(hoursInput);
+      const minutesRow = new ActionRowBuilder<TextInputBuilder>().addComponents(minutesInput);
+
+      modal.addComponents(activityRow, titleRow, descriptionRow, hoursRow, minutesRow);
+
+      await interaction.showModal(modal);
+      return;
+    }
+
     // /setup-feed command
     if (commandName === 'setup-feed') {
       const channel = interaction.options.getChannel('channel', true);
@@ -1214,8 +1614,12 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         return;
       }
 
-      // Save config
+      // Get existing config
+      const existingConfig = await getServerConfig(guildId!);
+
+      // Update config
       const config: ServerConfig = {
+        ...existingConfig,
         feedChannelId: channel.id,
         setupAt: Timestamp.now(),
         setupBy: user.id,
@@ -1230,6 +1634,58 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
       await interaction.reply({
         content: `✅ Feed channel set to <#${channel.id}>\n\nCompleted sessions will now be posted there automatically.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // /setup-focus-room command
+    if (commandName === 'setup-focus-room') {
+      const channel = interaction.options.getChannel('channel', true);
+
+      // Check if user has admin permission
+      if (
+        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      ) {
+        await interaction.reply({
+          content: 'Only server administrators can configure focus rooms.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Get existing config
+      const existingConfig = await getServerConfig(guildId!);
+      const currentFocusRooms = existingConfig?.focusRoomIds || [];
+
+      // Check if already configured
+      if (currentFocusRooms.includes(channel.id)) {
+        await interaction.reply({
+          content: `<#${channel.id}> is already configured as a focus room.`,
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Add to focus rooms
+      const updatedFocusRooms = [...currentFocusRooms, channel.id];
+
+      const config: ServerConfig = {
+        ...existingConfig,
+        focusRoomIds: updatedFocusRooms,
+        setupAt: Timestamp.now(),
+        setupBy: user.id,
+      };
+
+      await db
+        .collection('discord-data')
+        .doc('serverConfig')
+        .collection('configs')
+        .doc(guildId!)
+        .set(config);
+
+      await interaction.reply({
+        content: `✅ Focus room enabled: <#${channel.id}>\n\nJoining this voice channel will now automatically start tracking your session!`,
         ephemeral: true,
       });
       return;
@@ -1250,6 +1706,151 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       // Interaction may have expired - just log the error and continue
       console.error('Could not send error message to user:', replyError);
     }
+  }
+});
+
+// Handle voice state updates (VC joins/leaves)
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  try {
+    const userId = newState.member?.user.id;
+    const guildId = newState.guild.id;
+
+    console.log(`[VOICE STATE] User: ${newState.member?.user.username}, Old: ${oldState.channelId}, New: ${newState.channelId}`);
+
+    if (!userId || !guildId) {
+      console.log('[VOICE STATE] Missing userId or guildId');
+      return;
+    }
+
+    // Get server config to check if this is a focus room
+    const config = await getServerConfig(guildId);
+    console.log(`[VOICE STATE] Config:`, config);
+
+    if (!config || !config.focusRoomIds || config.focusRoomIds.length === 0) {
+      console.log('[VOICE STATE] No focus rooms configured');
+      return;
+    }
+
+    const oldChannelId = oldState.channelId;
+    const newChannelId = newState.channelId;
+
+    // User joined a VC
+    console.log(`[VOICE STATE] Checking join: oldChannelId=${oldChannelId}, newChannelId=${newChannelId}, isFocusRoom=${config.focusRoomIds.includes(newChannelId || '')}`);
+
+    if (!oldChannelId && newChannelId && config.focusRoomIds.includes(newChannelId)) {
+      console.log('[VOICE STATE] User joined a focus room!');
+
+      // Check if user has a pending session (left VC but hasn't ended)
+      const existingSession = await sessionService.getActiveSession(userId);
+      console.log('[VOICE STATE] Existing session:', existingSession);
+
+      if (existingSession && existingSession.isVCSession && existingSession.pendingCompletion) {
+        console.log('[VOICE STATE] Resuming existing session');
+        // Resume existing session
+        await sessionService.updateActiveSession(userId, {
+          pendingCompletion: false,
+          leftVCAt: null as any,
+        });
+
+        // Cancel auto-post timer
+        cancelAutoPost(userId);
+
+        console.log(`${newState.member?.user.username} resumed VC session`);
+      } else if (!existingSession) {
+        console.log('[VOICE STATE] Creating new VC session');
+        // Create new VC session
+        const username = newState.member?.user.username || 'Unknown';
+        const avatarUrl = newState.member?.user.displayAvatarURL({ size: 128 }) || '';
+
+        await sessionService.createActiveSession(
+          userId,
+          username,
+          guildId,
+          'VC Session'
+        );
+
+        // Mark as VC session
+        await sessionService.updateActiveSession(userId, {
+          isVCSession: true,
+          vcChannelId: newChannelId,
+        });
+
+        // Post to feed
+        console.log('[VOICE STATE] Posting to feed');
+        await postVCSessionStartToFeed(
+          guildId,
+          username,
+          userId,
+          avatarUrl,
+          newChannelId
+        );
+
+        console.log(`${username} started VC session in ${newChannelId}`);
+      } else {
+        console.log('[VOICE STATE] User already has a session (not VC or not pending)');
+      }
+    }
+
+    // User left a VC (or switched channels)
+    if (oldChannelId && config.focusRoomIds.includes(oldChannelId)) {
+      const session = await sessionService.getActiveSession(userId);
+
+      if (session && session.isVCSession && !session.pendingCompletion) {
+        // If user switched to another focus room, don't mark as pending
+        if (newChannelId && config.focusRoomIds.includes(newChannelId)) {
+          // Update the VC channel ID
+          await sessionService.updateActiveSession(userId, {
+            vcChannelId: newChannelId,
+          });
+          return;
+        }
+
+        // Calculate current duration
+        const duration = calculateDuration(
+          session.startTime,
+          session.pausedDuration,
+          session.isPaused ? session.pausedAt : undefined
+        );
+        const durationStr = formatDuration(duration);
+
+        // Mark as pending completion
+        await sessionService.updateActiveSession(userId, {
+          pendingCompletion: true,
+          leftVCAt: Timestamp.now(),
+        });
+
+        // Schedule auto-post after 1 hour
+        scheduleAutoPost(userId, guildId);
+
+        // DM the user about leaving VC
+        try {
+          const user = await client.users.fetch(userId);
+          await user.send(
+            `You just focused in VC for **${durationStr}**. Type \`/end\` to post your session, or rejoin VC to continue!\n\n*Auto-posts in 10 minutes*`
+          );
+        } catch (error) {
+          console.error('Error sending DM to user:', error);
+          // Fallback: post in feed channel if DM fails (user has DMs disabled)
+          if (config.feedChannelId) {
+            try {
+              const feedChannel = await client.channels.fetch(config.feedChannelId);
+              if (feedChannel && feedChannel.isTextBased()) {
+                const textChannel = feedChannel as TextChannel;
+                await textChannel.send(
+                  `<@${userId}> You just focused in VC for **${durationStr}**. Type \`/end\` to post your session, or rejoin VC to continue!\n\n*Auto-posts in 10 minutes*`
+                );
+              }
+            } catch (fallbackError) {
+              console.error('Error posting VC leave ping to feed:', fallbackError);
+            }
+          }
+        }
+
+        console.log(`${session.username} left VC, session pending completion`);
+      }
+    }
+  } catch (error) {
+    console.error('Error handling voice state update:', error);
   }
 });
 
