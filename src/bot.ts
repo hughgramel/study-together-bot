@@ -1110,13 +1110,14 @@ client.on('interactionCreate', async (interaction) => {
 
     // /time command
     if (commandName === 'time') {
+      await interaction.deferReply({ ephemeral: false });
+
       const session = await sessionService.getActiveSession(user.id);
 
       if (!session) {
-        await interaction.reply({
+        await interaction.editReply({
           content:
             'No active session. Use /start {activity} to begin tracking!',
-          ephemeral: false,
         });
         return;
       }
@@ -1130,7 +1131,7 @@ client.on('interactionCreate', async (interaction) => {
       const elapsedStr = formatDuration(elapsed);
       const pauseStatus = session.isPaused ? '⏸️ Paused' : '▶️ Active';
 
-      await interaction.reply({
+      await interaction.editReply({
         content: `**Current Session**
 
 **Status:** ${pauseStatus}
@@ -1141,7 +1142,6 @@ client.on('interactionCreate', async (interaction) => {
 ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a break'}
 • /end - Complete and share
 • /cancel - Discard session`,
-        ephemeral: false,
       });
       return;
     }
@@ -1631,6 +1631,7 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
     // /leaderboard command - Show top 3 + user position
     if (commandName === 'leaderboard') {
+      console.log(`[LEADERBOARD] Command started for user ${user.username} (${user.id})`);
       await interaction.deferReply({ ephemeral: false });
 
       // Get data for all timeframes
@@ -1638,11 +1639,56 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       const weekStart = getStartOfWeekPacific();
       const monthStart = getStartOfMonthPacific();
 
+      console.log(`[LEADERBOARD] Timeframes - Today: ${today.toISOString()}, Week: ${weekStart.toISOString()}, Month: ${monthStart.toISOString()}`);
+
       const [dailyAll, weeklyAll, monthlyAll] = await Promise.all([
         sessionService.getTopUsers(Timestamp.fromDate(today), 20),
         sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20),
         sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20),
       ]);
+
+      console.log(`[LEADERBOARD] Fetched users - Daily: ${dailyAll.length}, Weekly: ${weeklyAll.length}, Monthly: ${monthlyAll.length}`);
+
+      // Log detailed user data
+      console.log(`[LEADERBOARD] Daily top users:`, dailyAll.map(u => ({
+        username: u.username,
+        userId: u.userId,
+        totalDuration: u.totalDuration,
+        hours: (u.totalDuration / 3600).toFixed(2),
+        sessionCount: u.sessionCount
+      })));
+
+      console.log(`[LEADERBOARD] Weekly top users:`, weeklyAll.map(u => ({
+        username: u.username,
+        userId: u.userId,
+        totalDuration: u.totalDuration,
+        hours: (u.totalDuration / 3600).toFixed(2),
+        sessionCount: u.sessionCount
+      })));
+
+      console.log(`[LEADERBOARD] Monthly top users:`, monthlyAll.map(u => ({
+        username: u.username,
+        userId: u.userId,
+        totalDuration: u.totalDuration,
+        hours: (u.totalDuration / 3600).toFixed(2),
+        sessionCount: u.sessionCount
+      })));
+
+      // Find current user position
+      const dailyUserPos = dailyAll.findIndex(u => u.userId === user.id);
+      const weeklyUserPos = weeklyAll.findIndex(u => u.userId === user.id);
+      const monthlyUserPos = monthlyAll.findIndex(u => u.userId === user.id);
+
+      console.log(`[LEADERBOARD] User ${user.username} positions - Daily: ${dailyUserPos >= 0 ? dailyUserPos + 1 : 'N/A'}, Weekly: ${weeklyUserPos >= 0 ? weeklyUserPos + 1 : 'N/A'}, Monthly: ${monthlyUserPos >= 0 ? monthlyUserPos + 1 : 'N/A'}`);
+
+      if (dailyUserPos >= 0) {
+        const userData = dailyAll[dailyUserPos];
+        console.log(`[LEADERBOARD] User ${user.username} daily data:`, {
+          totalDuration: userData.totalDuration,
+          hours: (userData.totalDuration / 3600).toFixed(2),
+          sessionCount: userData.sessionCount
+        });
+      }
 
       // Helper to format top 3 + user position
       const formatLeaderboard = (allUsers: Array<{ userId: string; username: string; totalDuration: number }>, emoji: string, label: string) => {
@@ -1677,7 +1723,9 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         )
         .setFooter({ text: 'Use /d, /w, or /m to see full daily, weekly, or monthly leaderboard' });
 
+      console.log(`[LEADERBOARD] Sending response to user ${user.username}`);
       await interaction.editReply({ embeds: [embed] });
+      console.log(`[LEADERBOARD] Command completed successfully`);
       return;
     }
 

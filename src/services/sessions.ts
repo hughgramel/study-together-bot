@@ -126,11 +126,21 @@ export class SessionService {
       createdAt: Timestamp.now(),
     };
 
+    // Log session creation for debugging
+    console.log(`[SESSION CREATE] User: ${session.username} (${session.userId})`);
+    console.log(`[SESSION CREATE] Duration: ${session.duration}s (${(session.duration / 3600).toFixed(2)}h)`);
+    console.log(`[SESSION CREATE] Activity: ${session.activity}`);
+    console.log(`[SESSION CREATE] Start: ${session.startTime.toDate().toISOString()}`);
+    console.log(`[SESSION CREATE] End: ${session.endTime.toDate().toISOString()}`);
+    console.log(`[SESSION CREATE] Title: ${session.title}`);
+
     const docRef = await this.db
       .collection('discord-data')
       .doc('sessions')
       .collection('completed')
       .add(completedSession);
+
+    console.log(`[SESSION CREATE] Created session ${docRef.id}`);
 
     return docRef.id;
   }
@@ -165,6 +175,8 @@ export class SessionService {
     since: Timestamp,
     limit: number = 10
   ): Promise<Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>> {
+    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}`);
+
     // Get all sessions since the timeframe
     const snapshot = await this.db
       .collection('discord-data')
@@ -173,12 +185,30 @@ export class SessionService {
       .where('createdAt', '>=', since)
       .get();
 
+    console.log(`[GET TOP USERS] Found ${snapshot.size} total sessions`);
+
     if (snapshot.empty) {
+      console.log(`[GET TOP USERS] No sessions found`);
       return [];
     }
 
+    // Log all sessions for debugging
+    const allSessions = snapshot.docs.map(doc => {
+      const session = doc.data() as CompletedSession;
+      return {
+        id: doc.id,
+        userId: session.userId,
+        username: session.username,
+        duration: session.duration,
+        hours: (session.duration / 3600).toFixed(2),
+        createdAt: session.createdAt.toDate().toISOString(),
+        activity: session.activity,
+      };
+    });
+    console.log(`[GET TOP USERS] All sessions:`, allSessions);
+
     // Aggregate sessions by user
-    const userMap = new Map<string, { username: string; totalDuration: number; sessionCount: number }>();
+    const userMap = new Map<string, { username: string; totalDuration: number; sessionCount: number; sessionIds: string[] }>();
 
     snapshot.docs.forEach((doc) => {
       const session = doc.data() as CompletedSession;
@@ -187,14 +217,28 @@ export class SessionService {
       if (existing) {
         existing.totalDuration += session.duration;
         existing.sessionCount += 1;
+        existing.sessionIds.push(doc.id);
+        console.log(`[GET TOP USERS] Aggregating for ${session.username}: adding ${session.duration}s, total now ${existing.totalDuration}s`);
       } else {
         userMap.set(session.userId, {
           username: session.username,
           totalDuration: session.duration,
           sessionCount: 1,
+          sessionIds: [doc.id],
         });
+        console.log(`[GET TOP USERS] First session for ${session.username}: ${session.duration}s`);
       }
     });
+
+    // Log aggregated data
+    console.log(`[GET TOP USERS] Aggregated by user:`, Array.from(userMap.entries()).map(([userId, data]) => ({
+      userId,
+      username: data.username,
+      totalDuration: data.totalDuration,
+      hours: (data.totalDuration / 3600).toFixed(2),
+      sessionCount: data.sessionCount,
+      sessionIds: data.sessionIds,
+    })));
 
     // Convert to array and sort by total duration
     const users = Array.from(userMap.entries())
@@ -207,6 +251,7 @@ export class SessionService {
       .sort((a, b) => b.totalDuration - a.totalDuration)
       .slice(0, limit);
 
+    console.log(`[GET TOP USERS] Returning top ${users.length} users`);
     return users;
   }
 }
