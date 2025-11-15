@@ -1135,12 +1135,7 @@ client.on('interactionCreate', async (interaction) => {
 
 **Status:** ${pauseStatus}
 **Activity:** ${session.activity}
-**Elapsed Time:** ${elapsedStr}
-
-**Available Actions:**
-${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a break'}
-• /end - Complete and share
-• /cancel - Discard session`,
+**Elapsed Time:** ${elapsedStr}`,
       });
       return;
     }
