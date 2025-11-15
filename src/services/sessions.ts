@@ -44,6 +44,24 @@ export class SessionService {
   }
 
   /**
+   * Gets all active sessions for a specific server
+   */
+  async getActiveSessionsByServer(serverId: string): Promise<ActiveSession[]> {
+    const snapshot = await this.db
+      .collection('discord-data')
+      .doc('activeSessions')
+      .collection('sessions')
+      .where('serverId', '==', serverId)
+      .get();
+
+    if (snapshot.empty) {
+      return [];
+    }
+
+    return snapshot.docs.map((doc) => doc.data() as ActiveSession);
+  }
+
+  /**
    * Creates a new active session for a user
    */
   async createActiveSession(

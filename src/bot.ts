@@ -151,7 +151,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('live')
-    .setDescription('See who is currently studying'),
+    .setDescription('See who is currently studying in this server'),
 
   new SlashCommandBuilder()
     .setName('setup-feed')
@@ -180,6 +180,10 @@ const commands = [
   new SlashCommandBuilder()
     .setName('manual')
     .setDescription('Log a manual session with custom duration'),
+
+  new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('View all available commands and how to use them'),
 ].map((command) => command.toJSON());
 
 // Register commands
@@ -237,6 +241,87 @@ function getStartOfDayPacific(): Date {
   const midnightPacific = new Date(`${pacificDateStr}T00:00:00${offset}`);
 
   return midnightPacific;
+}
+
+// Helper function to get start of week (Sunday) in Pacific Time
+function getStartOfWeekPacific(): Date {
+  const now = new Date();
+
+  // Convert current time to Pacific Time
+  const pacificTimeStr = now.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  // Parse the Pacific time string
+  const [datePart] = pacificTimeStr.split(', ');
+  const [month, day, year] = datePart.split('/');
+
+  // Create a date object for today in Pacific Time
+  const pacificDate = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+
+  // Get day of week (0 = Sunday, 6 = Saturday)
+  const pacificDayOfWeek = new Date(pacificTimeStr).getDay();
+
+  // Calculate days to subtract to get to Sunday
+  const daysToSubtract = pacificDayOfWeek;
+
+  // Subtract days to get to Sunday
+  pacificDate.setDate(pacificDate.getDate() - daysToSubtract);
+
+  // Determine if we're in PST or PDT
+  const jan = new Date(now.getFullYear(), 0, 1);
+  const jul = new Date(now.getFullYear(), 6, 1);
+  const stdTimezoneOffset = Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+  const isDST = now.getTimezoneOffset() < stdTimezoneOffset;
+
+  // Create midnight Pacific Time for that Sunday
+  const offset = isDST ? '-07:00' : '-08:00';
+  const sundayMidnight = new Date(`${pacificDate.toISOString().split('T')[0]}T00:00:00${offset}`);
+
+  return sundayMidnight;
+}
+
+// Helper function to get start of month in Pacific Time
+function getStartOfMonthPacific(): Date {
+  const now = new Date();
+
+  // Convert current time to Pacific Time
+  const pacificTimeStr = now.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  // Parse the Pacific time string
+  const [datePart] = pacificTimeStr.split(', ');
+  const [month, day, year] = datePart.split('/');
+
+  // Create date string for 1st of the month
+  const firstOfMonth = `${year}-${month.padStart(2, '0')}-01`;
+
+  // Determine if we're in PST or PDT
+  const jan = new Date(now.getFullYear(), 0, 1);
+  const jul = new Date(now.getFullYear(), 6, 1);
+  const stdTimezoneOffset = Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+  const isDST = now.getTimezoneOffset() < stdTimezoneOffset;
+
+  // Create midnight Pacific Time for the 1st of the month
+  const offset = isDST ? '-07:00' : '-08:00';
+  const monthStart = new Date(`${firstOfMonth}T00:00:00${offset}`);
+
+  return monthStart;
 }
 
 // Helper function to format timestamp for display
@@ -638,6 +723,9 @@ function scheduleAutoPost(userId: string, guildId: string) {
 
       const endTime = Timestamp.now();
 
+      // DELETE ACTIVE SESSION FIRST to prevent race condition/duplicate posts
+      await sessionService.deleteActiveSession(session.userId);
+
       // Create completed session
       await sessionService.createCompletedSession({
         userId: session.userId,
@@ -653,9 +741,6 @@ function scheduleAutoPost(userId: string, guildId: string) {
 
       // Update stats
       await statsService.updateUserStats(session.userId, session.username, duration);
-
-      // Delete active session
-      await sessionService.deleteActiveSession(session.userId);
 
       // Fetch user for avatar
       const user = await client.users.fetch(userId);
@@ -921,6 +1006,66 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
+    // /help command
+    if (commandName === 'help') {
+      const embed = new EmbedBuilder()
+        .setColor(0x0080FF)
+        .setTitle('📚 Study Together Bot - Commands')
+        .setDescription('Track your productivity and compete with friends!')
+        .addFields(
+          {
+            name: '🎯 Session Management',
+            value:
+              '`/start {activity}` - Start a new session\n' +
+              '`/time` - Check your current session status\n' +
+              '`/pause` - Pause your active session\n' +
+              '`/resume` - Resume your paused session\n' +
+              '`/end` - Complete and share your session\n' +
+              '`/cancel` - Cancel session without saving\n' +
+              '`/manual` - Log a past session manually',
+            inline: false
+          },
+          {
+            name: '📊 Statistics & Leaderboards',
+            value:
+              '`/mystats` - View your personal statistics\n' +
+              '`/leaderboard` - Quick overview (top 3 + your rank)\n' +
+              '`/d` - Daily leaderboard (top 10)\n' +
+              '`/w` - Weekly leaderboard (top 10)\n' +
+              '`/m` - Monthly leaderboard (top 10)',
+            inline: false
+          },
+          {
+            name: '👥 Social',
+            value:
+              '`/live` - See who\'s currently studying',
+            inline: false
+          },
+          {
+            name: '⚙️ Server Setup (Admin Only)',
+            value:
+              '`/setup-feed {channel}` - Set feed channel for session posts\n' +
+              '`/setup-focus-room {voice-channel}` - Enable auto-tracking in voice channel',
+            inline: false
+          },
+          {
+            name: '💡 Tips',
+            value:
+              '• Voice channel sessions auto-track when you join a focus room\n' +
+              '• Build streaks by completing sessions daily\n' +
+              '• Share your accomplishments in the feed to inspire others!',
+            inline: false
+          }
+        )
+        .setFooter({ text: 'Start your journey with /start {activity}' });
+
+      await interaction.reply({
+        embeds: [embed],
+        ephemeral: true,
+      });
+      return;
+    }
+
     // /start command
     if (commandName === 'start') {
       const activity = interaction.options.getString('activity', true);
@@ -1107,6 +1252,15 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
     // /end command
     if (commandName === 'end') {
+      // Check if command is used in a server (not DMs)
+      if (!guildId) {
+        await interaction.reply({
+          content: '❌ Please use `/end` in your server to post your session to the feed!',
+          ephemeral: true,
+        });
+        return;
+      }
+
       const session = await sessionService.getActiveSession(user.id);
 
       if (!session) {
@@ -1185,18 +1339,16 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
         Timestamp.fromDate(today)
       );
 
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekStart = getStartOfWeekPacific();
       const weeklySessions = await sessionService.getCompletedSessions(
         user.id,
-        Timestamp.fromDate(weekAgo)
+        Timestamp.fromDate(weekStart)
       );
 
-      const monthAgo = new Date(now);
-      monthAgo.setDate(monthAgo.getDate() - 30);
+      const monthStart = getStartOfMonthPacific();
       const monthlySessions = await sessionService.getCompletedSessions(
         user.id,
-        Timestamp.fromDate(monthAgo)
+        Timestamp.fromDate(monthStart)
       );
 
       const allSessions = await sessionService.getCompletedSessions(user.id);
@@ -1210,8 +1362,8 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       // Get user rankings for each timeframe
       const [dailyUsers, weeklyUsers, monthlyUsers] = await Promise.all([
         sessionService.getTopUsers(Timestamp.fromDate(today), 100),
-        sessionService.getTopUsers(Timestamp.fromDate(weekAgo), 100),
-        sessionService.getTopUsers(Timestamp.fromDate(monthAgo), 100),
+        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 100),
+        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 100),
       ]);
 
       const dailyRank = dailyUsers.findIndex(u => u.userId === user.id);
@@ -1224,11 +1376,13 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       const monthlyRankText = monthlyRank >= 0 ? `#${monthlyRank + 1}` : '#-';
       const allTimeRankText = allTimeRanking ? `#${allTimeRanking.rank}` : '#-';
 
-      // Calculate average per day for current month
+      // Calculate average per day for current month (using Pacific Time)
+      const pacificNow = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
+      const pacificDate = new Date(pacificNow);
       const monthName = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'][now.getMonth()];
-      const currentDay = now.getDate();
-      const avgPerDay = currentDay > 0 ? (monthlyHours / Math.min(currentDay, 30)) : 0;
+        'July', 'August', 'September', 'October', 'November', 'December'][pacificDate.getMonth()];
+      const currentDay = pacificDate.getDate();
+      const avgPerDay = currentDay > 0 ? (monthlyHours / currentDay) : 0;
 
       // Format hours with 1 decimal place
       const formatHours = (hours: number) => hours.toFixed(1) + 'h';
@@ -1273,15 +1427,15 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       return;
     }
 
-    // /live command - Show who's currently studying
+    // /live command - Show who's currently studying in this server
     if (commandName === 'live') {
-      const activeSessions = await sessionService.getAllActiveSessions();
+      await interaction.deferReply({ ephemeral: false });
+      const activeSessions = await sessionService.getActiveSessionsByServer(guildId!);
       const totalLive = activeSessions.length;
 
       if (totalLive === 0) {
-        await interaction.reply({
+        await interaction.editReply({
           content: '👻 Nobody is studying right now. Be the first! Use /start to begin.',
-          ephemeral: false,
         });
         return;
       }
@@ -1289,41 +1443,38 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
       // Sort by start time (earliest first)
       activeSessions.sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
 
-      // Limit to 10 users max
+      // Limit to 10 users max to avoid spam
       const displaySessions = activeSessions.slice(0, 10);
 
-      // Fetch user data to get avatars
-      const sessionLines = await Promise.all(
-        displaySessions.map(async (session) => {
-          const elapsed = calculateDuration(
-            session.startTime,
-            session.pausedDuration,
-            session.isPaused ? session.pausedAt : undefined
-          );
-          const elapsedStr = formatDuration(elapsed);
+      // Build description with list of active users
+      let description = '';
 
-          // Try to fetch user avatar
-          try {
-            const discordUser = await client.users.fetch(session.userId);
-            const avatarUrl = discordUser.displayAvatarURL({ size: 32, extension: 'png' });
-            // Using markdown format with avatar emoji or just clean text
-            return `**${session.username}** - *${session.activity}* for ${elapsedStr}`;
-          } catch (error) {
-            // Fallback if user fetch fails
-            return `**${session.username}** - *${session.activity}* for ${elapsedStr}`;
-          }
-        })
-      );
+      for (const session of displaySessions) {
+        const elapsed = calculateDuration(
+          session.startTime,
+          session.pausedDuration,
+          session.isPaused ? session.pausedAt : undefined
+        );
+        const elapsedStr = formatDuration(elapsed);
+        const statusEmoji = session.isPaused ? '⏸️' : '🟢';
 
+        // Format: 🟢 **username** working on **activity** for 1h 23m
+        description += `${statusEmoji} **${session.username}** working on **${session.activity}** for ${elapsedStr}\n`;
+      }
+
+      // Create single embed with list
       const embed = new EmbedBuilder()
         .setColor(0x00FF00) // Green for live
-        .setTitle(`🟢 Live Now (${totalLive})`)
-        .setDescription(sessionLines.join('\n'))
-        .setFooter({ text: 'Start your own session with /start' });
+        .setTitle(`🟢 ${totalLive} ${totalLive === 1 ? 'person is' : 'people are'} studying right now`)
+        .setDescription(description.trim())
+        .setTimestamp();
 
-      await interaction.reply({
+      if (totalLive > 10) {
+        embed.setFooter({ text: 'Showing first 10 users' });
+      }
+
+      await interaction.editReply({
         embeds: [embed],
-        ephemeral: false,
       });
       return;
     }
@@ -1382,10 +1533,9 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
     if (commandName === 'w') {
       await interaction.deferReply({ ephemeral: false });
 
-      // Get 7 days ago
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const weeklyUsers = await sessionService.getTopUsers(Timestamp.fromDate(weekAgo), 20);
+      // Get start of current week (Sunday at midnight PT)
+      const weekStart = getStartOfWeekPacific();
+      const weeklyUsers = await sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20);
 
       if (weeklyUsers.length === 0) {
         await interaction.editReply({
@@ -1433,10 +1583,9 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
     if (commandName === 'm') {
       await interaction.deferReply({ ephemeral: false });
 
-      // Get 30 days ago
-      const monthAgo = new Date();
-      monthAgo.setDate(monthAgo.getDate() - 30);
-      const monthlyUsers = await sessionService.getTopUsers(Timestamp.fromDate(monthAgo), 20);
+      // Get start of current month (1st at midnight PT)
+      const monthStart = getStartOfMonthPacific();
+      const monthlyUsers = await sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20);
 
       if (monthlyUsers.length === 0) {
         await interaction.editReply({
@@ -1486,15 +1635,13 @@ ${session.isPaused ? '• /resume - Continue session' : '• /pause - Take a bre
 
       // Get data for all timeframes
       const today = getStartOfDayPacific();
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const monthAgo = new Date();
-      monthAgo.setDate(monthAgo.getDate() - 30);
+      const weekStart = getStartOfWeekPacific();
+      const monthStart = getStartOfMonthPacific();
 
       const [dailyAll, weeklyAll, monthlyAll] = await Promise.all([
         sessionService.getTopUsers(Timestamp.fromDate(today), 20),
-        sessionService.getTopUsers(Timestamp.fromDate(weekAgo), 20),
-        sessionService.getTopUsers(Timestamp.fromDate(monthAgo), 20),
+        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20),
+        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20),
       ]);
 
       // Helper to format top 3 + user position
@@ -1855,7 +2002,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 // Bot ready event
-client.once('ready', () => {
+client.once('clientReady', () => {
   console.log(`✅ Bot is online as ${client.user?.tag}`);
 });
 
