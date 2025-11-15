@@ -148,6 +148,16 @@ Potential features to consider:
 - Deprecation warning for `ready` event (use `clientReady` in Discord.js v15)
 - Leaderboards currently use fake data for testing (lines 675-810)
 
+## Deployment Rules
+
+**CRITICAL: DO NOT PUSH TO PRODUCTION UNLESS USER EXPLICITLY SAYS TO DO SO**
+
+- Always wait for explicit user confirmation before running `git push`
+- Build and commit locally, but DO NOT push without permission
+- If user says "commit and push" or "push this", then you may push
+- If user just says "make this change", build and commit but DO NOT push
+- When in doubt, ask before pushing
+
 ## Deployment Checklist
 
 Before pushing to production:
@@ -157,6 +167,7 @@ Before pushing to production:
 4. Confirm Firebase security rules are configured
 5. Check Railway build logs for errors
 6. Test bot in production Discord server
+7. **Get explicit user confirmation before pushing**
 
 ## Support & Maintenance
 
