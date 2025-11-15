@@ -14,6 +14,8 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuInteraction,
 } from 'discord.js';
 import * as admin from 'firebase-admin';
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
@@ -135,19 +137,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('leaderboard')
-    .setDescription('View your position across different timeframes'),
-
-  new SlashCommandBuilder()
-    .setName('d')
-    .setDescription('View daily leaderboard (top 10)'),
-
-  new SlashCommandBuilder()
-    .setName('w')
-    .setDescription('View weekly leaderboard (top 10)'),
-
-  new SlashCommandBuilder()
-    .setName('m')
-    .setDescription('View monthly leaderboard (top 10)'),
+    .setDescription('View server leaderboards with timeframe selector'),
 
   new SlashCommandBuilder()
     .setName('live')
@@ -991,6 +981,160 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
+  // Handle select menu interactions
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === 'leaderboard_timeframe') {
+      const selectedValue = interaction.values[0];
+      const user = interaction.user;
+      const guildId = interaction.guildId;
+
+      // Defer the update to prevent timeout
+      await interaction.deferUpdate();
+
+      // Get data for all timeframes
+      const today = getStartOfDayPacific();
+      const weekStart = getStartOfWeekPacific();
+      const monthStart = getStartOfMonthPacific();
+
+      const [dailyAll, weeklyAll, monthlyAll] = await Promise.all([
+        sessionService.getTopUsers(Timestamp.fromDate(today), 20, guildId!),
+        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20, guildId!),
+        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20, guildId!),
+      ]);
+
+      let embed: EmbedBuilder;
+
+      if (selectedValue === 'overview') {
+        // Overview: Top 3 from each timeframe + user position
+        const formatLeaderboard = (allUsers: Array<{ userId: string; username: string; totalDuration: number }>, emoji: string, label: string) => {
+          if (allUsers.length === 0) return `${emoji} **${label}**\nNo data yet`;
+
+          const lines: string[] = [];
+          const userPosition = allUsers.findIndex(u => u.userId === user.id);
+
+          // Add top 3
+          for (let i = 0; i < Math.min(3, allUsers.length); i++) {
+            const u = allUsers[i];
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+            lines.push(`${medal} **${u.username}** - ${(u.totalDuration / 3600).toFixed(1)}h`);
+          }
+
+          // Add current user if not in top 3
+          if (userPosition > 2) {
+            const current = allUsers[userPosition];
+            lines.push(`**${userPosition + 1}. ${current.username} - ${(current.totalDuration / 3600).toFixed(1)}h**`);
+          }
+
+          return `${emoji} **${label}**\n${lines.join('\n')}`;
+        };
+
+        embed = new EmbedBuilder()
+          .setColor(0xFFD700)
+          .setTitle('🏆 Your Leaderboard Position')
+          .addFields(
+            { name: '\u200B', value: formatLeaderboard(dailyAll, '📅', 'Daily'), inline: false },
+            { name: '\u200B', value: formatLeaderboard(weeklyAll, '📊', 'Weekly'), inline: false },
+            { name: '\u200B', value: formatLeaderboard(monthlyAll, '🌟', 'Monthly'), inline: false }
+          )
+          .setFooter({ text: 'Use the dropdown below to view full leaderboards' });
+      } else {
+        // Full leaderboard for specific timeframe
+        let users: Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>;
+        let title: string;
+        let emoji: string;
+
+        if (selectedValue === 'daily') {
+          users = dailyAll;
+          title = '📅 Daily Leaderboard';
+          emoji = '📅';
+        } else if (selectedValue === 'weekly') {
+          users = weeklyAll;
+          title = '📊 Weekly Leaderboard';
+          emoji = '📊';
+        } else {
+          users = monthlyAll;
+          title = '🌟 Monthly Leaderboard';
+          emoji = '🌟';
+        }
+
+        if (users.length === 0) {
+          embed = new EmbedBuilder()
+            .setColor(0xFFD700)
+            .setTitle(title)
+            .setDescription('No sessions completed in this timeframe yet! Be the first! 🚀')
+            .setFooter({ text: 'Use the dropdown below to view other timeframes' });
+        } else {
+          const top10 = users.slice(0, 10);
+          const ranks: string[] = [];
+          const names: string[] = [];
+          const hours: string[] = [];
+
+          top10.forEach((u, index) => {
+            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+            ranks.push(medal);
+            names.push(`**${u.username}**`);
+            hours.push(`${(u.totalDuration / 3600).toFixed(1)}h`);
+          });
+
+          // Add current user if not in top 10
+          const userPosition = users.findIndex(u => u.userId === user.id);
+          if (userPosition >= 10) {
+            const currentUser = users[userPosition];
+            ranks.push(`**#${userPosition + 1}**`);
+            names.push(`**${currentUser.username}**`);
+            hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
+          }
+
+          embed = new EmbedBuilder()
+            .setColor(0xFFD700)
+            .setTitle(title)
+            .addFields(
+              { name: 'Rank', value: ranks.join('\n'), inline: true },
+              { name: 'Name', value: names.join('\n'), inline: true },
+              { name: 'Hours', value: hours.join('\n'), inline: true }
+            )
+            .setFooter({ text: 'Keep grinding to make it to the top! 💪' });
+        }
+      }
+
+      // Keep the same select menu
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('leaderboard_timeframe')
+        .setPlaceholder('Select a timeframe to view')
+        .addOptions([
+          {
+            label: 'Overview',
+            description: 'Top 3 from each timeframe + your position',
+            value: 'overview',
+            emoji: '🏆',
+          },
+          {
+            label: 'Daily Leaderboard',
+            description: 'Full top 10 daily rankings',
+            value: 'daily',
+            emoji: '📅',
+          },
+          {
+            label: 'Weekly Leaderboard',
+            description: 'Full top 10 weekly rankings',
+            value: 'weekly',
+            emoji: '📊',
+          },
+          {
+            label: 'Monthly Leaderboard',
+            description: 'Full top 10 monthly rankings',
+            value: 'monthly',
+            emoji: '🌟',
+          },
+        ]);
+
+      const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+
+      await interaction.editReply({ embeds: [embed], components: [row] });
+      return;
+    }
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName, user, guildId } = interaction;
@@ -1028,10 +1172,7 @@ client.on('interactionCreate', async (interaction) => {
             name: '📊 Statistics & Leaderboards',
             value:
               '`/stats` - View your personal statistics\n' +
-              '`/leaderboard` - Quick overview (top 3 + your rank)\n' +
-              '`/d` - Daily leaderboard (top 10)\n' +
-              '`/w` - Weekly leaderboard (top 10)\n' +
-              '`/m` - Monthly leaderboard (top 10)',
+              '`/leaderboard` - Interactive leaderboard with daily/weekly/monthly views',
             inline: false
           },
           {
@@ -1456,157 +1597,7 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // /d command - Daily leaderboard with columns
-    if (commandName === 'd') {
-      await interaction.deferReply({ ephemeral: false });
-
-      // Get today's start time (midnight Pacific Time)
-      const today = getStartOfDayPacific();
-      const dailyUsers = await sessionService.getTopUsers(Timestamp.fromDate(today), 20, guildId!);
-
-      if (dailyUsers.length === 0) {
-        await interaction.editReply({
-          content: 'No sessions completed today yet! Be the first! 🚀',
-        });
-        return;
-      }
-
-      const dailyTop = dailyUsers.slice(0, 10);
-      const ranks: string[] = [];
-      const names: string[] = [];
-      const hours: string[] = [];
-
-      dailyTop.forEach((u, index) => {
-        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-        ranks.push(medal);
-        names.push(`**${u.username}**`);
-        hours.push(`${(u.totalDuration / 3600).toFixed(1)}h`);
-      });
-
-      // Add current user if not in top 10
-      const userPosition = dailyUsers.findIndex(u => u.userId === user.id);
-      if (userPosition >= 10) {
-        const currentUser = dailyUsers[userPosition];
-        ranks.push(`**#${userPosition + 1}**`);
-        names.push(`**${currentUser.username}**`);
-        hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor(0xFFD700)
-        .setTitle('🏆 Daily Leaderboard')
-        .addFields(
-          { name: 'Rank', value: ranks.join('\n'), inline: true },
-          { name: 'Name', value: names.join('\n'), inline: true },
-          { name: 'Hours', value: hours.join('\n'), inline: true }
-        )
-        .setFooter({ text: 'Keep grinding to make it to the top! 💪' });
-
-      await interaction.editReply({ embeds: [embed] });
-      return;
-    }
-
-    // /w command - Weekly leaderboard with columns
-    if (commandName === 'w') {
-      await interaction.deferReply({ ephemeral: false });
-
-      // Get start of current week (Sunday at midnight PT)
-      const weekStart = getStartOfWeekPacific();
-      const weeklyUsers = await sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20, guildId!);
-
-      if (weeklyUsers.length === 0) {
-        await interaction.editReply({
-          content: 'No sessions completed this week yet! Be the first! 🚀',
-        });
-        return;
-      }
-
-      const weeklyTop = weeklyUsers.slice(0, 10);
-      const ranks: string[] = [];
-      const names: string[] = [];
-      const hours: string[] = [];
-
-      weeklyTop.forEach((u, index) => {
-        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-        ranks.push(medal);
-        names.push(`**${u.username}**`);
-        hours.push(`${(u.totalDuration / 3600).toFixed(1)}h`);
-      });
-
-      // Add current user if not in top 10
-      const userPosition = weeklyUsers.findIndex(u => u.userId === user.id);
-      if (userPosition >= 10) {
-        const currentUser = weeklyUsers[userPosition];
-        ranks.push(`**#${userPosition + 1}**`);
-        names.push(`**${currentUser.username}**`);
-        hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor(0xFFD700)
-        .setTitle('🏆 Weekly Leaderboard')
-        .addFields(
-          { name: 'Rank', value: ranks.join('\n'), inline: true },
-          { name: 'Name', value: names.join('\n'), inline: true },
-          { name: 'Hours', value: hours.join('\n'), inline: true }
-        )
-        .setFooter({ text: 'Keep grinding to make it to the top! 💪' });
-
-      await interaction.editReply({ embeds: [embed] });
-      return;
-    }
-
-    // /m command - Monthly leaderboard with columns
-    if (commandName === 'm') {
-      await interaction.deferReply({ ephemeral: false });
-
-      // Get start of current month (1st at midnight PT)
-      const monthStart = getStartOfMonthPacific();
-      const monthlyUsers = await sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20, guildId!);
-
-      if (monthlyUsers.length === 0) {
-        await interaction.editReply({
-          content: 'No sessions completed this month yet! Be the first! 🚀',
-        });
-        return;
-      }
-
-      const monthlyTop = monthlyUsers.slice(0, 10);
-      const ranks: string[] = [];
-      const names: string[] = [];
-      const hours: string[] = [];
-
-      monthlyTop.forEach((u, index) => {
-        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-        ranks.push(medal);
-        names.push(`**${u.username}**`);
-        hours.push(`${(u.totalDuration / 3600).toFixed(1)}h`);
-      });
-
-      // Add current user if not in top 10
-      const userPosition = monthlyUsers.findIndex(u => u.userId === user.id);
-      if (userPosition >= 10) {
-        const currentUser = monthlyUsers[userPosition];
-        ranks.push(`**#${userPosition + 1}**`);
-        names.push(`**${currentUser.username}**`);
-        hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor(0xFFD700)
-        .setTitle('🏆 Monthly Leaderboard')
-        .addFields(
-          { name: 'Rank', value: ranks.join('\n'), inline: true },
-          { name: 'Name', value: names.join('\n'), inline: true },
-          { name: 'Hours', value: hours.join('\n'), inline: true }
-        )
-        .setFooter({ text: 'Keep grinding to make it to the top! 💪' });
-
-      await interaction.editReply({ embeds: [embed] });
-      return;
-    }
-
-    // /leaderboard command - Show top 3 + user position
+    // /leaderboard command - Interactive leaderboard with timeframe selector
     if (commandName === 'leaderboard') {
       // Defer IMMEDIATELY before any logging to prevent timeout
       await interaction.deferReply({ ephemeral: false });
@@ -1699,10 +1690,43 @@ client.on('interactionCreate', async (interaction) => {
           { name: '\u200B', value: formatLeaderboard(weeklyAll, '📊', 'Weekly'), inline: false },
           { name: '\u200B', value: formatLeaderboard(monthlyAll, '🌟', 'Monthly'), inline: false }
         )
-        .setFooter({ text: 'Use /d, /w, or /m to see full daily, weekly, or monthly leaderboard' });
+        .setFooter({ text: 'Use the dropdown below to view full leaderboards' });
+
+      // Create select menu for switching views
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('leaderboard_timeframe')
+        .setPlaceholder('Select a timeframe to view')
+        .addOptions([
+          {
+            label: 'Overview',
+            description: 'Top 3 from each timeframe + your position',
+            value: 'overview',
+            emoji: '🏆',
+          },
+          {
+            label: 'Daily Leaderboard',
+            description: 'Full top 10 daily rankings',
+            value: 'daily',
+            emoji: '📅',
+          },
+          {
+            label: 'Weekly Leaderboard',
+            description: 'Full top 10 weekly rankings',
+            value: 'weekly',
+            emoji: '📊',
+          },
+          {
+            label: 'Monthly Leaderboard',
+            description: 'Full top 10 monthly rankings',
+            value: 'monthly',
+            emoji: '🌟',
+          },
+        ]);
+
+      const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 
       console.log(`[LEADERBOARD] Sending response to user ${user.username}`);
-      await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed], components: [row] });
       console.log(`[LEADERBOARD] Command completed successfully`);
       return;
     }
