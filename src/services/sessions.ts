@@ -170,48 +170,30 @@ export class SessionService {
   /**
    * Gets top users by total duration within a timeframe
    * Returns array of { userId, username, totalDuration, sessionCount }
-   *
-   * If serverId is provided, only includes users who have at least one session
-   * in that server, but counts ALL their sessions across all servers.
    */
   async getTopUsers(
     since: Timestamp,
-    limit: number = 10,
-    serverId?: string
+    limit: number = 10
   ): Promise<Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>> {
-    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}, serverId: ${serverId || 'all'}`);
+    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}`);
 
     // Get all sessions since the timeframe
-    const allSessionsSnapshot = await this.db
+    const snapshot = await this.db
       .collection('discord-data')
       .doc('sessions')
       .collection('completed')
       .where('createdAt', '>=', since)
       .get();
 
-    console.log(`[GET TOP USERS] Found ${allSessionsSnapshot.size} total sessions across all servers`);
+    console.log(`[GET TOP USERS] Found ${snapshot.size} total sessions`);
 
-    if (allSessionsSnapshot.empty) {
+    if (snapshot.empty) {
       console.log(`[GET TOP USERS] No sessions found`);
       return [];
     }
 
-    // If serverId is provided, find users who have sessions in that server
-    let eligibleUserIds: Set<string> | null = null;
-
-    if (serverId) {
-      eligibleUserIds = new Set<string>();
-      allSessionsSnapshot.docs.forEach(doc => {
-        const session = doc.data() as CompletedSession;
-        if (session.serverId === serverId) {
-          eligibleUserIds!.add(session.userId);
-        }
-      });
-      console.log(`[GET TOP USERS] Found ${eligibleUserIds.size} users with sessions in server ${serverId}`);
-    }
-
     // Log all sessions for debugging
-    const allSessions = allSessionsSnapshot.docs.map(doc => {
+    const allSessions = snapshot.docs.map(doc => {
       const session = doc.data() as CompletedSession;
       return {
         id: doc.id,
@@ -221,22 +203,15 @@ export class SessionService {
         hours: (session.duration / 3600).toFixed(2),
         createdAt: session.createdAt.toDate().toISOString(),
         activity: session.activity,
-        serverId: session.serverId,
       };
     });
     console.log(`[GET TOP USERS] All sessions:`, allSessions);
 
-    // Aggregate sessions by user (including ALL their sessions across servers)
+    // Aggregate sessions by user
     const userMap = new Map<string, { username: string; totalDuration: number; sessionCount: number; sessionIds: string[] }>();
 
-    allSessionsSnapshot.docs.forEach((doc) => {
+    snapshot.docs.forEach((doc) => {
       const session = doc.data() as CompletedSession;
-
-      // Skip users not in the eligible set (if serverId filter is active)
-      if (eligibleUserIds && !eligibleUserIds.has(session.userId)) {
-        return;
-      }
-
       const existing = userMap.get(session.userId);
 
       if (existing) {

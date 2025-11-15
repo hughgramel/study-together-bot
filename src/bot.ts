@@ -1353,11 +1353,11 @@ client.on('interactionCreate', async (interaction) => {
       const monthlyHours = monthlySessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
       const allTimeHours = allSessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
 
-      // Get user rankings for each timeframe (server-specific)
+      // Get user rankings for each timeframe
       const [dailyUsers, weeklyUsers, monthlyUsers] = await Promise.all([
-        sessionService.getTopUsers(Timestamp.fromDate(today), 100, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 100, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 100, guildId!),
+        sessionService.getTopUsers(Timestamp.fromDate(today), 100),
+        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 100),
+        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 100),
       ]);
 
       const dailyRank = dailyUsers.findIndex(u => u.userId === user.id);
@@ -1479,7 +1479,7 @@ client.on('interactionCreate', async (interaction) => {
 
       // Get today's start time (midnight Pacific Time)
       const today = getStartOfDayPacific();
-      const dailyUsers = await sessionService.getTopUsers(Timestamp.fromDate(today), 20, guildId!);
+      const dailyUsers = await sessionService.getTopUsers(Timestamp.fromDate(today), 20);
 
       if (dailyUsers.length === 0) {
         await interaction.editReply({
@@ -1529,7 +1529,7 @@ client.on('interactionCreate', async (interaction) => {
 
       // Get start of current week (Sunday at midnight PT)
       const weekStart = getStartOfWeekPacific();
-      const weeklyUsers = await sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20, guildId!);
+      const weeklyUsers = await sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20);
 
       if (weeklyUsers.length === 0) {
         await interaction.editReply({
@@ -1579,7 +1579,7 @@ client.on('interactionCreate', async (interaction) => {
 
       // Get start of current month (1st at midnight PT)
       const monthStart = getStartOfMonthPacific();
-      const monthlyUsers = await sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20, guildId!);
+      const monthlyUsers = await sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20);
 
       if (monthlyUsers.length === 0) {
         await interaction.editReply({
@@ -1636,9 +1636,9 @@ client.on('interactionCreate', async (interaction) => {
       console.log(`[LEADERBOARD] Timeframes - Today: ${today.toISOString()}, Week: ${weekStart.toISOString()}, Month: ${monthStart.toISOString()}`);
 
       const [dailyAll, weeklyAll, monthlyAll] = await Promise.all([
-        sessionService.getTopUsers(Timestamp.fromDate(today), 20, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20, guildId!),
+        sessionService.getTopUsers(Timestamp.fromDate(today), 20),
+        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20),
+        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20),
       ]);
 
       console.log(`[LEADERBOARD] Fetched users - Daily: ${dailyAll.length}, Weekly: ${weeklyAll.length}, Monthly: ${monthlyAll.length}`);
