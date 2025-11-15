@@ -210,13 +210,16 @@ export class SessionService {
 
       console.log(`[GET TOP USERS] Checking Discord membership for ${allUserIds.size} unique users in guild ${guild.id}`);
 
-      // Check each user's membership in the Discord server
+      // Fetch all guild members at once (much faster than individual fetches)
+      const guildMembers = await guild.members.fetch();
+      console.log(`[GET TOP USERS] Fetched ${guildMembers.size} total guild members`);
+
+      // Check each user's membership from the cached collection
       for (const userId of allUserIds) {
-        try {
-          await guild.members.fetch(userId);
+        if (guildMembers.has(userId)) {
           eligibleUserIds.add(userId);
           console.log(`[GET TOP USERS] ✅ User ${userId} IS a member of guild ${guild.id}`);
-        } catch (error) {
+        } else {
           console.log(`[GET TOP USERS] ❌ User ${userId} is NOT a member of guild ${guild.id}`);
         }
       }
