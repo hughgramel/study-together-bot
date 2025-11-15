@@ -118,7 +118,7 @@ const commands = [
     .setDescription('Cancel your active session without saving'),
 
   new SlashCommandBuilder()
-    .setName('mystats')
+    .setName('stats')
     .setDescription('View your productivity statistics')
     .addStringOption((option) =>
       option
@@ -1312,7 +1312,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     // /mystats command
-    if (commandName === 'mystats') {
+    if (commandName === 'stats') {
       const stats = await statsService.getUserStats(user.id);
 
       if (!stats) {
@@ -1353,24 +1353,6 @@ client.on('interactionCreate', async (interaction) => {
       const monthlyHours = monthlySessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
       const allTimeHours = allSessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
 
-      // Get user rankings for each timeframe (GLOBAL - across all servers)
-      // This serves as a teaser for the future app
-      const [dailyUsers, weeklyUsers, monthlyUsers] = await Promise.all([
-        sessionService.getTopUsers(Timestamp.fromDate(today), 100), // No serverId = global
-        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 100),
-        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 100),
-      ]);
-
-      const dailyRank = dailyUsers.findIndex(u => u.userId === user.id);
-      const weeklyRank = weeklyUsers.findIndex(u => u.userId === user.id);
-      const monthlyRank = monthlyUsers.findIndex(u => u.userId === user.id);
-      const allTimeRanking = await statsService.getUserRanking(user.id);
-
-      const dailyRankText = dailyRank >= 0 ? `#${dailyRank + 1}` : '#-';
-      const weeklyRankText = weeklyRank >= 0 ? `#${weeklyRank + 1}` : '#-';
-      const monthlyRankText = monthlyRank >= 0 ? `#${monthlyRank + 1}` : '#-';
-      const allTimeRankText = allTimeRanking ? `#${allTimeRanking.rank}` : '#-';
-
       // Calculate average per day for current month (using Pacific Time)
       const pacificNow = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
       const pacificDate = new Date(pacificNow);
@@ -1402,7 +1384,7 @@ client.on('interactionCreate', async (interaction) => {
         .addFields(
           { name: '📅 Timeframe', value: '**Daily**\n**Weekly**\n**Monthly**\n**All-time**', inline: true },
           { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
-          { name: '🏆 Place', value: `${dailyRankText}\n${weeklyRankText}\n${monthlyRankText}\n${allTimeRankText}`, inline: true },
+          { name: '\u200B', value: '\u200B', inline: true },
           { name: '📚 Total Sessions', value: `**${stats.totalSessions}**`, inline: true },
           { name: '📈 Hours/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
