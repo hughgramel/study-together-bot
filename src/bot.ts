@@ -779,6 +779,9 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.isModalSubmit()) {
     if (interaction.customId === 'manualSessionModal') {
       try {
+        // Defer reply immediately to prevent double-submission
+        await interaction.deferReply({ ephemeral: false });
+
         const user = interaction.user;
         const guildId = interaction.guildId;
 
@@ -794,25 +797,22 @@ client.on('interactionCreate', async (interaction) => {
         const minutes = parseInt(minutesStr, 10);
 
         if (isNaN(hours) || isNaN(minutes)) {
-          await interaction.reply({
+          await interaction.editReply({
             content: '❌ Invalid input. Hours and minutes must be numbers.',
-            ephemeral: true,
           });
           return;
         }
 
         if (hours < 0 || minutes < 0) {
-          await interaction.reply({
+          await interaction.editReply({
             content: '❌ Hours and minutes must be positive numbers.',
-            ephemeral: true,
           });
           return;
         }
 
         if (hours === 0 && minutes === 0) {
-          await interaction.reply({
+          await interaction.editReply({
             content: '❌ Duration must be greater than 0.',
-            ephemeral: true,
           });
           return;
         }
@@ -842,9 +842,8 @@ client.on('interactionCreate', async (interaction) => {
 
         const durationStr = formatDuration(duration);
 
-        await interaction.reply({
+        await interaction.editReply({
           content: `✅ Manual session logged! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
-          ephemeral: false,
         });
 
         // Get user's avatar URL
@@ -919,6 +918,9 @@ client.on('interactionCreate', async (interaction) => {
 
         const endTime = Timestamp.now();
 
+        // DELETE ACTIVE SESSION FIRST to prevent race condition/duplicate submissions
+        await sessionService.deleteActiveSession(user.id);
+
         // Create completed session
         await sessionService.createCompletedSession({
           userId: user.id,
@@ -934,9 +936,6 @@ client.on('interactionCreate', async (interaction) => {
 
         // Update stats
         await statsService.updateUserStats(user.id, user.username, duration);
-
-        // Delete active session
-        await sessionService.deleteActiveSession(user.id);
 
         const durationStr = formatDuration(duration);
 
