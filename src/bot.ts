@@ -218,10 +218,10 @@ function getStartOfDayPacific(): Date {
   const [datePart] = pacificTimeStr.split(', ');
   const [month, day, year] = datePart.split('/');
 
-  // Create a date string for midnight Pacific Time
-  // Use PST offset (-08:00) for winter, PDT (-07:00) for summer
-  // JavaScript will handle the conversion automatically
-  const pacificDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  // Create date string for midnight Pacific Time
+  const paddedMonth = String(parseInt(month)).padStart(2, '0');
+  const paddedDay = String(parseInt(day)).padStart(2, '0');
+  const pacificDateStr = `${year}-${paddedMonth}-${paddedDay}`;
 
   // Determine if we're in PST or PDT by checking if DST is active
   const jan = new Date(now.getFullYear(), 0, 1);
@@ -252,21 +252,24 @@ function getStartOfWeekPacific(): Date {
     hour12: false
   });
 
-  // Parse the Pacific time string
+  // Parse the Pacific time string (MM/DD/YYYY, HH:mm:ss)
   const [datePart] = pacificTimeStr.split(', ');
   const [month, day, year] = datePart.split('/');
 
-  // Create a date object for today in Pacific Time
-  const pacificDate = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+  // Create a proper Date object for today at midnight Pacific
+  const todayPacific = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 
   // Get day of week (0 = Sunday, 6 = Saturday)
-  const pacificDayOfWeek = new Date(pacificTimeStr).getDay();
+  const dayOfWeek = todayPacific.getDay();
 
-  // Calculate days to subtract to get to Sunday
-  const daysToSubtract = pacificDayOfWeek;
+  // Calculate the date of the most recent Sunday
+  const sundayDate = new Date(todayPacific);
+  sundayDate.setDate(todayPacific.getDate() - dayOfWeek);
 
-  // Subtract days to get to Sunday
-  pacificDate.setDate(pacificDate.getDate() - daysToSubtract);
+  // Get year, month, day for the Sunday
+  const sundayYear = sundayDate.getFullYear();
+  const sundayMonth = String(sundayDate.getMonth() + 1).padStart(2, '0');
+  const sundayDay = String(sundayDate.getDate()).padStart(2, '0');
 
   // Determine if we're in PST or PDT
   const jan = new Date(now.getFullYear(), 0, 1);
@@ -276,7 +279,7 @@ function getStartOfWeekPacific(): Date {
 
   // Create midnight Pacific Time for that Sunday
   const offset = isDST ? '-07:00' : '-08:00';
-  const sundayMidnight = new Date(`${pacificDate.toISOString().split('T')[0]}T00:00:00${offset}`);
+  const sundayMidnight = new Date(`${sundayYear}-${sundayMonth}-${sundayDay}T00:00:00${offset}`);
 
   return sundayMidnight;
 }
@@ -297,12 +300,13 @@ function getStartOfMonthPacific(): Date {
     hour12: false
   });
 
-  // Parse the Pacific time string
+  // Parse the Pacific time string (MM/DD/YYYY, HH:mm:ss)
   const [datePart] = pacificTimeStr.split(', ');
   const [month, day, year] = datePart.split('/');
 
   // Create date string for 1st of the month
-  const firstOfMonth = `${year}-${month.padStart(2, '0')}-01`;
+  const paddedMonth = String(parseInt(month)).padStart(2, '0');
+  const firstOfMonth = `${year}-${paddedMonth}-01`;
 
   // Determine if we're in PST or PDT
   const jan = new Date(now.getFullYear(), 0, 1);
@@ -1068,34 +1072,24 @@ client.on('interactionCreate', async (interaction) => {
             .setFooter({ text: 'Use the dropdown below to view other timeframes' });
         } else {
           const top10 = users.slice(0, 10);
-          const ranks: string[] = [];
-          const names: string[] = [];
-          const hours: string[] = [];
+          const lines: string[] = [];
 
           top10.forEach((u, index) => {
             const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-            ranks.push(medal);
-            names.push(`**${u.username}**`);
-            hours.push(`${(u.totalDuration / 3600).toFixed(1)}h`);
+            lines.push(`${medal} **${u.username}** - ${(u.totalDuration / 3600).toFixed(1)}h`);
           });
 
           // Add current user if not in top 10
           const userPosition = users.findIndex(u => u.userId === user.id);
           if (userPosition >= 10) {
             const currentUser = users[userPosition];
-            ranks.push(`**#${userPosition + 1}**`);
-            names.push(`**${currentUser.username}**`);
-            hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
+            lines.push(`\n**#${userPosition + 1}. ${currentUser.username} - ${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
           }
 
           embed = new EmbedBuilder()
             .setColor(0xFFD700)
             .setTitle(title)
-            .addFields(
-              { name: 'Rank', value: ranks.join('\n'), inline: true },
-              { name: 'Name', value: names.join('\n'), inline: true },
-              { name: 'Hours', value: hours.join('\n'), inline: true }
-            )
+            .setDescription(lines.join('\n'))
             .setFooter({ text: 'Keep grinding to make it to the top! 💪' });
         }
       }
@@ -1519,23 +1513,30 @@ client.on('interactionCreate', async (interaction) => {
       const currentStreakEmojis = getStreakEmojis(stats.currentStreak);
       const longestStreakEmojis = getStreakEmojis(stats.longestStreak);
 
-      // Create embed with separate fields for better formatting
+      // Create embed with mobile-friendly formatting
       const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+      // Build stats description
+      const statsDescription = [
+        '**📅 Time Tracking**',
+        `Daily: **${formatHours(dailyHours)}**`,
+        `Weekly: **${formatHours(weeklyHours)}**`,
+        `Monthly: **${formatHours(monthlyHours)}**`,
+        `All-time: **${formatHours(allTimeHours)}**`,
+        '',
+        '**📊 Overall Stats**',
+        `Total Sessions: **${stats.totalSessions}**`,
+        `Avg Hours/day (${monthName}): **${avgPerDay.toFixed(1)}h**`,
+        '',
+        '**🔥 Streaks**',
+        `Current: **${stats.currentStreak}** days ${currentStreakEmojis}`,
+        `Longest: **${stats.longestStreak}** days ${longestStreakEmojis}`,
+      ].join('\n');
 
       const embed = new EmbedBuilder()
         .setColor(0x0080FF)
         .setTitle('📊 Personal Study Statistics')
-        .addFields(
-          { name: '📅 Timeframe', value: '**Daily**\n**Weekly**\n**Monthly**\n**All-time**', inline: true },
-          { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true },
-          { name: '📚 Total Sessions', value: `**${stats.totalSessions}**`, inline: true },
-          { name: '📈 Hours/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true },
-          { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
-          { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true }
-        )
+        .setDescription(statsDescription)
         .setFooter({
           text: user.username,
           iconURL: avatarUrl
