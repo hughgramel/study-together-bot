@@ -1353,11 +1353,12 @@ client.on('interactionCreate', async (interaction) => {
       const monthlyHours = monthlySessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
       const allTimeHours = allSessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
 
-      // Get user rankings for each timeframe (server-specific)
+      // Get user rankings for each timeframe (GLOBAL - across all servers)
+      // This serves as a teaser for the future app
       const [dailyUsers, weeklyUsers, monthlyUsers] = await Promise.all([
-        sessionService.getTopUsers(Timestamp.fromDate(today), 100, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 100, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 100, guildId!),
+        sessionService.getTopUsers(Timestamp.fromDate(today), 100), // No serverId = global
+        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 100),
+        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 100),
       ]);
 
       const dailyRank = dailyUsers.findIndex(u => u.userId === user.id);
