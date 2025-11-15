@@ -45,6 +45,25 @@ export interface UserStats {
   longestStreak: number;    // Best streak ever
   lastSessionAt: Timestamp; // Most recent session timestamp
   firstSessionAt: Timestamp; // First ever session timestamp
+
+  // XP & Badge System (Phase 1)
+  xp?: number;              // Total XP earned (10 XP/hour + bonuses)
+  badges?: string[];        // Array of unlocked badge IDs (e.g., ['first_steps', 'hot_streak'])
+  badgesUnlockedAt?: {      // Map of badge ID -> unlock timestamp
+    [badgeId: string]: Timestamp;
+  };
+
+  // Session Analytics (for badge unlock conditions)
+  sessionsByDay?: {         // Map of date (YYYY-MM-DD) -> session count for that day
+    [date: string]: number; // Example: { '2025-01-15': 3 } = 3 sessions on Jan 15
+  };
+  activityTypes?: string[]; // Unique activity types user has logged (for diversity badges)
+  longestSessionDuration?: number; // Longest single session in seconds (for marathon badges)
+  firstSessionOfDayCount?: number; // Number of times user started the first session of the day
+
+  // Time-of-Day Tracking (for Early Bird/Night Owl badges)
+  sessionsBeforeNoon?: number;     // Count of sessions started before 12:00 PM
+  sessionsAfterMidnight?: number;  // Count of sessions started after 12:00 AM
 }
 
 /**
@@ -55,4 +74,23 @@ export interface ServerConfig {
   focusRoomIds?: string[];  // Voice channel IDs that auto-start sessions
   setupAt: Timestamp;       // When configuration was last updated
   setupBy: string;          // Discord user ID of admin who set it up
+}
+
+/**
+ * Badge definition - defines an achievement badge
+ */
+export interface BadgeDefinition {
+  id: string;               // Unique badge identifier (e.g., 'first_steps', 'centurion')
+  name: string;             // Display name shown to users (e.g., 'First Steps', 'Centurion')
+  emoji: string;            // Emoji representation (e.g., '🎯', '🔥', '💯')
+  description: string;      // What the badge is for (e.g., 'Complete your first session')
+  category: 'milestone' | 'time' | 'streak' | 'social' | 'intensity' | 'diversity'; // Badge category
+  xpReward: number;         // Bonus XP awarded when badge is unlocked (50-1000)
+  condition: {              // Unlock requirements
+    type: 'sessions' | 'hours' | 'streak' | 'activities' | 'custom'; // Type of condition
+    threshold: number;      // Target value to reach (e.g., 100 for "100 hours")
+    field?: string;         // UserStats field to check (e.g., 'totalDuration', 'currentStreak')
+  };
+  rarity: 'common' | 'rare' | 'epic' | 'legendary'; // Badge rarity (affects display color)
+  order: number;            // Display sort order (lower = shown first)
 }
