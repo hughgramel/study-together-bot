@@ -83,6 +83,9 @@ const client = new Client({
   ],
 });
 
+// Store auto-end timers for paused sessions (userId -> NodeJS.Timeout)
+const autoEndTimers = new Map<string, NodeJS.Timeout>();
+
 // Define slash commands
 const commands = [
   new SlashCommandBuilder()
@@ -2052,6 +2055,132 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 // Bot ready event
+// Handle voice state updates (join/leave voice channels)
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  const userId = newState.member?.user.id;
+  if (!userId) return;
+
+  const username = newState.member?.user.username || 'Unknown';
+  const guildId = newState.guild.id;
+
+  // User left a voice channel
+  const leftChannel = oldState.channelId && !newState.channelId;
+
+  // User joined a voice channel
+  const joinedChannel = !oldState.channelId && newState.channelId;
+
+  try {
+    if (leftChannel) {
+      console.log(`[VOICE] ${username} (${userId}) left voice channel in guild ${guildId}`);
+
+      // Check if user has an active session
+      const session = await sessionService.getActiveSession(userId);
+
+      if (session && !session.isPaused) {
+        console.log(`[VOICE] Auto-pausing session for ${username}`);
+
+        // Pause the session
+        await sessionService.updateActiveSession(userId, {
+          isPaused: true,
+          pausedAt: Timestamp.now(),
+        });
+
+        // Set 10-minute timer to auto-end the session
+        const timer = setTimeout(async () => {
+          console.log(`[VOICE] 10-minute timer expired for ${username}, auto-ending session`);
+
+          try {
+            // Check if session still exists and is paused
+            const currentSession = await sessionService.getActiveSession(userId);
+
+            if (currentSession && currentSession.isPaused) {
+              // Calculate final duration
+              const duration = calculateDuration(
+                currentSession.startTime,
+                currentSession.pausedDuration,
+                currentSession.pausedAt
+              );
+
+              const endTime = Timestamp.now();
+
+              // Delete active session
+              await sessionService.deleteActiveSession(userId);
+
+              // Create completed session with auto-generated title
+              await sessionService.createCompletedSession({
+                userId,
+                username,
+                serverId: currentSession.serverId,
+                activity: currentSession.activity,
+                title: `${currentSession.activity} session`,
+                description: 'Auto-ended after 10 minutes of inactivity',
+                duration,
+                startTime: currentSession.startTime,
+                endTime,
+              });
+
+              // Update stats
+              await statsService.updateUserStats(userId, username, duration);
+
+              console.log(`[VOICE] Auto-ended session for ${username} (${formatDuration(duration)})`);
+
+              // Try to send DM to user
+              try {
+                const user = await client.users.fetch(userId);
+                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}\n\nYour session has been saved!`);
+              } catch (dmError) {
+                console.log(`[VOICE] Could not send DM to ${username}`);
+              }
+            }
+          } catch (error) {
+            console.error(`[VOICE] Error auto-ending session for ${username}:`, error);
+          } finally {
+            // Clean up timer from map
+            autoEndTimers.delete(userId);
+          }
+        }, 10 * 60 * 1000); // 10 minutes
+
+        // Store timer reference
+        autoEndTimers.set(userId, timer);
+        console.log(`[VOICE] Set 10-minute auto-end timer for ${username}`);
+      }
+    } else if (joinedChannel) {
+      console.log(`[VOICE] ${username} (${userId}) joined voice channel in guild ${guildId}`);
+
+      // Check if user has a paused session
+      const session = await sessionService.getActiveSession(userId);
+
+      if (session && session.isPaused) {
+        console.log(`[VOICE] Auto-resuming session for ${username}`);
+
+        // Clear auto-end timer if it exists
+        const timer = autoEndTimers.get(userId);
+        if (timer) {
+          clearTimeout(timer);
+          autoEndTimers.delete(userId);
+          console.log(`[VOICE] Cancelled auto-end timer for ${username}`);
+        }
+
+        // Calculate time spent paused
+        const pausedDuration = session.pausedAt
+          ? session.pausedDuration + (Timestamp.now().toMillis() - session.pausedAt.toMillis())
+          : session.pausedDuration;
+
+        // Resume the session
+        await sessionService.updateActiveSession(userId, {
+          isPaused: false,
+          pausedAt: undefined,
+          pausedDuration,
+        });
+
+        console.log(`[VOICE] Resumed session for ${username}`);
+      }
+    }
+  } catch (error) {
+    console.error(`[VOICE] Error handling voice state update for ${username}:`, error);
+  }
+});
+
 client.once('clientReady', () => {
   console.log(`✅ Bot is online as ${client.user?.tag}`);
 });
