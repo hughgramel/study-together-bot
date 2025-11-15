@@ -1,634 +1,799 @@
-# Ambira Discord Bot - Development Checklist
+# Phase 1 Implementation Checklist: XP & Badge System
 
-## Phase 0: Setup & Prerequisites
-
-### Discord Developer Portal Setup
-- [ ] Create Discord application at https://discord.com/developers/applications
-- [ ] Name the application "Ambira Bot"
-- [ ] Navigate to Bot tab and create bot user
-- [ ] Copy and save bot token securely
-- [ ] Enable "Server Members Intent" in Privileged Gateway Intents
-- [ ] Enable "Message Content Intent" in Privileged Gateway Intents
-- [ ] Save bot configuration changes
-- [ ] Navigate to OAuth2 → General and copy Application ID (Client ID)
-- [ ] Navigate to OAuth2 → URL Generator
-- [ ] Select scopes: `bot` and `applications.commands`
-- [ ] Select permissions: Send Messages, Read Messages/View Channels, Use Slash Commands
-- [ ] Copy generated OAuth2 URL
-- [ ] Create test Discord server (or use existing)
-- [ ] Use OAuth2 URL to invite bot to test server
-- [ ] Verify bot appears in server member list (offline is expected)
-
-### Firebase Setup
-- [ ] Open Firebase Console for Ambira project
-- [ ] Navigate to Project Settings → Service Accounts
-- [ ] Click "Generate new private key"
-- [ ] Download and save service account JSON file
-- [ ] Copy Firebase Project ID from General tab
-- [ ] Verify Firestore Database is enabled
-- [ ] (Optional) Create `discord-data` collection manually to verify access
-
-### Local Development Environment
-- [ ] Verify Node.js is installed (v18+): `node --version`
-- [ ] Verify npm is installed: `npm --version`
-- [ ] Create project directory: `mkdir -p ~/repos/ambira-main/discordbot`
-- [ ] Navigate to project: `cd ~/repos/ambira-main/discordbot`
+**Project:** Study Together Discord Bot
+**Timeline:** 2-3 weeks
+**Status:** Not Started
 
 ---
 
-## Phase 1: Project Initialization
+## 📋 Pre-Implementation Setup
 
-### NPM Project Setup
-- [ ] Initialize npm: `npm init -y`
-- [ ] Install dependencies: `npm install discord.js firebase-admin dotenv`
-- [ ] Install dev dependencies: `npm install -D typescript @types/node ts-node`
-- [ ] Initialize TypeScript: `npx tsc --init`
-- [ ] Update `tsconfig.json` with proper settings (target: ES2020, module: commonjs, etc.)
-
-### Project Structure
-- [ ] Create `src/` directory
-- [ ] Create `.gitignore` file
-- [ ] Add `node_modules/` to .gitignore
-- [ ] Add `.env` to .gitignore
-- [ ] Add `firebase-service-account.json` to .gitignore
-- [ ] Add `dist/` to .gitignore
-- [ ] Add `*.log` to .gitignore
-
-### Environment Configuration
-- [ ] Create `.env` file in project root
-- [ ] Add `DISCORD_BOT_TOKEN=` with your bot token
-- [ ] Add `DISCORD_CLIENT_ID=` with your application ID
-- [ ] Add `FIREBASE_PROJECT_ID=` with your project ID
-- [ ] Move downloaded service account JSON to project root
-- [ ] Rename service account file to `firebase-service-account.json`
-- [ ] Verify .env and service account are in .gitignore
-
-### Package.json Scripts
-- [ ] Add `"dev": "ts-node src/bot.ts"` to scripts
-- [ ] Add `"build": "tsc"` to scripts
-- [ ] Add `"start": "node dist/bot.js"` to scripts
-- [ ] Test scripts section is properly formatted JSON
+- [x] Create feature branch: `git checkout -b feature/phase-1-xp-badges`
+- [x] Review PHASE_1_PLAN.md thoroughly
+- [ ] Back up current production database
+- [ ] Set up local test Discord server
+- [ ] Create test user accounts (at least 3)
+- [x] Document current database schema
+- [x] Review existing TypeScript interfaces in src/types.ts
+- [x] Verify development environment works (`npm run dev`)
+- [x] Install any missing dependencies
+- [x] Create backup of src/bot.ts (critical file)
 
 ---
 
-## Phase 2: Basic Bot Connection
+## 🏗️ Step 1: Update TypeScript Types
 
-### Create Minimal Bot
-- [ ] Create `src/bot.ts` file
-- [ ] Import discord.js Client, GatewayIntentBits
-- [ ] Import firebase-admin app, cert, firestore
-- [ ] Import dotenv and call `dotenv.config()`
-- [ ] Initialize Firebase with service account
-- [ ] Create Discord client with Guilds intent
-- [ ] Add `ready` event listener with console.log
-- [ ] Add bot login with `DISCORD_BOT_TOKEN`
+### Implementation
+- [ ] Open `src/types.ts`
+- [ ] Add new fields to `UserStats` interface:
+  - [ ] `xp?: number` (total XP earned)
+  - [ ] `level?: number` (current level)
+  - [ ] `badges?: string[]` (badge IDs)
+  - [ ] `badgesUnlockedAt?: { [badgeId: string]: Timestamp }`
+  - [ ] `sessionsByDay?: { [date: string]: number }`
+  - [ ] `activityTypes?: string[]`
+  - [ ] `longestSessionDuration?: number`
+  - [ ] `totalReactionsReceived?: number`
+  - [ ] `totalReactionsGiven?: number`
+  - [ ] `firstSessionOfDayCount?: number`
+  - [ ] `sessionsBeforeNoon?: number`
+  - [ ] `sessionsAfterMidnight?: number`
+- [ ] Create new `BadgeDefinition` interface with all required fields
+- [ ] Add TypeScript comments explaining each field
+- [ ] Export both interfaces
 
-### Test Bot Connection
-- [ ] Run bot: `npm run dev`
-- [ ] Verify "Bot is online" message in console
-- [ ] Verify bot shows online (green dot) in Discord server
-- [ ] Check no error messages in console
-- [ ] Stop bot with Ctrl+C
-- [ ] Verify bot goes offline in Discord
-
----
-
-## Phase 3: Slash Command Registration
-
-### Setup Command Registration
-- [ ] Import REST and Routes from discord.js
-- [ ] Import SlashCommandBuilder from discord.js
-- [ ] Create `/ping` command definition with SlashCommandBuilder
-- [ ] Create `registerCommands()` async function
-- [ ] Use REST API to register commands globally
-- [ ] Call `registerCommands()` before bot login
-
-### Implement Ping Command
-- [ ] Add `interactionCreate` event listener
-- [ ] Check if interaction is chat input command
-- [ ] Handle `/ping` command
-- [ ] Reply with "Pong! 🏓" message
-- [ ] Add error handling for reply failures
-
-### Test Command Registration
-- [ ] Run bot: `npm run dev`
-- [ ] Wait 1-2 minutes for Discord to sync commands
-- [ ] Type `/` in Discord and verify `/ping` appears
-- [ ] Execute `/ping` command
-- [ ] Verify "Pong! 🏓" reply appears
-- [ ] Check console for any errors
-- [ ] Test command works in multiple channels
+### Verification
+- [ ] Run `npm run build` - compiles without errors
+- [ ] Check no breaking changes to existing code
+- [ ] Verify all existing fields preserved
+- [ ] Review interface in VSCode for type correctness
+- [ ] Commit: `git commit -m "Add XP and badge type definitions"`
 
 ---
 
-## Phase 4: Firebase Connection Test
+## 🧮 Step 2: Create XP Utility Functions
 
-### Add Test Firebase Command
-- [ ] Create `/test-firebase` command definition
-- [ ] Export `db` from firestore initialization
-- [ ] Implement command handler for `/test-firebase`
-- [ ] Write test document to `discord-data/test` collection
-- [ ] Add try/catch error handling
-- [ ] Reply with success or error message
+### Implementation
+- [ ] Create new file: `src/utils/xp.ts`
+- [ ] Implement `calculateLevel(xp: number): number`
+  - [ ] Use formula: `level = Math.floor((xp / 100)^(2/3))`
+  - [ ] Cap at level 100
+  - [ ] Handle edge case: 0 XP = Level 1
+- [ ] Implement `xpForLevel(level: number): number`
+  - [ ] Use formula: `100 * Math.pow(level, 1.5)`
+- [ ] Implement `xpToNextLevel(currentXp: number): number`
+- [ ] Implement `levelProgress(currentXp: number): number`
+  - [ ] Returns 0-100 percentage
+- [ ] Implement `awardXP(currentXp, xpToAdd)` function
+  - [ ] Returns object with newXp, newLevel, leveledUp, levelsGained, oldLevel
+- [ ] Add JSDoc comments to all functions
+- [ ] Document XP curve in file header comment
 
-### Test Firebase Integration
-- [ ] Run bot: `npm run dev`
-- [ ] Execute `/test-firebase` in Discord
-- [ ] Verify success message appears
-- [ ] Open Firebase Console → Firestore Database
-- [ ] Verify `discord-data` collection exists
-- [ ] Verify `test` document exists with timestamp
-- [ ] Test multiple times to ensure writes work
-- [ ] Check console for any Firebase errors
+### Testing
+- [ ] Create `src/utils/xp.test.ts` (or add to test suite)
+- [ ] Test: Level 1 (0 XP) → Level 2 (100 XP)
+- [ ] Test: Level 5 calculation
+- [ ] Test: Level 10 calculation (~1500 XP)
+- [ ] Test: Level 20 calculation (~5000 XP)
+- [ ] Test: Edge case - 0 XP returns Level 1
+- [ ] Test: Edge case - Very high XP caps at Level 100
+- [ ] Test: Multiple level gains (e.g., 0 XP → 500 XP)
+- [ ] Test: Progress percentage at 0%, 25%, 50%, 75%, 99%, 100%
+- [ ] Test: xpToNextLevel returns correct values
+- [ ] Run tests: `npm test` (all pass)
+
+### Verification
+- [ ] All unit tests pass
+- [ ] TypeScript compiles without errors
+- [ ] Manual verification: calculateLevel(100) = 2
+- [ ] Manual verification: calculateLevel(1500) ≈ 10
+- [ ] Functions are pure (no side effects)
+- [ ] Commit: `git commit -m "Add XP calculation utilities with tests"`
 
 ---
 
-## Phase 5: Session Start Command
+## 💼 Step 3: Create XP Service
 
-### Data Model Setup
-- [ ] Create TypeScript interface for `ActiveSession`
-- [ ] Define fields: userId, username, serverId, intention, startTime, isPaused, pausedDuration
-- [ ] Create helper function `getActiveSession(userId: string)`
-- [ ] Create helper function `setActiveSession(userId: string, data: ActiveSession)`
-- [ ] Create helper function `deleteActiveSession(userId: string)`
+### Implementation
+- [ ] Create new file: `src/services/xp.ts`
+- [ ] Import Firestore types and XP utilities
+- [ ] Create `XPService` class with constructor
+- [ ] Implement `async awardXP(userId, amount, reason)`:
+  - [ ] Fetch user stats from Firestore
+  - [ ] Throw error if user not found
+  - [ ] Calculate new XP and level using utils
+  - [ ] Update Firestore with new values
+  - [ ] Add console.log for debugging
+  - [ ] Return result object
+- [ ] Implement `calculateSessionXP(durationSeconds)`:
+  - [ ] Formula: (durationSeconds / 3600) * 10
+  - [ ] Round down with Math.floor
+- [ ] Implement `getSessionXPBreakdown()`:
+  - [ ] Base XP from time
+  - [ ] +25 XP for session completion
+  - [ ] +25 XP if first session today
+  - [ ] +100 XP for 7-day streak
+  - [ ] +500 XP for 30-day streak
+  - [ ] Return total and breakdown array
 
-### Implement /start Command
-- [ ] Create `/start` command definition with intention parameter (required string)
-- [ ] Register command in commands array
+### Testing
+- [ ] Create `src/services/xp.test.ts`
+- [ ] Mock Firestore database
+- [ ] Test: awardXP updates database correctly
+- [ ] Test: calculateSessionXP - 1 hour = 10 XP
+- [ ] Test: calculateSessionXP - 30 minutes = 5 XP
+- [ ] Test: calculateSessionXP - 2.5 hours = 25 XP
+- [ ] Test: getSessionXPBreakdown - base only
+- [ ] Test: getSessionXPBreakdown - with first session bonus
+- [ ] Test: getSessionXPBreakdown - with 7-day streak bonus
+- [ ] Test: getSessionXPBreakdown - with 30-day streak bonus
+- [ ] Test: getSessionXPBreakdown - all bonuses combined
+- [ ] Test: Level-up detection works
+- [ ] Test: Error thrown for missing user
+- [ ] Run tests: all pass
+
+### Verification
+- [ ] TypeScript compiles
+- [ ] Service can be instantiated
+- [ ] All tests pass with mocked Firestore
+- [ ] Console logs show XP transactions
+- [ ] No breaking changes to existing services
+- [ ] Commit: `git commit -m "Add XP service with Firestore integration"`
+
+---
+
+## 🏆 Step 4: Create Badge Definitions
+
+### Implementation
+- [ ] Create new file: `src/data/badges.ts`
+- [ ] Import `BadgeDefinition` type
+- [ ] Define MILESTONE badges (5 total):
+  - [ ] first_steps (1 session, 🎯, 50 XP, common)
+  - [ ] dedicated (10 sessions, ⭐, 100 XP, common)
+  - [ ] veteran (50 sessions, 🌟, 200 XP, rare)
+  - [ ] master (100 sessions, 💎, 500 XP, epic)
+  - [ ] legend (500 sessions, 👑, 1000 XP, legendary)
+- [ ] Define TIME badges (5 total):
+  - [ ] getting_started (10 hours, ⏱️, 50 XP, common)
+  - [ ] committed (50 hours, 🕐, 100 XP, common)
+  - [ ] centurion (100 hours, 💯, 200 XP, rare)
+  - [ ] scholar (500 hours, 📚, 500 XP, epic)
+  - [ ] sage (1000 hours, 🧙, 1000 XP, legendary)
+- [ ] Define STREAK badges (4 total):
+  - [ ] hot_streak (3 days, 🔥, 50 XP, common)
+  - [ ] on_fire (7 days, 🔥🔥, 150 XP, rare)
+  - [ ] unstoppable (30 days, 🌟, 500 XP, epic)
+  - [ ] immortal (100 days, ⚡, 1500 XP, legendary)
+- [ ] Define INTENSITY badges (3 total):
+  - [ ] marathon (4 hours, 💪, 150 XP, rare)
+  - [ ] ultra_marathon (8 hours, 🏃, 300 XP, epic)
+  - [ ] speed_demon (5 sessions/day, ⚡, 100 XP, rare)
+- [ ] Define DIVERSITY badges (3 total):
+  - [ ] explorer (3 activities, 🎨, 50 XP, common)
+  - [ ] versatile (7 activities, 🌈, 100 XP, rare)
+  - [ ] renaissance (15 activities, 🎭, 250 XP, epic)
+- [ ] Convert all duration thresholds to seconds
+- [ ] Add `order` field to each badge (for sorting)
+- [ ] Implement `getBadge(id: string)` helper
+- [ ] Implement `getBadgesByCategory(category: string)` helper
+- [ ] Implement `getAllBadges()` helper
+- [ ] Export `BADGE_DEFINITIONS` array
+
+### Verification
+- [ ] Total badge count = 20
+- [ ] All badges have unique IDs
+- [ ] All emojis render in Discord (test in channel)
+- [ ] All categories represented
+- [ ] Thresholds are realistic and achievable
+- [ ] getBadge() retrieves badges correctly
+- [ ] TypeScript compiles without errors
+- [ ] Test: getBadge('first_steps') returns correct badge
+- [ ] Test: getBadgesByCategory('streak') returns 4 badges
+- [ ] Commit: `git commit -m "Add 20 badge definitions with helpers"`
+
+---
+
+## 🎖️ Step 5: Create Badge Service
+
+### Implementation
+- [ ] Create new file: `src/services/badges.ts`
+- [ ] Import Firestore, badge definitions, and types
+- [ ] Create `BadgeService` class with constructor
+- [ ] Implement `async checkAndAwardBadges(userId)`:
+  - [ ] Fetch user stats from Firestore
+  - [ ] Return empty array if no stats
+  - [ ] Get current badges list
+  - [ ] Initialize newlyUnlocked array
+  - [ ] Loop through all badge definitions
+  - [ ] Skip if already unlocked
+  - [ ] Check conditions using helper method
+  - [ ] Update Firestore with FieldValue.arrayUnion
+  - [ ] Update badgesUnlockedAt map
+  - [ ] Add console.log for each unlock
+  - [ ] Return newly unlocked badge IDs
+- [ ] Implement `async getUserBadges(userId)`:
+  - [ ] Fetch user stats
+  - [ ] Map badge IDs to full definitions
+  - [ ] Return array of BadgeDefinition objects
+- [ ] Implement `private checkBadgeCondition(badge, stats)`:
+  - [ ] Handle 'sessions' type
+  - [ ] Handle 'hours' type
+  - [ ] Handle 'streak' type
+  - [ ] Handle 'activities' type
+  - [ ] Handle 'custom' type (delegate to checkCustomCondition)
+- [ ] Implement `private checkCustomCondition(badgeId, stats, threshold)`:
+  - [ ] speed_demon: Check sessionsByDay for any day >= 5
+  - [ ] marathon: Check longestSessionDuration >= 14400 (4 hours)
+  - [ ] ultra_marathon: Check longestSessionDuration >= 28800 (8 hours)
+  - [ ] early_bird: Check sessionsBeforeNoon >= 5
+  - [ ] night_owl: Check sessionsAfterMidnight >= 5
+
+### Testing
+- [ ] Create `src/services/badges.test.ts`
+- [ ] Mock Firestore with sample UserStats
+- [ ] Test: first_steps unlocks on first session
+- [ ] Test: Time badges unlock at correct thresholds
+- [ ] Test: Streak badges unlock correctly
+- [ ] Test: Activity badges unlock when trying different types
+- [ ] Test: Marathon badges unlock for long sessions
+- [ ] Test: Speed demon unlocks for 5 sessions in one day
+- [ ] Test: Badges don't unlock twice (duplicate check)
+- [ ] Test: getUserBadges returns correct badge details
+- [ ] Test: checkBadgeCondition evaluates correctly
+- [ ] Test: Custom conditions work
+- [ ] Run tests: all pass
+
+### Verification
+- [ ] TypeScript compiles
+- [ ] All unit tests pass
+- [ ] Firestore updates are atomic
+- [ ] No duplicate badge unlocks possible
+- [ ] Console logs show badge unlocks
+- [ ] Service handles missing stats gracefully
+- [ ] Commit: `git commit -m "Add badge service with unlock detection"`
+
+---
+
+## 🔌 Step 6: Integrate XP into Stats Service
+
+### Implementation
+- [ ] Open `src/services/stats.ts`
+- [ ] Import XPService at top of file
+- [ ] Import calculateLevel from utils/xp
+- [ ] Add `private xpService: XPService` to StatsService class
+- [ ] Initialize xpService in constructor
+- [ ] Update `updateUserStats()` return type signature:
+  - [ ] Add `xpGained: number`
+  - [ ] Add `leveledUp: boolean`
+  - [ ] Add `newLevel?: number`
+- [ ] Add `private getDateKey(timestamp)` helper method
+- [ ] In updateUserStats, before database update:
+  - [ ] Detect if first session of the day
+  - [ ] Detect if streak milestone (7 or 30 days)
+  - [ ] Call xpService.getSessionXPBreakdown()
+  - [ ] Store XP breakdown
+- [ ] For new user creation:
+  - [ ] Initialize xp with breakdown total
+  - [ ] Initialize level with calculateLevel(xp)
+  - [ ] Initialize badges as empty array
+  - [ ] Initialize badgesUnlockedAt as empty object
+  - [ ] Initialize sessionsByDay with today's date
+  - [ ] Initialize all tracking fields (0 or [])
+- [ ] For existing user update:
+  - [ ] Call xpService.awardXP() after stats update
+  - [ ] Update sessionsByDay map
+  - [ ] Update longestSessionDuration if needed
+  - [ ] Update firstSessionOfDayCount if applicable
+- [ ] Return XP info in result object
+
+### Verification
+- [ ] TypeScript compiles without errors
+- [ ] Run `npm run build`
+- [ ] No breaking changes to existing functionality
+- [ ] Test manually: Start and end a session
+- [ ] Check Firestore: xp and level fields exist
+- [ ] Check console logs for XP award messages
+- [ ] Verify first session of day detection works
+- [ ] Verify sessionsByDay updates correctly
+- [ ] Test with existing user (backward compatible)
+- [ ] Test with new user (fields initialized)
+- [ ] Commit: `git commit -m "Integrate XP system into stats service"`
+
+---
+
+## 💬 Step 7: Update Session Completion UI
+
+### Implementation - /end Command
+- [ ] Open `src/bot.ts`
+- [ ] Find `/end` modal submit handler (endSessionModal)
+- [ ] Capture XP data from statsService.updateUserStats()
+- [ ] Build XP message:
+  - [ ] If leveledUp: "🎉 **LEVEL UP!** You're now Level X! (+Y XP)"
+  - [ ] Else: "✨ +Y XP earned!"
+- [ ] Append xpMessage to reply content
+- [ ] Test in Discord
+
+### Implementation - /manual Command
+- [ ] Find manual session modal handler (addManualSessionModal)
+- [ ] Add same XP message logic
+- [ ] Capture XP data from stats update
+- [ ] Build and append XP message
+- [ ] Test in Discord
+
+### Implementation - Voice Channel Auto-post
+- [ ] Find voice channel disconnect handler (if exists)
+- [ ] Add XP message logic
+- [ ] Test by joining/leaving voice channel
+
+### Verification
+- [ ] Complete session via /end - see XP message
+- [ ] Complete session via /manual - see XP message
+- [ ] Voice channel session shows XP (if applicable)
+- [ ] Level-up message appears when leveling up
+- [ ] XP message is NOT ephemeral (shows in channel)
+- [ ] Feed post still works correctly
+- [ ] No console errors
+- [ ] Messages are user-friendly and celebratory
+- [ ] Test edge case: 0 XP session (very short)
+- [ ] Test edge case: Huge XP gain (multiple levels)
+- [ ] Commit: `git commit -m "Add XP display to session completion messages"`
+
+---
+
+## 🎖️ Step 8: Integrate Badge Checking
+
+### Implementation
+- [ ] Open `src/bot.ts`
+- [ ] Import BadgeService at top
+- [ ] Import getBadge helper from data/badges
+- [ ] Initialize BadgeService after other services
+- [ ] In `/end` modal handler, after stats update:
+  - [ ] Call badgeService.checkAndAwardBadges(user.id)
+  - [ ] Store newBadges array
+  - [ ] If badges unlocked, build badge message
+  - [ ] Map badge IDs to full definitions
+  - [ ] Create emoji list: "🏆 **NEW BADGE(S)!** emoji **name**, ..."
+  - [ ] Award bonus XP for each badge
+  - [ ] Append badgeMessage to reply
+- [ ] Repeat for manual session handler
+- [ ] Repeat for voice channel handler (if applicable)
+
+### Verification
+- [ ] Complete first session - "First Steps" badge unlocks
+- [ ] Badge message appears in completion reply
+- [ ] Badge XP bonus is awarded
+- [ ] Multiple badges can unlock at once (test with new user, long session)
+- [ ] Badge message format is correct
+- [ ] No duplicate badge unlocks
+- [ ] Check Firestore: badges array updated
+- [ ] Check Firestore: badgesUnlockedAt has timestamp
+- [ ] Console logs show badge unlocks
+- [ ] Test: Reach 10 hours - time badge unlocks
+- [ ] Test: 7-day streak - streak badge unlocks
+- [ ] Commit: `git commit -m "Add badge unlock detection to session flow"`
+
+---
+
+## 📊 Step 9: Update /stats Command
+
+### Implementation
+- [ ] Open `src/bot.ts`
+- [ ] Find `/stats` command handler (note: was renamed from /mystats)
+- [ ] Import XP utilities (calculateLevel, xpToNextLevel, levelProgress)
+- [ ] After fetching user stats:
+  - [ ] Call badgeService.getUserBadges(user.id)
+  - [ ] Calculate currentXp, currentLevel, xpToNext, progress
+- [ ] Create progress bar (20 characters):
+  - [ ] Use '█' for filled
+  - [ ] Use '░' for empty
+  - [ ] Calculate based on progress percentage
+- [ ] Create badge display:
+  - [ ] Show first 8 badge emojis
+  - [ ] If more than 8, add "+X more"
+  - [ ] If 0 badges, show "*No badges yet*"
+- [ ] Update embed description to show level and progress bar
+- [ ] Add XP info: "X XP • Y XP to Level Z"
+- [ ] Add badges field to embed
+- [ ] Keep all existing stat fields
+
+### Verification
+- [ ] /stats command shows level prominently
+- [ ] Progress bar renders correctly
+- [ ] XP to next level is accurate
+- [ ] Progress percentage is correct
+- [ ] Badges display with emojis
+- [ ] "+X more" shows if > 8 badges
+- [ ] Handles 0 badges gracefully
+- [ ] All existing stats still visible
+- [ ] Layout is clean and readable
+- [ ] Test with new user (Level 1, 0 badges)
+- [ ] Test with established user (Level 10+, multiple badges)
+- [ ] Embed color is correct
+- [ ] Commit: `git commit -m "Enhance /stats command with XP and badges"`
+
+---
+
+## 🏅 Step 10: Create /badges Command
+
+### Implementation
+- [ ] Open `src/bot.ts`
+- [ ] Add new SlashCommandBuilder to commands array:
+  - [ ] Name: 'badges'
+  - [ ] Description: 'View all your unlocked badges'
+- [ ] Re-register commands (npm run build && node dist/bot.js)
 - [ ] Add command handler in interactionCreate
-- [ ] Check if user already has active session
-- [ ] If active session exists, reply with error (ephemeral)
-- [ ] Create active session document in Firebase
-- [ ] Use Firebase server timestamp for startTime
-- [ ] Reply with success message (ephemeral) showing intention and start time
+- [ ] Check if user has stats
+- [ ] Fetch user badges with badgeService.getUserBadges()
+- [ ] If 0 badges, show friendly message (ephemeral)
+- [ ] Group badges by category
+- [ ] Create fields array for embed
+- [ ] For each category with badges:
+  - [ ] Format as "emoji **name** - *description*"
+  - [ ] Add to fields
+- [ ] Create EmbedBuilder:
+  - [ ] Gold color (0xFFD700)
+  - [ ] Title: "🏆 Your Badges (X)"
+  - [ ] Add category fields
+  - [ ] Footer: "Keep grinding to unlock more badges!"
+- [ ] Reply with embed (not ephemeral)
 
-### Test /start Command
-- [ ] Run bot and execute `/start "Test intention"`
-- [ ] Verify success message appears (only visible to you)
-- [ ] Check Firebase for `discord-data/activeSessions/{yourUserId}` document
-- [ ] Verify all fields are populated correctly
-- [ ] Try `/start` again without ending first
-- [ ] Verify error message appears about existing session
-- [ ] Test with very long intention (500+ chars)
-- [ ] Test with special characters and emojis
-
----
-
-## Phase 6: Session Status Command
-
-### Implement Duration Helpers
-- [ ] Create `calculateDuration(startTime: Timestamp, pausedDuration: number)` function
-- [ ] Calculate current elapsed time minus paused time
-- [ ] Create `formatDuration(seconds: number)` function
-- [ ] Format as "Xh Ym" for hours+minutes or "Ym" for minutes only
-- [ ] Handle edge cases (0 seconds, very long durations)
-
-### Implement /status Command
-- [ ] Create `/status` command definition (no parameters)
-- [ ] Register command in commands array
-- [ ] Add command handler in interactionCreate
-- [ ] Retrieve active session for user
-- [ ] If no session, reply with helpful message to use `/start`
-- [ ] Calculate current elapsed time
-- [ ] Format duration string
-- [ ] Reply with intention, elapsed time, start time, pause state
-- [ ] Add helpful next steps in message
-
-### Test /status Command
-- [ ] Start a session with `/start`
-- [ ] Immediately run `/status`
-- [ ] Verify shows 0m or 1m elapsed
-- [ ] Wait 5 minutes
-- [ ] Run `/status` again
-- [ ] Verify shows ~5m elapsed
-- [ ] Try `/status` without active session
-- [ ] Verify helpful error message appears
-- [ ] Verify all messages are ephemeral (only you see them)
+### Verification
+- [ ] /badges command appears in Discord autocomplete
+- [ ] Command shows all unlocked badges
+- [ ] Badges grouped by category correctly
+- [ ] Category names capitalized
+- [ ] Badge descriptions display
+- [ ] Handles 0 badges with friendly message
+- [ ] Handles 1 badge correctly
+- [ ] Handles 15+ badges (test with mock data if needed)
+- [ ] Gold color displays correctly
+- [ ] Emoji render properly
+- [ ] Not ephemeral (public reply)
+- [ ] Test with multiple categories
+- [ ] Test with single category
+- [ ] Commit: `git commit -m "Add /badges command for viewing achievements"`
 
 ---
 
-## Phase 7: Session Pause/Resume
+## 📢 Step 11: Add Badge Feed Posts
 
-### Implement /pause Command
-- [ ] Create `/pause` command definition
-- [ ] Register command in commands array
-- [ ] Add command handler
-- [ ] Get active session
-- [ ] Check session exists (error if not)
-- [ ] Check session not already paused (error if already paused)
-- [ ] Update session: set isPaused=true, pausedAt=now
-- [ ] Reply with confirmation message
+### Implementation
+- [ ] Open `src/bot.ts`
+- [ ] Create `postBadgeUnlockToFeed()` helper function:
+  - [ ] Parameters: interaction, username, avatarUrl, badges array
+  - [ ] Fetch server config
+  - [ ] Check if feedChannelId exists
+  - [ ] Fetch feed channel
+  - [ ] For each badge:
+    - [ ] Determine color based on rarity:
+      - [ ] Common: 0x2ECC71 (green)
+      - [ ] Rare: 0x3498DB (blue)
+      - [ ] Epic: 0x9B59B6 (purple)
+      - [ ] Legendary: 0xFF00FF (magenta)
+    - [ ] Create embed with badge info
+    - [ ] Set author with username and avatar
+    - [ ] Description: "🏆 **Unlocked: BadgeName**\n*description*"
+    - [ ] Send to feed channel
+    - [ ] React with badge emoji (catch errors)
+  - [ ] Wrap in try/catch
+- [ ] In `/end` modal handler, after badge unlock:
+  - [ ] Call postBadgeUnlockToFeed with new badges
+- [ ] Repeat for manual session handler
+- [ ] Repeat for voice channel handler (if applicable)
 
-### Implement /resume Command
-- [ ] Create `/resume` command definition
-- [ ] Register command in commands array
-- [ ] Add command handler
-- [ ] Get active session
-- [ ] Check session exists (error if not)
-- [ ] Check session is paused (error if not paused)
-- [ ] Calculate pause duration (now - pausedAt)
-- [ ] Add pause duration to total pausedDuration
-- [ ] Update session: set isPaused=false, remove pausedAt
-- [ ] Reply with confirmation and current elapsed time
-
-### Test Pause/Resume Flow
-- [ ] Start session with `/start`
-- [ ] Run `/status` to see elapsed time
-- [ ] Run `/pause`
-- [ ] Verify confirmation message
-- [ ] Wait 2 minutes
-- [ ] Run `/status` - verify still shows paused state
-- [ ] Run `/resume`
-- [ ] Verify elapsed time doesn't include the 2 minutes paused
-- [ ] Try `/pause` twice in a row (should error)
-- [ ] Try `/resume` without pausing (should error)
-- [ ] Try `/pause` without session (should error)
-
----
-
-## Phase 8: Session Cancel Command
-
-### Implement /cancel Command
-- [ ] Create `/cancel` command definition
-- [ ] Register command in commands array
-- [ ] Add command handler
-- [ ] Get active session
-- [ ] Check session exists (error if not)
-- [ ] Delete active session from Firebase
-- [ ] Reply with confirmation message
-- [ ] Mention that no stats were updated
-
-### Test /cancel Command
-- [ ] Start session with `/start`
-- [ ] Run `/status` to verify session exists
-- [ ] Run `/cancel`
-- [ ] Verify confirmation message
-- [ ] Run `/status` again
-- [ ] Verify "no active session" message
-- [ ] Check Firebase to ensure active session deleted
-- [ ] Try `/cancel` without session (should error)
+### Verification
+- [ ] Unlock common badge - green feed post appears
+- [ ] Unlock rare badge - blue feed post appears
+- [ ] Unlock epic badge - purple feed post appears
+- [ ] Unlock legendary badge - magenta feed post appears
+- [ ] Feed posts appear immediately after session
+- [ ] Multiple badges = multiple separate posts
+- [ ] Auto-reaction with badge emoji works
+- [ ] Handles missing feed channel gracefully (no crash)
+- [ ] Handles invalid emoji gracefully (no crash)
+- [ ] Feed posts show correct username and avatar
+- [ ] Description formatting is correct
+- [ ] Test: First session → "First Steps" in feed
+- [ ] Test: 100 hours → "Centurion" in feed
+- [ ] Commit: `git commit -m "Add badge unlock posts to feed channel"`
 
 ---
 
-## Phase 9: User Stats System
+## 🧪 Comprehensive Testing
 
-### Create Stats Data Model
-- [ ] Create TypeScript interface for `UserStats`
-- [ ] Define fields: username, totalSessions, totalDuration, currentStreak, longestStreak, lastSessionAt, firstSessionAt
-- [ ] Create helper function `getUserStats(userId: string)`
-- [ ] Create helper function `updateUserStats(userId: string, sessionDuration: number)`
+### New User Testing
+- [ ] Create fresh test Discord account
+- [ ] Join test server
+- [ ] Use /start command
+- [ ] Wait 10+ minutes
+- [ ] Use /end command with activity type
+- [ ] Verify: "First Steps" badge unlocks
+- [ ] Verify: XP awarded (should be ~26+ XP: time + completion + first session)
+- [ ] Verify: Level 1 displayed
+- [ ] Verify: Feed post for session
+- [ ] Verify: Feed post for badge unlock
+- [ ] Use /stats - check all fields display
+- [ ] Use /badges - check badge appears
+- [ ] Complete second session same day
+- [ ] Verify: No "first session" bonus second time
+- [ ] Complete third session
+- [ ] Verify: Stats update correctly
 
-### Implement Streak Logic
-- [ ] In `updateUserStats`, get existing stats (if any)
-- [ ] If no stats, create first entry with streak=1
-- [ ] If stats exist, get lastSessionAt date
-- [ ] Compare lastSessionAt to today and yesterday
-- [ ] If yesterday: increment streak
-- [ ] If today: keep streak same
-- [ ] If 2+ days ago: reset streak to 1
-- [ ] Update longestStreak if current > longest
-- [ ] Update totalSessions, totalDuration, lastSessionAt
+### Existing User Testing
+- [ ] Use account with prior session history
+- [ ] Check current stats (before changes)
+- [ ] Complete a new session
+- [ ] Verify: XP calculated correctly
+- [ ] Verify: Level updates if applicable
+- [ ] Verify: Existing stats preserved (totalSessions, etc.)
+- [ ] Verify: No data loss
+- [ ] Check /stats displays correctly
+- [ ] Verify backward compatibility
 
-### Test Stats Updates (Manual)
-- [ ] Add console.log to updateUserStats function
-- [ ] Manually call updateUserStats with test user ID
-- [ ] Check Firebase for `discord-data/userStats/{userId}` document
-- [ ] Verify fields are correct
-- [ ] Call again next "day" (manually change lastSessionAt)
-- [ ] Verify streak increments
-- [ ] Call after 2+ day gap
-- [ ] Verify streak resets to 1
+### Level-Up Testing
+- [ ] Use account close to level up
+- [ ] OR manually set XP in Firestore to 90
+- [ ] Complete session that should level up
+- [ ] Verify: "🎉 LEVEL UP!" message appears
+- [ ] Verify: New level shown
+- [ ] Verify: XP total shown
+- [ ] Check /stats shows new level
+- [ ] Test multiple level gains (set XP to 0, complete 10-hour session)
 
----
+### Badge Unlock Testing
+- [ ] Test each badge type:
+  - [ ] Milestone: Complete Nth session
+  - [ ] Time: Reach hour threshold
+  - [ ] Streak: Maintain streak (may need to manipulate dates)
+  - [ ] Intensity: Complete long session (4+ hours)
+  - [ ] Diversity: Try multiple activity types
+- [ ] Test badge XP rewards are awarded
+- [ ] Test multiple badges unlock at once
+- [ ] Verify no duplicate unlocks
+- [ ] Test badge feed posts for each rarity
 
-## Phase 10: Session End & Feed Posting
-
-### Create Completed Session Model
-- [ ] Create TypeScript interface for `CompletedSession`
-- [ ] Define fields: userId, username, serverId, intention, description, duration, startTime, endTime, createdAt
-
-### Implement /end Command
-- [ ] Create `/end` command definition with description parameter (required string)
-- [ ] Register command in commands array
-- [ ] Add command handler
-- [ ] Get active session (error if none)
-- [ ] Calculate final duration
-- [ ] Create completed session document in Firebase
-- [ ] Call `updateUserStats()` with duration
-- [ ] Delete active session
-- [ ] Reply with ephemeral confirmation
-
-### Add Feed Posting Logic
-- [ ] In `/end` handler, after saving session
-- [ ] Get server config to find feedChannelId
-- [ ] If no feed channel configured, skip posting (still save session)
-- [ ] If feed channel exists, fetch channel by ID
-- [ ] Verify channel is text-based
-- [ ] Format feed message with @username, duration, intention, description
-- [ ] Send message to feed channel
-- [ ] Handle errors gracefully (log but don't fail)
-
-### Test /end Without Feed
-- [ ] Start session with `/start "Testing end command"`
-- [ ] Wait a few minutes
-- [ ] Run `/end "Successfully tested end command"`
-- [ ] Verify ephemeral confirmation message
-- [ ] Check Firebase for completed session in `discord-data/sessions/`
-- [ ] Verify active session deleted
-- [ ] Check userStats updated (totalSessions=1, totalDuration>0, streak=1)
-- [ ] Verify no error about missing feed channel
-
----
-
-## Phase 11: Feed Channel Setup
-
-### Implement /setup-feed Command
-- [ ] Create `/setup-feed` command with channel parameter (required channel type)
-- [ ] Register command in commands array
-- [ ] Add command handler
-- [ ] Check user has Administrator permission
-- [ ] If not admin, reply with error (ephemeral)
-- [ ] Save channel ID to `discord-data/serverConfig/{serverId}`
-- [ ] Include setupAt timestamp and setupBy userId
-- [ ] Reply with confirmation showing channel mention
-
-### Test Feed Setup & Posting
-- [ ] Run `/setup-feed #general` (or create test channel first)
-- [ ] Verify confirmation message
-- [ ] Check Firebase for serverConfig document
-- [ ] Start new session with `/start "Testing feed"`
-- [ ] End session with `/end "Feed should appear now"`
-- [ ] Check designated feed channel for post
-- [ ] Verify format: @username, duration, intention, description
-- [ ] Try setup-feed as non-admin (test with second user)
-- [ ] Verify permission error
-
----
-
-## Phase 12: Statistics Display Command
-
-### Implement Timeframe Filtering
-- [ ] Create helper to calculate cutoff date for timeframe
-- [ ] Handle "today" (midnight today)
-- [ ] Handle "week" (7 days ago)
-- [ ] Handle "month" (30 days ago)
-- [ ] Handle "all-time" (beginning of time)
-
-### Implement /mystats Command
-- [ ] Create `/mystats` command with optional timeframe choice parameter
-- [ ] Add choices: today, week, month, all-time (default: week)
-- [ ] Register command in commands array
-- [ ] Add command handler
-- [ ] Get user stats document
-- [ ] If no stats, reply "No stats yet"
-- [ ] Query completed sessions in timeframe
-- [ ] Calculate: total sessions, total time, avg time, longest session
-- [ ] Get current streak and longest streak from userStats
-- [ ] Format as text block with box drawing characters
-- [ ] Reply with formatted stats (ephemeral)
-
-### Test /mystats Command
-- [ ] Complete at least 3 sessions of varying lengths
-- [ ] Run `/mystats` (default: week)
-- [ ] Verify stats are accurate
-- [ ] Run `/mystats today`
-- [ ] Verify only today's sessions counted
-- [ ] Run `/mystats all-time`
-- [ ] Verify all sessions counted
-- [ ] Try `/mystats` with no sessions (new user)
-- [ ] Verify helpful "no stats yet" message
-- [ ] Verify formatting looks good on desktop and mobile
-
----
-
-## Phase 13: Code Cleanup & Refactoring
-
-### Organize Code Structure
-- [ ] Create `src/commands/` directory
-- [ ] Move each command to separate file (start.ts, end.ts, etc.)
-- [ ] Create `src/services/` directory
-- [ ] Move session logic to `services/sessions.ts`
-- [ ] Move stats logic to `services/stats.ts`
-- [ ] Create `src/utils/` directory
-- [ ] Move formatters to `utils/formatters.ts`
-- [ ] Update imports in bot.ts
-
-### Error Handling Improvements
-- [ ] Add try/catch blocks to all command handlers
-- [ ] Log errors to console with context
-- [ ] Reply to user with friendly error messages
-- [ ] Don't expose internal errors to users
-- [ ] Add error handling for Firebase connection issues
-- [ ] Add error handling for Discord API errors
-
-### Code Review Checklist
-- [ ] All functions have clear names
-- [ ] No duplicate code
-- [ ] All Firebase queries use proper error handling
-- [ ] All Discord replies handle potential failures
-- [ ] TypeScript types are used (no `any`)
-- [ ] Console.log statements are helpful and not excessive
-- [ ] No sensitive data in logs
-
----
-
-## Phase 14: Testing & Bug Fixes
-
-### Comprehensive Manual Testing
-- [ ] Test all commands with valid inputs
-- [ ] Test all commands with invalid inputs
-- [ ] Test all error cases (no session, already exists, etc.)
-- [ ] Test as admin and non-admin
-- [ ] Test in multiple Discord servers
-- [ ] Test with 2+ concurrent users
-- [ ] Test very long intentions/descriptions (1000+ chars)
-- [ ] Test special characters, emojis, mentions, URLs in text
-- [ ] Test pause/resume multiple times in one session
-- [ ] Test streaks over multiple days (manually adjust dates if needed)
+### Streak Testing
+- [ ] Complete session Day 1
+- [ ] Complete session Day 2 (next day)
+- [ ] Verify: Streak = 2
+- [ ] Complete session Day 3
+- [ ] Verify: Streak = 3, "Hot Streak" badge unlocks
+- [ ] Skip a day
+- [ ] Complete session
+- [ ] Verify: Streak resets to 1
+- [ ] Test 7-day milestone XP bonus
+- [ ] Test 30-day milestone (may need to manipulate data)
 
 ### Edge Case Testing
-- [ ] Start session, then bot goes offline, then comes back (session should persist)
-- [ ] Very short session (<10 seconds)
-- [ ] Very long session (8+ hours)
-- [ ] Complete 10+ sessions in one day
-- [ ] Test stats with 0 sessions
-- [ ] Test stats with 100+ sessions
-- [ ] Multiple users ending sessions simultaneously
-- [ ] Feed channel deleted after setup (should fail gracefully)
-- [ ] Change feed channel to different channel
+- [ ] Very short session (< 1 minute) - minimal XP
+- [ ] Very long session (8+ hours) - lots of XP, badges
+- [ ] Session spanning midnight - date boundary
+- [ ] User at max level (100) - doesn't break
+- [ ] User with 0 XP - displays correctly
+- [ ] User with many badges (15+) - "/badges" handles well
+- [ ] Server with no feed channel configured - no crashes
+- [ ] Invalid emoji in badge - reaction fails gracefully
 
-### Bug Tracking
-- [ ] Create list of any bugs found
-- [ ] Prioritize bugs (critical, high, medium, low)
-- [ ] Fix critical bugs before deployment
-- [ ] Document known issues if not fixed
+### Command Testing
+- [ ] /start - still works
+- [ ] /pause - still works
+- [ ] /resume - still works
+- [ ] /end - shows XP, badges, feed post
+- [ ] /cancel - still works
+- [ ] /time - still works
+- [ ] /manual - shows XP, badges
+- [ ] /stats - shows level, XP, progress, badges
+- [ ] /badges - shows all badges grouped
+- [ ] /leaderboard - still works (existing functionality)
 
----
+### Performance Testing
+- [ ] Session completion < 3 seconds
+- [ ] /stats loads quickly (< 2 seconds)
+- [ ] /badges loads quickly
+- [ ] Badge checking doesn't slow down session end
+- [ ] Check Firestore read/write counts
+- [ ] Monitor for quota issues
 
-## Phase 15: Documentation
-
-### Create README.md
-- [ ] Project title and description
-- [ ] What the bot does (brief overview)
-- [ ] Setup instructions (Discord, Firebase, local)
-- [ ] Environment variables needed
-- [ ] How to run locally
-- [ ] How to deploy to Railway
-- [ ] Available commands list
-- [ ] Contributing guidelines (if applicable)
-- [ ] License information
-
-### Create .env.example
-- [ ] Copy .env structure
-- [ ] Replace actual values with placeholders
-- [ ] Add comments explaining each variable
-- [ ] Commit to git (this file is safe to commit)
-
-### Code Comments
-- [ ] Add JSDoc comments to all exported functions
-- [ ] Add inline comments for complex logic
-- [ ] Add comments explaining any "magic numbers"
-- [ ] Add TODO comments for future improvements
+### Error Handling
+- [ ] Test with missing user stats
+- [ ] Test with corrupted data
+- [ ] Test with missing badge definitions
+- [ ] Test network errors to Firestore
+- [ ] Check all console.error() calls work
+- [ ] Verify no crashes on errors
 
 ---
 
-## Phase 16: Deployment Preparation
+## 🚀 Pre-Deployment
 
-### Git Repository Setup
-- [ ] Initialize git: `git init`
-- [ ] Create .gitignore (should already exist)
-- [ ] Verify .env and firebase-service-account.json are ignored
-- [ ] Commit initial code: `git add .`
-- [ ] Create initial commit: `git commit -m "Initial commit"`
-- [ ] Create GitHub repository
-- [ ] Add remote: `git remote add origin <url>`
-- [ ] Push to GitHub: `git push -u origin main`
+### Code Quality
+- [ ] Run `npm run build` - no errors
+- [ ] Run `npm test` - all tests pass
+- [ ] Review all console.log statements (appropriate level)
+- [ ] Remove any debugging code
+- [ ] Check for TODO comments
+- [ ] Review all error messages are user-friendly
+- [ ] Verify no hardcoded values
+- [ ] Check TypeScript strict mode compliance
 
-### Production Environment Variables
-- [ ] Document all required environment variables
-- [ ] Create Railway-compatible format for FIREBASE_SERVICE_ACCOUNT
-- [ ] Test that service account JSON can be parsed from env var
-- [ ] Update bot.ts to handle both local file and env var
+### Documentation
+- [ ] Update README.md with new commands
+- [ ] Document /stats changes
+- [ ] Document /badges command
+- [ ] Update command list
+- [ ] Document XP system (10 XP/hour, bonuses)
+- [ ] Document badge system
+- [ ] Update environment variables (if any new)
+- [ ] Create changelog entry
 
-### Build & Start Scripts
-- [ ] Test `npm run build` produces dist/ folder
-- [ ] Test `npm run start` runs from dist/
-- [ ] Verify TypeScript compilation has no errors
-- [ ] Add "engines" field to package.json specifying Node version
+### Database Migration (if needed)
+- [ ] Create migration script: `src/migrations/phase1-xp-system.ts`
+- [ ] Test migration on local database copy
+- [ ] Add default values for existing users:
+  - [ ] xp: 0 or calculated from totalDuration
+  - [ ] level: calculateLevel(xp)
+  - [ ] badges: []
+  - [ ] badgesUnlockedAt: {}
+  - [ ] sessionsByDay: approximate from data
+  - [ ] Other fields: 0 or []
+- [ ] Test migration doesn't break existing data
+- [ ] Document rollback procedure
 
----
+### Testing in Staging
+- [ ] Deploy to test/staging environment
+- [ ] Test with production data copy
+- [ ] Verify all features work
+- [ ] Get 3-5 beta testers
+- [ ] Collect feedback
+- [ ] Fix any bugs found
+- [ ] Retest after fixes
 
-## Phase 17: Railway Deployment
-
-### Railway Setup
-- [ ] Create account at https://railway.app
-- [ ] Create new project
-- [ ] Connect GitHub repository
-- [ ] Select repository and branch (main)
-
-### Configure Environment Variables
-- [ ] Add DISCORD_BOT_TOKEN
-- [ ] Add DISCORD_CLIENT_ID
-- [ ] Add FIREBASE_PROJECT_ID
-- [ ] Add FIREBASE_SERVICE_ACCOUNT (entire JSON as string)
-- [ ] Save environment variables
-
-### Deploy & Monitor
-- [ ] Railway auto-deploys from main branch
-- [ ] Monitor deployment logs
-- [ ] Check for successful build
-- [ ] Check for successful start
-- [ ] Verify bot shows online in Discord
-- [ ] Test all commands in production
-
-### Post-Deployment Testing
-- [ ] Test `/ping` command
-- [ ] Test `/start` and `/end` workflow
-- [ ] Verify feed posts appear
-- [ ] Test `/mystats` displays correctly
-- [ ] Check Firebase for new data
-- [ ] Monitor Railway logs for errors
-- [ ] Test with multiple users
-- [ ] Verify uptime over 24 hours
+### Prepare Rollback Plan
+- [ ] Document database schema changes
+- [ ] Create rollback script
+- [ ] Back up current bot.ts
+- [ ] Back up current services/
+- [ ] Document rollback steps
+- [ ] Test rollback procedure
 
 ---
 
-## Phase 18: Production Monitoring & Maintenance
+## 🎯 Deployment
 
-### Initial Monitoring (First Week)
-- [ ] Check Railway logs daily
-- [ ] Monitor Firebase usage in console
-- [ ] Check for any user-reported issues
-- [ ] Verify bot stays online
-- [ ] Monitor response times
-- [ ] Check for any error patterns
+### Pre-Deploy Checklist
+- [ ] All tests pass
+- [ ] Code reviewed
+- [ ] Beta testing complete
+- [ ] Bugs fixed
+- [ ] Documentation updated
+- [ ] Rollback plan ready
+- [ ] Database backup created
+- [ ] Team notified of deployment
 
-### User Feedback
-- [ ] Gather feedback from test users
-- [ ] Create issues for bugs
-- [ ] Create issues for feature requests
-- [ ] Prioritize improvements
+### Deploy Steps
+- [ ] Merge feature branch to main: `git checkout main && git merge feature/phase-1-xp-badges`
+- [ ] Tag release: `git tag -a v2.0.0-phase1 -m "Phase 1: XP and Badge System"`
+- [ ] **⚠️ WAIT FOR EXPLICIT USER APPROVAL BEFORE PUSHING ⚠️**
+- [ ] Push to repository: `git push origin main --tags`
+- [ ] Monitor Railway deployment logs
+- [ ] Check for build errors
+- [ ] Verify bot comes online
+- [ ] Test in production Discord server
 
-### Documentation Updates
-- [ ] Update README with production URL (if applicable)
-- [ ] Document any deployment issues encountered
-- [ ] Add troubleshooting section to README
-- [ ] Update spec.md with any changes made
-
----
-
-## Phase 19: Future Enhancements (Optional)
-
-### Social Features
-- [ ] Design support/like system
-- [ ] Design comment system
-- [ ] Design follow system
-- [ ] Implement feed filtering (following only)
-
-### Advanced Stats
-- [ ] Server-wide leaderboards
-- [ ] Category/tag tracking
-- [ ] Productivity insights
-- [ ] Week-over-week comparisons
-
-### Quality of Life
-- [ ] Edit intention mid-session
-- [ ] Set estimated duration
-- [ ] Timer alerts at intervals
-- [ ] Streak reminders via DM
-- [ ] Daily/weekly summary DMs
-
-### Integration
-- [ ] Link Discord to Ambira web app
-- [ ] Sync sessions across platforms
-- [ ] Export data (CSV/JSON)
-- [ ] Calendar integration
+### Deployment Verification
+- [ ] Bot is online and responsive
+- [ ] /stats command works
+- [ ] /badges command appears
+- [ ] Complete test session
+- [ ] Verify XP awards
+- [ ] Verify badge unlocks
+- [ ] Check feed posts
+- [ ] Monitor error logs (30 minutes)
+- [ ] Check Firestore data is updating
 
 ---
 
-## Completion Criteria
+## 📈 Post-Deployment
 
-### Ready for Production
-- [x] All MVP commands implemented and tested
-- [x] Feed posting works correctly
-- [x] Stats calculate accurately
-- [x] Streak tracking works
-- [x] Error handling is robust
-- [x] Code is clean and organized
-- [x] Documentation is complete
-- [x] Deployed to Railway successfully
-- [x] Bot stays online >99% uptime
-- [x] No critical bugs
+### Monitoring (First 24 Hours)
+- [ ] Check Railway logs every 2 hours
+- [ ] Monitor Firestore quota usage
+- [ ] Watch for error spikes
+- [ ] Check user feedback in Discord
+- [ ] Verify badge unlock rate is reasonable
+- [ ] Monitor XP distribution
+- [ ] Check level distribution
 
-### Success Metrics (First Month)
-- [ ] Bot uptime: >99%
-- [ ] 10+ active users
-- [ ] 100+ sessions completed
-- [ ] Average 3+ sessions per user per week
-- [ ] No data loss incidents
-- [ ] Positive user feedback
+### User Communication
+- [ ] Post announcement in Discord about new features
+- [ ] Explain XP system (10 XP/hour + bonuses)
+- [ ] Explain leveling (exponential curve)
+- [ ] Highlight badge system
+- [ ] Show example of /stats and /badges
+- [ ] Encourage users to try new features
+- [ ] Create tutorial or FAQ if needed
+
+### Data Collection
+- [ ] Track most-earned badges (first week)
+- [ ] Analyze level distribution
+- [ ] Monitor session completion rate
+- [ ] Track /stats and /badges usage
+- [ ] Collect user feedback
+- [ ] Note any issues or bugs
+
+### Bug Fixes
+- [ ] Create GitHub issues for any bugs found
+- [ ] Prioritize critical bugs
+- [ ] Fix and deploy patches quickly
+- [ ] Document known issues
+- [ ] Update TODO list with follow-up tasks
 
 ---
 
-**Last Updated:** 2025-01-11
-**Status:** Ready to begin Phase 0
+## 📊 Success Metrics
+
+### Week 1 (After Deployment)
+- [ ] XP system awards correctly for >95% of sessions
+- [ ] Leveling displays in all relevant places
+- [ ] No critical errors in logs
+- [ ] At least 10 users have leveled up
+- [ ] Badge unlock rate >50% for first session
+
+### Week 2-3 (Ongoing)
+- [ ] 30% increase in daily active users (target)
+- [ ] Users check /stats 2x more often (target)
+- [ ] Session completion rate +20% (target)
+- [ ] Positive user feedback (survey or comments)
+- [ ] At least 15 different badges have been earned
+- [ ] No duplicate badge unlocks reported
+
+### Overall Phase 1 Success
+- [ ] All features working as designed
+- [ ] No critical bugs remaining
+- [ ] User engagement increased
+- [ ] Positive community feedback
+- [ ] System is stable and performant
+- [ ] Ready for Phase 2 planning
+
+---
+
+## 🎯 Phase 2 Preparation
+
+- [ ] Analyze Phase 1 data and metrics
+- [ ] Collect user feedback on what they want next
+- [ ] Review badge earn rates (too easy/hard?)
+- [ ] Review XP curve (too fast/slow?)
+- [ ] Identify most requested features
+- [ ] Plan Phase 2 features (social, leaderboard enhancements, etc.)
+- [ ] Create Phase 2 planning document
+- [ ] Schedule Phase 2 kickoff
+
+---
+
+## 📝 Notes & Learnings
+
+### Issues Encountered
+-
+-
+-
+
+### What Went Well
+-
+-
+-
+
+### What Could Be Improved
+-
+-
+-
+
+### Ideas for Future Phases
+-
+-
+-
+
+---
+
+**Last Updated:** 2025-01-14
+**Current Status:** Not Started
+**Implementation Time:** 2-3 weeks
