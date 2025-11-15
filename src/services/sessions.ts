@@ -1,9 +1,16 @@
 import { Firestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
-import { Guild } from 'discord.js';
+import { Guild, Collection, GuildMember } from 'discord.js';
 import { ActiveSession, CompletedSession } from '../types';
+
+interface MemberCacheEntry {
+  members: Collection<string, GuildMember>;
+  expires: number;
+}
 
 export class SessionService {
   private db: Firestore;
+  private memberCache: Map<string, MemberCacheEntry> = new Map();
+  private readonly CACHE_TTL = 60000; // 1 minute in milliseconds
 
   constructor(db: Firestore) {
     this.db = db;
@@ -210,9 +217,34 @@ export class SessionService {
 
       console.log(`[GET TOP USERS] Checking Discord membership for ${allUserIds.size} unique users in guild ${guild.id}`);
 
-      // Fetch all guild members at once (much faster than individual fetches)
-      const guildMembers = await guild.members.fetch();
-      console.log(`[GET TOP USERS] Fetched ${guildMembers.size} total guild members`);
+      // Check cache first
+      let guildMembers: Collection<string, GuildMember>;
+      const cached = this.memberCache.get(guild.id);
+      const now = Date.now();
+
+      if (cached && now < cached.expires) {
+        console.log(`[GET TOP USERS] 💾 Using cached guild members (expires in ${Math.round((cached.expires - now) / 1000)}s)`);
+        guildMembers = cached.members;
+      } else {
+        console.log(`[GET TOP USERS] 🌐 Fetching guild members from Discord API`);
+        guildMembers = await guild.members.fetch();
+
+        // Store in cache
+        this.memberCache.set(guild.id, {
+          members: guildMembers,
+          expires: now + this.CACHE_TTL,
+        });
+
+        // Clean up expired cache entries to prevent memory leaks
+        for (const [guildId, entry] of this.memberCache.entries()) {
+          if (now >= entry.expires) {
+            this.memberCache.delete(guildId);
+            console.log(`[GET TOP USERS] 🧹 Cleaned up expired cache for guild ${guildId}`);
+          }
+        }
+      }
+
+      console.log(`[GET TOP USERS] Guild has ${guildMembers.size} total members`);
 
       // Check each user's membership from the cached collection
       for (const userId of allUserIds) {
