@@ -1027,7 +1027,7 @@ client.on('interactionCreate', async (interaction) => {
           {
             name: '📊 Statistics & Leaderboards',
             value:
-              '`/mystats` - View your personal statistics\n' +
+              '`/stats` - View your personal statistics\n' +
               '`/leaderboard` - Quick overview (top 3 + your rank)\n' +
               '`/d` - Daily leaderboard (top 10)\n' +
               '`/w` - Weekly leaderboard (top 10)\n' +
@@ -1608,8 +1608,9 @@ client.on('interactionCreate', async (interaction) => {
 
     // /leaderboard command - Show top 3 + user position
     if (commandName === 'leaderboard') {
-      console.log(`[LEADERBOARD] Command started for user ${user.username} (${user.id})`);
+      // Defer IMMEDIATELY before any logging to prevent timeout
       await interaction.deferReply({ ephemeral: false });
+      console.log(`[LEADERBOARD] Command started for user ${user.username} (${user.id})`);
 
       // Get data for all timeframes
       const today = getStartOfDayPacific();
