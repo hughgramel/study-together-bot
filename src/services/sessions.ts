@@ -1,4 +1,5 @@
 import { Firestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { Guild } from 'discord.js';
 import { ActiveSession, CompletedSession } from '../types';
 
 export class SessionService {
@@ -171,15 +172,15 @@ export class SessionService {
    * Gets top users by total duration within a timeframe
    * Returns array of { userId, username, totalDuration, sessionCount }
    *
-   * If serverId provided: Only show users with at least 1 session in that server,
+   * If guild provided: Only show users who are members of that Discord server,
    * but count ALL their sessions (across all servers)
    */
   async getTopUsers(
     since: Timestamp,
     limit: number = 10,
-    serverId?: string
+    guild?: Guild
   ): Promise<Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>> {
-    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}, serverId: ${serverId || 'all'}`);
+    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}, guild: ${guild?.id || 'all'}`);
 
     // Get all sessions since the timeframe
     const snapshot = await this.db
@@ -196,18 +197,31 @@ export class SessionService {
       return [];
     }
 
-    // First pass: Find users who have at least one session in the specified server
+    // First pass: Find users who are members of the Discord server
     const eligibleUserIds = new Set<string>();
 
-    if (serverId) {
+    if (guild) {
+      // Get all unique user IDs from sessions
+      const allUserIds = new Set<string>();
       snapshot.docs.forEach(doc => {
         const session = doc.data() as CompletedSession;
-        // User is eligible if they have ANY session in this server
-        if (session.serverId === serverId) {
-          eligibleUserIds.add(session.userId);
-        }
+        allUserIds.add(session.userId);
       });
-      console.log(`[GET TOP USERS] Found ${eligibleUserIds.size} users with at least one session in server ${serverId}`);
+
+      console.log(`[GET TOP USERS] Checking Discord membership for ${allUserIds.size} unique users in guild ${guild.id}`);
+
+      // Check each user's membership in the Discord server
+      for (const userId of allUserIds) {
+        try {
+          await guild.members.fetch(userId);
+          eligibleUserIds.add(userId);
+          console.log(`[GET TOP USERS] ✅ User ${userId} IS a member of guild ${guild.id}`);
+        } catch (error) {
+          console.log(`[GET TOP USERS] ❌ User ${userId} is NOT a member of guild ${guild.id}`);
+        }
+      }
+
+      console.log(`[GET TOP USERS] Found ${eligibleUserIds.size} users who are members of guild ${guild.id}`);
       console.log(`[GET TOP USERS] Eligible users:`, Array.from(eligibleUserIds));
     }
 
@@ -233,8 +247,8 @@ export class SessionService {
     snapshot.docs.forEach((doc) => {
       const session = doc.data() as CompletedSession;
 
-      // If filtering by server, skip users not eligible
-      if (serverId && !eligibleUserIds.has(session.userId)) {
+      // If filtering by guild, skip users not eligible
+      if (guild && !eligibleUserIds.has(session.userId)) {
         return;
       }
 
