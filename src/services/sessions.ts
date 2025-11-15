@@ -173,17 +173,24 @@ export class SessionService {
    */
   async getTopUsers(
     since: Timestamp,
-    limit: number = 10
+    limit: number = 10,
+    serverId?: string
   ): Promise<Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>> {
-    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}`);
+    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}, serverId: ${serverId || 'all'}`);
 
     // Get all sessions since the timeframe
-    const snapshot = await this.db
+    let query = this.db
       .collection('discord-data')
       .doc('sessions')
       .collection('completed')
-      .where('createdAt', '>=', since)
-      .get();
+      .where('createdAt', '>=', since);
+
+    // Filter by serverId if provided
+    if (serverId) {
+      query = query.where('serverId', '==', serverId);
+    }
+
+    const snapshot = await query.get();
 
     console.log(`[GET TOP USERS] Found ${snapshot.size} total sessions`);
 
