@@ -1,16 +1,8 @@
 import { Firestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
-import { Guild, Collection, GuildMember } from 'discord.js';
 import { ActiveSession, CompletedSession } from '../types';
-
-interface MemberCacheEntry {
-  members: Collection<string, GuildMember>;
-  expires: number;
-}
 
 export class SessionService {
   private db: Firestore;
-  private memberCache: Map<string, MemberCacheEntry> = new Map();
-  private readonly CACHE_TTL = 60000; // 1 minute in milliseconds
 
   constructor(db: Firestore) {
     this.db = db;
@@ -179,15 +171,15 @@ export class SessionService {
    * Gets top users by total duration within a timeframe
    * Returns array of { userId, username, totalDuration, sessionCount }
    *
-   * If guild provided: Only show users who are members of that Discord server,
+   * If serverId provided: Only show users who have at least one session in that server,
    * but count ALL their sessions (across all servers)
    */
   async getTopUsers(
     since: Timestamp,
     limit: number = 10,
-    guild?: Guild
+    serverId?: string
   ): Promise<Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>> {
-    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}, guild: ${guild?.id || 'all'}`);
+    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}, serverId: ${serverId || 'all'}`);
 
     // Get all sessions since the timeframe
     const snapshot = await this.db
@@ -204,86 +196,28 @@ export class SessionService {
       return [];
     }
 
-    // First pass: Find users who are members of the Discord server
+    // First pass: Find users who have at least one session in the specified server
     const eligibleUserIds = new Set<string>();
 
-    if (guild) {
-      // Get all unique user IDs from sessions
-      const allUserIds = new Set<string>();
+    if (serverId) {
       snapshot.docs.forEach(doc => {
         const session = doc.data() as CompletedSession;
-        allUserIds.add(session.userId);
+        // User is eligible if they have ANY session in this server
+        if (session.serverId === serverId) {
+          eligibleUserIds.add(session.userId);
+        }
       });
-
-      console.log(`[GET TOP USERS] Checking Discord membership for ${allUserIds.size} unique users in guild ${guild.id}`);
-
-      // Check cache first
-      let guildMembers: Collection<string, GuildMember>;
-      const cached = this.memberCache.get(guild.id);
-      const now = Date.now();
-
-      if (cached && now < cached.expires) {
-        console.log(`[GET TOP USERS] 💾 Using cached guild members (expires in ${Math.round((cached.expires - now) / 1000)}s)`);
-        guildMembers = cached.members;
-      } else {
-        console.log(`[GET TOP USERS] 🌐 Fetching guild members from Discord API`);
-        guildMembers = await guild.members.fetch();
-
-        // Store in cache
-        this.memberCache.set(guild.id, {
-          members: guildMembers,
-          expires: now + this.CACHE_TTL,
-        });
-
-        // Clean up expired cache entries to prevent memory leaks
-        for (const [guildId, entry] of this.memberCache.entries()) {
-          if (now >= entry.expires) {
-            this.memberCache.delete(guildId);
-            console.log(`[GET TOP USERS] 🧹 Cleaned up expired cache for guild ${guildId}`);
-          }
-        }
-      }
-
-      console.log(`[GET TOP USERS] Guild has ${guildMembers.size} total members`);
-
-      // Check each user's membership from the cached collection
-      for (const userId of allUserIds) {
-        if (guildMembers.has(userId)) {
-          eligibleUserIds.add(userId);
-          console.log(`[GET TOP USERS] ✅ User ${userId} IS a member of guild ${guild.id}`);
-        } else {
-          console.log(`[GET TOP USERS] ❌ User ${userId} is NOT a member of guild ${guild.id}`);
-        }
-      }
-
-      console.log(`[GET TOP USERS] Found ${eligibleUserIds.size} users who are members of guild ${guild.id}`);
-      console.log(`[GET TOP USERS] Eligible users:`, Array.from(eligibleUserIds));
+      console.log(`[GET TOP USERS] Found ${eligibleUserIds.size} users with at least one session in server ${serverId}`);
     }
 
-    // Log all sessions for debugging
-    const allSessions = snapshot.docs.map(doc => {
-      const session = doc.data() as CompletedSession;
-      return {
-        id: doc.id,
-        userId: session.userId,
-        username: session.username,
-        duration: session.duration,
-        hours: (session.duration / 3600).toFixed(2),
-        createdAt: session.createdAt.toDate().toISOString(),
-        activity: session.activity,
-        serverId: session.serverId,
-      };
-    });
-    console.log(`[GET TOP USERS] All sessions:`, allSessions);
-
     // Second pass: Aggregate ALL sessions for eligible users
-    const userMap = new Map<string, { username: string; totalDuration: number; sessionCount: number; sessionIds: string[] }>();
+    const userMap = new Map<string, { username: string; totalDuration: number; sessionCount: number }>();
 
     snapshot.docs.forEach((doc) => {
       const session = doc.data() as CompletedSession;
 
-      // If filtering by guild, skip users not eligible
-      if (guild && !eligibleUserIds.has(session.userId)) {
+      // If filtering by server, skip users not eligible
+      if (serverId && !eligibleUserIds.has(session.userId)) {
         return;
       }
 
@@ -292,28 +226,14 @@ export class SessionService {
       if (existing) {
         existing.totalDuration += session.duration;
         existing.sessionCount += 1;
-        existing.sessionIds.push(doc.id);
-        console.log(`[GET TOP USERS] Aggregating for ${session.username}: adding ${session.duration}s, total now ${existing.totalDuration}s`);
       } else {
         userMap.set(session.userId, {
           username: session.username,
           totalDuration: session.duration,
           sessionCount: 1,
-          sessionIds: [doc.id],
         });
-        console.log(`[GET TOP USERS] First session for ${session.username}: ${session.duration}s`);
       }
     });
-
-    // Log aggregated data
-    console.log(`[GET TOP USERS] Aggregated by user:`, Array.from(userMap.entries()).map(([userId, data]) => ({
-      userId,
-      username: data.username,
-      totalDuration: data.totalDuration,
-      hours: (data.totalDuration / 3600).toFixed(2),
-      sessionCount: data.sessionCount,
-      sessionIds: data.sessionIds,
-    })));
 
     // Convert to array and sort by total duration
     const users = Array.from(userMap.entries())
