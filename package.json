@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node src/bot.ts",
     "build": "tsc",
-    "start": "node dist/bot.js"
+    "start": "node dist/bot.js",
+    "cleanup-duplicates": "ts-node scripts/cleanup-duplicates.ts"
   },
   "keywords": ["discord", "bot", "productivity", "tracking"],
   "author": "",
