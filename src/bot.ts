@@ -742,7 +742,7 @@ async function postBadgeUnlock(
     }
 
     // Build badge list with emojis, names, and descriptions
-    const badgeList = badges.map(b => `${b!.emoji} **${b!.name}** - *${b!.description}*`).join('\n');
+    const badgeList = badges.map(b => `${b!.emoji} **${b!.name.toUpperCase()}**\n${b!.description}`).join('\n\n');
     const totalXP = badges.reduce((sum, b) => sum + b!.xpReward, 0);
 
     const message = badges.length === 1
