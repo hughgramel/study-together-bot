@@ -132,8 +132,6 @@ The following fields will be **added** to `UserStats`:
 - `sessionsByDay: { [date: string]: number }` - Sessions per day (YYYY-MM-DD)
 - `activityTypes: string[]` - Unique activity types tried
 - `longestSessionDuration: number` - Longest session in seconds
-- `totalReactionsReceived: number` - Reactions on feed posts
-- `totalReactionsGiven: number` - Reactions given to others
 - `firstSessionOfDayCount: number` - Times user started first session of day
 - `sessionsBeforeNoon: number` - Sessions started before 12 PM
 - `sessionsAfterMidnight: number` - Sessions started after 12 AM

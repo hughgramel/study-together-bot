@@ -80,8 +80,6 @@ interface UserStats {
   };
   activityTypes: string[];      // unique activity types logged
   longestSessionDuration: number; // seconds
-  totalReactionsReceived: number; // reactions on feed posts
-  totalReactionsGiven: number;    // reactions given to others
   firstSessionOfDayCount: number; // # of times user started first session of day
 
   // Time-of-day tracking
@@ -394,8 +392,6 @@ export class StatsService {
         },
         activityTypes: [],
         longestSessionDuration: sessionDuration,
-        totalReactionsReceived: 0,
-        totalReactionsGiven: 0,
         firstSessionOfDayCount: 1,
         sessionsBeforeNoon: 0,
         sessionsAfterMidnight: 0,
