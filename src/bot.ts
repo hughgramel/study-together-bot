@@ -1023,13 +1023,15 @@ client.on('interactionCreate', async (interaction) => {
         const title = interaction.fields.getTextInputValue('title');
         const description = interaction.fields.getTextInputValue('description');
 
+        // Defer reply immediately to prevent timeout (we have complex processing ahead)
+        await interaction.deferReply({ ephemeral: false });
+
         // Get active session
         const session = await sessionService.getActiveSession(user.id);
 
         if (!session) {
-          await interaction.reply({
+          await interaction.editReply({
             content: 'No active session found! It may have been cancelled or already ended.',
-            ephemeral: false,
           });
           return;
         }
@@ -1100,9 +1102,8 @@ client.on('interactionCreate', async (interaction) => {
           badgeMessage = `\n🏆 **NEW BADGE${newBadges.length > 1 ? 'S' : ''}!** ${badgeList}`;
         }
 
-        await interaction.reply({
+        await interaction.editReply({
           content: `✅ Session completed! (${durationStr})${xpMessage}${badgeMessage}\n\nYour session has been saved and posted to the feed.`,
-          ephemeral: false,
         });
 
         // Get user's avatar URL
@@ -1143,11 +1144,8 @@ client.on('interactionCreate', async (interaction) => {
         const errorMessage = 'An error occurred while completing your session. Please try again.';
 
         try {
-          if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ content: errorMessage, ephemeral: true });
-          } else {
-            await interaction.reply({ content: errorMessage, ephemeral: true });
-          }
+          // We always defer at the start, so use editReply
+          await interaction.editReply({ content: errorMessage });
         } catch (replyError) {
           console.error('Could not send error message to user:', replyError);
         }
@@ -1460,7 +1458,7 @@ client.on('interactionCreate', async (interaction) => {
       );
 
       await interaction.reply({
-        content: `🚀 You're live! Your session is now active.\n\n**Working on:** ${activity}\n\nUse /time to check progress, /pause to take a break, or /end when done.`,
+        content: `🚀 You're live! Your session is now active.\n\n**Working on:** ${activity}`,
         ephemeral: false,
       });
 
