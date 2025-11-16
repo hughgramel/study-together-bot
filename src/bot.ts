@@ -732,12 +732,30 @@ function scheduleAutoPost(userId: string, guildId: string) {
         endTime,
       });
 
-      // Update stats
-      await statsService.updateUserStats(session.userId, session.username, duration);
+      // Update stats and award XP
+      const statsUpdate = await statsService.updateUserStats(
+        session.userId,
+        session.username,
+        duration,
+        'VC Session'
+      );
 
       // Fetch user for avatar
       const user = await client.users.fetch(userId);
       const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+      // Send DM with XP info
+      try {
+        let xpMessage = '';
+        if (statsUpdate.leveledUp) {
+          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        } else {
+          xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        }
+        await user.send(`⏰ Your VC session was automatically posted!\n\n**Duration:** ${formatDuration(duration)}${xpMessage}`);
+      } catch (dmError) {
+        console.log('Could not send auto-post DM to user');
+      }
 
       // Post basic session to feed
       await postBasicSessionToFeed(
@@ -830,13 +848,26 @@ client.on('interactionCreate', async (interaction) => {
           endTime,
         });
 
-        // Update stats
-        await statsService.updateUserStats(user.id, user.username, duration);
+        // Update stats and award XP
+        const statsUpdate = await statsService.updateUserStats(
+          user.id,
+          user.username,
+          duration,
+          activity
+        );
 
         const durationStr = formatDuration(duration);
 
+        // Build XP message with multiplier display
+        let xpMessage = '';
+        if (statsUpdate.leveledUp) {
+          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        } else {
+          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        }
+
         await interaction.editReply({
-          content: `✅ Manual session logged! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
+          content: `✅ Manual session logged! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
         });
 
         // Get user's avatar URL
@@ -927,13 +958,26 @@ client.on('interactionCreate', async (interaction) => {
           endTime,
         });
 
-        // Update stats
-        await statsService.updateUserStats(user.id, user.username, duration);
+        // Update stats and award XP
+        const statsUpdate = await statsService.updateUserStats(
+          user.id,
+          user.username,
+          duration,
+          session.activity
+        );
 
         const durationStr = formatDuration(duration);
 
+        // Build XP message with multiplier display
+        let xpMessage = '';
+        if (statsUpdate.leveledUp) {
+          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        } else {
+          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        }
+
         await interaction.reply({
-          content: `✅ Session completed! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
+          content: `✅ Session completed! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
           ephemeral: false,
         });
 
@@ -2119,15 +2163,26 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 endTime,
               });
 
-              // Update stats
-              await statsService.updateUserStats(userId, username, duration);
+              // Update stats and award XP
+              const statsUpdate = await statsService.updateUserStats(
+                userId,
+                username,
+                duration,
+                currentSession.activity
+              );
 
               console.log(`[VOICE] Auto-ended session for ${username} (${formatDuration(duration)})`);
 
-              // Try to send DM to user
+              // Try to send DM to user with XP info
               try {
                 const user = await client.users.fetch(userId);
-                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}\n\nYour session has been saved!`);
+                let xpMessage = '';
+                if (statsUpdate.leveledUp) {
+                  xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+                } else {
+                  xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+                }
+                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}${xpMessage}\n\nYour session has been saved!`);
               } catch (dmError) {
                 console.log(`[VOICE] Could not send DM to ${username}`);
               }
