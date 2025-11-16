@@ -740,8 +740,8 @@ async function postBadgeUnlock(
       return;
     }
 
-    // Build badge list with emojis and names
-    const badgeList = badges.map(b => `${b!.emoji} **${b!.name}**`).join('\n');
+    // Build badge list with emojis, names, and descriptions
+    const badgeList = badges.map(b => `${b!.emoji} **${b!.name}** - *${b!.description}*`).join('\n');
     const totalXP = badges.reduce((sum, b) => sum + b!.xpReward, 0);
 
     const message = badges.length === 1
@@ -755,12 +755,7 @@ async function postBadgeUnlock(
         name: `${username} 🏆`,
         iconURL: avatarUrl
       })
-      .setDescription(message)
-      .addFields({
-        name: badges.length === 1 ? 'Badge Unlocked' : 'Badges Unlocked',
-        value: badgeList,
-        inline: false
-      })
+      .setDescription(`${message}\n\n${badgeList}`)
       .setFooter({ text: `+${totalXP} bonus XP earned` });
 
     const badgeMessage = await textChannel.send({
