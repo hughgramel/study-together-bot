@@ -25,6 +25,7 @@ import * as path from 'path';
 import { SessionService } from './services/sessions';
 import { StatsService } from './services/stats';
 import { BadgeService } from './services/badges';
+import { PostService } from './services/posts';
 import { getBadge } from './data/badges';
 import { ServerConfig } from './types';
 import {
@@ -76,6 +77,7 @@ const db: Firestore = admin.firestore();
 const sessionService = new SessionService(db);
 const statsService = new StatsService(db);
 const badgeService = new BadgeService(db);
+const postService = new PostService(db);
 
 // Create Discord client
 const client = new Client({
@@ -485,7 +487,11 @@ async function postToFeed(
   title: string,
   description: string,
   duration: number,
-  endTime: Timestamp
+  endTime: Timestamp,
+  sessionId: string,
+  xpGained: number,
+  newLevel?: number,
+  badgesUnlocked?: string[]
 ) {
   try {
     const config = await getServerConfig(interaction.guildId!);
@@ -541,6 +547,20 @@ async function postToFeed(
     const message = await textChannel.send({
       embeds: [embed]
     });
+
+    // Track session post for social features
+    await postService.createSessionPost(
+      message.id,
+      userId,
+      username,
+      interaction.guildId!,
+      config.feedChannelId,
+      sessionId,
+      duration,
+      xpGained,
+      newLevel,
+      badgesUnlocked
+    );
 
     // React with a heart if bot has permission
     if (permissions?.has(PermissionFlagsBits.AddReactions)) {
@@ -855,7 +875,7 @@ client.on('interactionCreate', async (interaction) => {
         const startTime = Timestamp.fromMillis(endTime.toMillis() - (duration * 1000));
 
         // Create completed session
-        await sessionService.createCompletedSession({
+        const sessionId = await sessionService.createCompletedSession({
           userId: user.id,
           username: user.username,
           serverId: guildId!,
@@ -913,7 +933,11 @@ client.on('interactionCreate', async (interaction) => {
           title,
           description,
           duration,
-          endTime
+          endTime,
+          sessionId,
+          statsUpdate.xpGained,
+          statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
+          newBadges.length > 0 ? newBadges : undefined
         );
 
         // Get updated stats to check for streak milestones
@@ -976,7 +1000,7 @@ client.on('interactionCreate', async (interaction) => {
         await sessionService.deleteActiveSession(user.id);
 
         // Create completed session
-        await sessionService.createCompletedSession({
+        const sessionId = await sessionService.createCompletedSession({
           userId: user.id,
           username: user.username,
           serverId: guildId!,
@@ -1035,7 +1059,11 @@ client.on('interactionCreate', async (interaction) => {
           title,
           description,
           duration,
-          endTime
+          endTime,
+          sessionId,
+          statsUpdate.xpGained,
+          statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
+          newBadges.length > 0 ? newBadges : undefined
         );
 
         // Get updated stats to check for streak milestones
