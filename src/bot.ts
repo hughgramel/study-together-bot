@@ -564,7 +564,8 @@ async function postToFeed(
       .setDescription(description)
       .addFields(
         { name: '⏱️ Time', value: durationStr, inline: true },
-        { name: '🎯 Activity', value: activity, inline: true }
+        { name: '🎯 Activity', value: activity, inline: true },
+        { name: '✨ XP Earned', value: `+${xpGained} XP`, inline: true }
       );
 
     const message = await textChannel.send({
@@ -809,9 +810,9 @@ function scheduleAutoPost(userId: string, guildId: string) {
       try {
         let xpMessage = '';
         if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
         } else {
-          xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+          xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned!`;
         }
 
         // Add weekly challenge completion bonus
@@ -945,9 +946,9 @@ client.on('interactionCreate', async (interaction) => {
         // Build XP message with multiplier display
         let xpMessage = '';
         if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
         } else {
-          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned!`;
         }
 
         // Add weekly challenge completion bonus
@@ -1084,9 +1085,9 @@ client.on('interactionCreate', async (interaction) => {
         // Build XP message with multiplier display
         let xpMessage = '';
         if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
         } else {
-          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned!`;
         }
 
         // Add weekly challenge completion bonus
@@ -2669,9 +2670,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 const user = await client.users.fetch(userId);
                 let xpMessage = '';
                 if (statsUpdate.leveledUp) {
-                  xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+                  xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
                 } else {
-                  xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+                  xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned!`;
                 }
 
                 // Add weekly challenge completion bonus
