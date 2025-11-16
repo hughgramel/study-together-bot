@@ -565,7 +565,7 @@ async function postToFeed(
       .addFields(
         { name: '⏱️ Time', value: durationStr, inline: true },
         { name: '🎯 Activity', value: activity, inline: true },
-        { name: '✨ XP Earned', value: `+${xpGained} XP`, inline: true }
+        { name: '✨ XP Earned', value: `+${xpGained} XP`, inline: false }
       );
 
     const message = await textChannel.send({
