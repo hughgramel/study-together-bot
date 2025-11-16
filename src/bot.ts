@@ -24,6 +24,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SessionService } from './services/sessions';
 import { StatsService } from './services/stats';
+import { BadgeService } from './services/badges';
+import { getBadge } from './data/badges';
 import { ServerConfig } from './types';
 import {
   formatDuration,
@@ -72,6 +74,7 @@ admin.initializeApp({
 const db: Firestore = admin.firestore();
 const sessionService = new SessionService(db);
 const statsService = new StatsService(db);
+const badgeService = new BadgeService(db);
 
 // Create Discord client
 const client = new Client({
@@ -740,11 +743,14 @@ function scheduleAutoPost(userId: string, guildId: string) {
         'VC Session'
       );
 
+      // Check for new badges
+      const newBadges = await badgeService.checkAndAwardBadges(session.userId);
+
       // Fetch user for avatar
       const user = await client.users.fetch(userId);
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
-      // Send DM with XP info
+      // Send DM with XP and badge info
       try {
         let xpMessage = '';
         if (statsUpdate.leveledUp) {
@@ -752,7 +758,15 @@ function scheduleAutoPost(userId: string, guildId: string) {
         } else {
           xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
         }
-        await user.send(`⏰ Your VC session was automatically posted!\n\n**Duration:** ${formatDuration(duration)}${xpMessage}`);
+
+        let badgeMessage = '';
+        if (newBadges.length > 0) {
+          const badgeDetails = newBadges.map(id => getBadge(id)).filter(b => b);
+          const badgeList = badgeDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
+          badgeMessage = `\n🏆 **NEW BADGE${newBadges.length > 1 ? 'S' : ''}!** ${badgeList}`;
+        }
+
+        await user.send(`⏰ Your VC session was automatically posted!\n\n**Duration:** ${formatDuration(duration)}${xpMessage}${badgeMessage}`);
       } catch (dmError) {
         console.log('Could not send auto-post DM to user');
       }
@@ -856,6 +870,9 @@ client.on('interactionCreate', async (interaction) => {
           activity
         );
 
+        // Check for new badges
+        const newBadges = await badgeService.checkAndAwardBadges(user.id);
+
         const durationStr = formatDuration(duration);
 
         // Build XP message with multiplier display
@@ -866,8 +883,16 @@ client.on('interactionCreate', async (interaction) => {
           xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
         }
 
+        // Build badge message
+        let badgeMessage = '';
+        if (newBadges.length > 0) {
+          const badgeDetails = newBadges.map(id => getBadge(id)).filter(b => b);
+          const badgeList = badgeDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
+          badgeMessage = `\n🏆 **NEW BADGE${newBadges.length > 1 ? 'S' : ''}!** ${badgeList}`;
+        }
+
         await interaction.editReply({
-          content: `✅ Manual session logged! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
+          content: `✅ Manual session logged! (${durationStr})${xpMessage}${badgeMessage}\n\nYour session has been saved and posted to the feed.`,
         });
 
         // Get user's avatar URL
@@ -966,6 +991,9 @@ client.on('interactionCreate', async (interaction) => {
           session.activity
         );
 
+        // Check for new badges
+        const newBadges = await badgeService.checkAndAwardBadges(user.id);
+
         const durationStr = formatDuration(duration);
 
         // Build XP message with multiplier display
@@ -976,8 +1004,16 @@ client.on('interactionCreate', async (interaction) => {
           xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
         }
 
+        // Build badge message
+        let badgeMessage = '';
+        if (newBadges.length > 0) {
+          const badgeDetails = newBadges.map(id => getBadge(id)).filter(b => b);
+          const badgeList = badgeDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
+          badgeMessage = `\n🏆 **NEW BADGE${newBadges.length > 1 ? 'S' : ''}!** ${badgeList}`;
+        }
+
         await interaction.reply({
-          content: `✅ Session completed! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
+          content: `✅ Session completed! (${durationStr})${xpMessage}${badgeMessage}\n\nYour session has been saved and posted to the feed.`,
           ephemeral: false,
         });
 
@@ -2171,9 +2207,12 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 currentSession.activity
               );
 
+              // Check for new badges
+              const newBadges = await badgeService.checkAndAwardBadges(userId);
+
               console.log(`[VOICE] Auto-ended session for ${username} (${formatDuration(duration)})`);
 
-              // Try to send DM to user with XP info
+              // Try to send DM to user with XP and badge info
               try {
                 const user = await client.users.fetch(userId);
                 let xpMessage = '';
@@ -2182,7 +2221,15 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 } else {
                   xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
                 }
-                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}${xpMessage}\n\nYour session has been saved!`);
+
+                let badgeMessage = '';
+                if (newBadges.length > 0) {
+                  const badgeDetails = newBadges.map(id => getBadge(id)).filter(b => b);
+                  const badgeList = badgeDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
+                  badgeMessage = `\n🏆 **NEW BADGE${newBadges.length > 1 ? 'S' : ''}!** ${badgeList}`;
+                }
+
+                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}${xpMessage}${badgeMessage}\n\nYour session has been saved!`);
               } catch (dmError) {
                 console.log(`[VOICE] Could not send DM to ${username}`);
               }
