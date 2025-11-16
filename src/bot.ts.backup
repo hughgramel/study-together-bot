@@ -1,7 +1,6 @@
 import {
   Client,
   GatewayIntentBits,
-  Partials,
   REST,
   Routes,
   SlashCommandBuilder,
@@ -25,9 +24,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SessionService } from './services/sessions';
 import { StatsService } from './services/stats';
-import { AchievementService } from './services/achievements';
-import { PostService } from './services/posts';
-import { getAchievement, getAllAchievements } from './data/achievements';
 import { ServerConfig } from './types';
 import {
   formatDuration,
@@ -35,7 +31,6 @@ import {
   isSameDay,
   isYesterday,
 } from './utils/formatters';
-import { calculateLevel, xpToNextLevel, levelProgress, xpForLevel } from './utils/xp';
 
 // Load environment variables
 dotenv.config();
@@ -77,8 +72,6 @@ admin.initializeApp({
 const db: Firestore = admin.firestore();
 const sessionService = new SessionService(db);
 const statsService = new StatsService(db);
-const achievementService = new AchievementService(db);
-const postService = new PostService(db);
 
 // Create Discord client
 const client = new Client({
@@ -87,12 +80,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMessageReactions,
-  ],
-  partials: [
-    Partials.Message,
-    Partials.Channel,
-    Partials.Reaction,
   ],
 });
 
@@ -149,30 +136,6 @@ const commands = [
           { name: 'This Month', value: 'month' },
           { name: 'All Time', value: 'all-time' }
         )
-    ),
-
-  new SlashCommandBuilder()
-    .setName('achievements')
-    .setDescription('View all your unlocked achievements'),
-
-  new SlashCommandBuilder()
-    .setName('profile')
-    .setDescription('View a user\'s profile with all stats and achievements')
-    .addUserOption(option =>
-      option
-        .setName('user')
-        .setDescription('User to view (defaults to yourself)')
-        .setRequired(false)
-    ),
-
-  new SlashCommandBuilder()
-    .setName('compare')
-    .setDescription('Compare your stats with another user')
-    .addUserOption(option =>
-      option
-        .setName('user')
-        .setDescription('User to compare with')
-        .setRequired(true)
     ),
 
   new SlashCommandBuilder()
@@ -514,11 +477,7 @@ async function postToFeed(
   title: string,
   description: string,
   duration: number,
-  endTime: Timestamp,
-  sessionId: string,
-  xpGained: number,
-  newLevel?: number,
-  achievementsUnlocked?: string[]
+  endTime: Timestamp
 ) {
   try {
     const config = await getServerConfig(interaction.guildId!);
@@ -568,28 +527,12 @@ async function postToFeed(
       .setDescription(description)
       .addFields(
         { name: '⏱️ Time', value: durationStr, inline: true },
-        { name: '🎯 Activity', value: activity, inline: true },
-        { name: '\u200b', value: '\u200b', inline: true }, // Empty third column
-        { name: '\u200b', value: `**✨ +${xpGained} XP Earned**`, inline: false }
+        { name: '🎯 Activity', value: activity, inline: true }
       );
 
     const message = await textChannel.send({
       embeds: [embed]
     });
-
-    // Track session post for social features
-    await postService.createSessionPost(
-      message.id,
-      userId,
-      username,
-      interaction.guildId!,
-      config.feedChannelId,
-      sessionId,
-      duration,
-      xpGained,
-      newLevel,
-      achievementsUnlocked
-    );
 
     // React with a heart if bot has permission
     if (permissions?.has(PermissionFlagsBits.AddReactions)) {
@@ -702,206 +645,6 @@ async function postStreakMilestone(
   }
 }
 
-// Helper function to post achievement unlock celebrations to feed
-async function postAchievementUnlock(
-  interaction: CommandInteraction | ModalSubmitInteraction,
-  username: string,
-  avatarUrl: string,
-  achievementIds: string[]
-) {
-  try {
-    if (!achievementIds || achievementIds.length === 0) {
-      return;
-    }
-
-    const config = await getServerConfig(interaction.guildId!);
-
-    if (!config || !config.feedChannelId) {
-      // No feed channel configured - skip posting
-      return;
-    }
-
-    const channel = await client.channels.fetch(config.feedChannelId);
-
-    if (!channel || !channel.isTextBased()) {
-      console.error('Feed channel not found or not text-based');
-      return;
-    }
-
-    const textChannel = channel as TextChannel;
-
-    // Check bot permissions in the channel
-    const botMember = await interaction.guild?.members.fetch(client.user!.id);
-    const permissions = textChannel.permissionsFor(botMember!);
-
-    if (!permissions?.has(PermissionFlagsBits.ViewChannel) || !permissions?.has(PermissionFlagsBits.SendMessages)) {
-      console.error(`Bot lacks necessary permissions in feed channel ${config.feedChannelId}`);
-      return;
-    }
-
-    // Get achievement details
-    const achievements = achievementIds.map(id => getAchievement(id)).filter(b => b !== undefined);
-    if (achievements.length === 0) {
-      return;
-    }
-
-    // Build achievement list with emojis, names, and descriptions
-    const achievementList = achievements.map(b => `${b!.emoji} **${b!.name}**\n${b!.description}`).join('\n\n');
-    const totalXP = achievements.reduce((sum, b) => sum + b!.xpReward, 0);
-
-    const message = achievements.length === 1
-      ? `**@${username}** unlocked a new achievement! 🏆`
-      : `**@${username}** unlocked ${achievements.length} new achievements! 🏆`;
-
-    // Create achievement unlock embed
-    const embed = new EmbedBuilder()
-      .setColor(0xFFD700) // Gold
-      .setAuthor({
-        name: `${username} 🏆`,
-        iconURL: avatarUrl
-      })
-      .setDescription(`${message}\n\n${achievementList}`)
-      .setFooter({ text: `+${totalXP} bonus XP earned` });
-
-    const achievementMessage = await textChannel.send({
-      embeds: [embed]
-    });
-
-    // React with confetti if bot has permission
-    if (permissions?.has(PermissionFlagsBits.AddReactions)) {
-      await achievementMessage.react('🎉');
-    }
-  } catch (error) {
-    console.error('Error posting achievement unlock:', error);
-    // Don't throw - we don't want to fail the session completion
-  }
-}
-
-// Helper function to post level-up celebrations to feed
-async function postLevelUp(
-  interaction: CommandInteraction | ModalSubmitInteraction,
-  username: string,
-  avatarUrl: string,
-  newLevel: number,
-  oldLevel: number
-) {
-  try {
-    const config = await getServerConfig(interaction.guildId!);
-
-    if (!config || !config.feedChannelId) {
-      // No feed channel configured - skip posting
-      return;
-    }
-
-    const channel = await client.channels.fetch(config.feedChannelId);
-
-    if (!channel || !channel.isTextBased()) {
-      console.error('Feed channel not found or not text-based');
-      return;
-    }
-
-    const textChannel = channel as TextChannel;
-
-    // Check bot permissions in the channel
-    const botMember = await interaction.guild?.members.fetch(client.user!.id);
-    const permissions = textChannel.permissionsFor(botMember!);
-
-    if (!permissions?.has(PermissionFlagsBits.ViewChannel) || !permissions?.has(PermissionFlagsBits.SendMessages)) {
-      console.error(`Bot lacks necessary permissions in feed channel ${config.feedChannelId}`);
-      return;
-    }
-
-    // Calculate next level XP requirement and hours needed
-    const currentXP = xpForLevel(newLevel);
-    const nextLevelXP = xpForLevel(newLevel + 1);
-    const xpNeeded = nextLevelXP - currentXP;
-    const hoursNeeded = Math.ceil(xpNeeded / 100); // 100 XP per hour
-
-    const levelDiff = newLevel - oldLevel;
-    const levelMessage = levelDiff > 1
-      ? `**@${username}** is now Level ${newLevel}! 🎉`
-      : `**@${username}** is now Level ${newLevel}! 🎉`;
-
-    // Create level-up embed
-    const embed = new EmbedBuilder()
-      .setColor(0x9B59B6) // Purple
-      .setAuthor({
-        name: `${username} 🎉`,
-        iconURL: avatarUrl
-      })
-      .setDescription(levelMessage)
-      .setFooter({ text: `About ${hoursNeeded} more ${hoursNeeded === 1 ? 'hour' : 'hours'} needed to reach Level ${newLevel + 1}!` });
-
-    const levelUpMessage = await textChannel.send({
-      embeds: [embed]
-    });
-
-    // React with celebration emojis if bot has permission
-    if (permissions?.has(PermissionFlagsBits.AddReactions)) {
-      await levelUpMessage.react('🎉');
-      await levelUpMessage.react('✨');
-    }
-  } catch (error) {
-    console.error('Error posting level-up:', error);
-    // Don't throw - we don't want to fail the session completion
-  }
-}
-
-// Helper function to post level-up celebrations to feed (for auto-posted VC sessions)
-async function postLevelUpBasic(
-  guildId: string,
-  username: string,
-  avatarUrl: string,
-  newLevel: number,
-  oldLevel: number
-) {
-  try {
-    const config = await getServerConfig(guildId);
-
-    if (!config || !config.feedChannelId) {
-      return;
-    }
-
-    const channel = await client.channels.fetch(config.feedChannelId);
-    if (!channel || !channel.isTextBased()) {
-      return;
-    }
-
-    const textChannel = channel as TextChannel;
-
-    // Calculate next level XP requirement and hours needed
-    const currentXP = xpForLevel(newLevel);
-    const nextLevelXP = xpForLevel(newLevel + 1);
-    const xpNeeded = nextLevelXP - currentXP;
-    const hoursNeeded = Math.ceil(xpNeeded / 100); // 100 XP per hour
-
-    const levelDiff = newLevel - oldLevel;
-    const levelMessage = levelDiff > 1
-      ? `**@${username}** is now Level ${newLevel}! 🎉`
-      : `**@${username}** is now Level ${newLevel}! 🎉`;
-
-    // Create level-up embed
-    const embed = new EmbedBuilder()
-      .setColor(0x9B59B6) // Purple
-      .setAuthor({
-        name: `${username} 🎉`,
-        iconURL: avatarUrl
-      })
-      .setDescription(levelMessage)
-      .setFooter({ text: `About ${hoursNeeded} more ${hoursNeeded === 1 ? 'hour' : 'hours'} needed to reach Level ${newLevel + 1}!` });
-
-    const levelUpMessage = await textChannel.send({
-      embeds: [embed]
-    });
-
-    // React with celebration emojis
-    await levelUpMessage.react('🎉').catch(() => {});
-    await levelUpMessage.react('✨').catch(() => {});
-  } catch (error) {
-    console.error('Error posting level-up:', error);
-  }
-}
-
 // Helper function to post basic session completion to feed (for auto-posted VC sessions)
 async function postBasicSessionToFeed(
   guildId: string,
@@ -989,41 +732,12 @@ function scheduleAutoPost(userId: string, guildId: string) {
         endTime,
       });
 
-      // Update stats and award XP
-      const statsUpdate = await statsService.updateUserStats(
-        session.userId,
-        session.username,
-        duration,
-        'VC Session'
-      );
-
-      // Check for new achievements
-      const newAchievements = await achievementService.checkAndAwardAchievements(session.userId);
+      // Update stats
+      await statsService.updateUserStats(session.userId, session.username, duration);
 
       // Fetch user for avatar
       const user = await client.users.fetch(userId);
       const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-      // Send DM with XP and achievement info
-      try {
-        let xpMessage = '';
-        if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
-        } else {
-          xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned!`;
-        }
-
-        let achievementMessage = '';
-        if (newAchievements.length > 0) {
-          const achievementDetails = newAchievements.map(id => getAchievement(id)).filter(b => b);
-          const achievementList = achievementDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
-          achievementMessage = `\n🏆 **NEW ACHIEVEMENT${newAchievements.length > 1 ? 'S' : ''}!** ${achievementList}`;
-        }
-
-        await user.send(`⏰ Your VC session was automatically posted!\n\n**Duration:** ${formatDuration(duration)}${xpMessage}${achievementMessage}`);
-      } catch (dmError) {
-        console.log('Could not send auto-post DM to user');
-      }
 
       // Post basic session to feed
       await postBasicSessionToFeed(
@@ -1033,22 +747,6 @@ function scheduleAutoPost(userId: string, guildId: string) {
         duration,
         session.vcChannelId!
       );
-
-      // Post level-up celebration if applicable
-      if (statsUpdate.leveledUp && statsUpdate.newLevel) {
-        // Calculate old level from XP
-        const currentXP = statsUpdate.stats.xp || 0;
-        const oldXP = currentXP - statsUpdate.xpGained;
-        const oldLevel = calculateLevel(oldXP);
-
-        await postLevelUpBasic(
-          guildId,
-          session.username,
-          avatarUrl,
-          statsUpdate.newLevel,
-          oldLevel
-        );
-      }
 
       // Clean up timer
       autoPostTimers.delete(userId);
@@ -1120,7 +818,7 @@ client.on('interactionCreate', async (interaction) => {
         const startTime = Timestamp.fromMillis(endTime.toMillis() - (duration * 1000));
 
         // Create completed session
-        const sessionId = await sessionService.createCompletedSession({
+        await sessionService.createCompletedSession({
           userId: user.id,
           username: user.username,
           serverId: guildId!,
@@ -1132,29 +830,13 @@ client.on('interactionCreate', async (interaction) => {
           endTime,
         });
 
-        // Update stats and award XP
-        const statsUpdate = await statsService.updateUserStats(
-          user.id,
-          user.username,
-          duration,
-          activity
-        );
-
-        // Check for new achievements
-        const newAchievements = await achievementService.checkAndAwardAchievements(user.id);
+        // Update stats
+        await statsService.updateUserStats(user.id, user.username, duration);
 
         const durationStr = formatDuration(duration);
 
-        // Build XP message with multiplier display
-        let xpMessage = '';
-        if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
-        } else {
-          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned!`;
-        }
-
         await interaction.editReply({
-          content: `✅ Manual session logged! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
+          content: `✅ Manual session logged! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
         });
 
         // Get user's avatar URL
@@ -1170,11 +852,7 @@ client.on('interactionCreate', async (interaction) => {
           title,
           description,
           duration,
-          endTime,
-          sessionId,
-          statsUpdate.xpGained,
-          statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
-          newAchievements.length > 0 ? newAchievements : undefined
+          endTime
         );
 
         // Get updated stats to check for streak milestones
@@ -1187,32 +865,6 @@ client.on('interactionCreate', async (interaction) => {
             avatarUrl,
             updatedStats.currentStreak,
             updatedStats.totalSessions
-          );
-        }
-
-        // Post achievement unlock celebration if applicable
-        if (newAchievements.length > 0) {
-          await postAchievementUnlock(
-            interaction,
-            user.username,
-            avatarUrl,
-            newAchievements
-          );
-        }
-
-        // Post level-up celebration if applicable
-        if (statsUpdate.leveledUp && statsUpdate.newLevel) {
-          // Calculate old level from XP
-          const currentXP = statsUpdate.stats.xp || 0;
-          const oldXP = currentXP - statsUpdate.xpGained;
-          const oldLevel = calculateLevel(oldXP);
-
-          await postLevelUp(
-            interaction,
-            user.username,
-            avatarUrl,
-            statsUpdate.newLevel,
-            oldLevel
           );
         }
       } catch (error) {
@@ -1239,15 +891,13 @@ client.on('interactionCreate', async (interaction) => {
         const title = interaction.fields.getTextInputValue('title');
         const description = interaction.fields.getTextInputValue('description');
 
-        // Defer reply immediately to prevent timeout (we have complex processing ahead)
-        await interaction.deferReply({ ephemeral: false });
-
         // Get active session
         const session = await sessionService.getActiveSession(user.id);
 
         if (!session) {
-          await interaction.editReply({
+          await interaction.reply({
             content: 'No active session found! It may have been cancelled or already ended.',
+            ephemeral: false,
           });
           return;
         }
@@ -1265,7 +915,7 @@ client.on('interactionCreate', async (interaction) => {
         await sessionService.deleteActiveSession(user.id);
 
         // Create completed session
-        const sessionId = await sessionService.createCompletedSession({
+        await sessionService.createCompletedSession({
           userId: user.id,
           username: user.username,
           serverId: guildId!,
@@ -1277,29 +927,14 @@ client.on('interactionCreate', async (interaction) => {
           endTime,
         });
 
-        // Update stats and award XP
-        const statsUpdate = await statsService.updateUserStats(
-          user.id,
-          user.username,
-          duration,
-          session.activity
-        );
-
-        // Check for new achievements
-        const newAchievements = await achievementService.checkAndAwardAchievements(user.id);
+        // Update stats
+        await statsService.updateUserStats(user.id, user.username, duration);
 
         const durationStr = formatDuration(duration);
 
-        // Build XP message with multiplier display
-        let xpMessage = '';
-        if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
-        } else {
-          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned!`;
-        }
-
-        await interaction.editReply({
-          content: `✅ Session completed! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
+        await interaction.reply({
+          content: `✅ Session completed! (${durationStr})\n\nYour session has been saved and posted to the feed.`,
+          ephemeral: false,
         });
 
         // Get user's avatar URL
@@ -1315,11 +950,7 @@ client.on('interactionCreate', async (interaction) => {
           title,
           description,
           duration,
-          endTime,
-          sessionId,
-          statsUpdate.xpGained,
-          statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
-          newAchievements.length > 0 ? newAchievements : undefined
+          endTime
         );
 
         // Get updated stats to check for streak milestones
@@ -1334,40 +965,17 @@ client.on('interactionCreate', async (interaction) => {
             updatedStats.totalSessions
           );
         }
-
-        // Post achievement unlock celebration if applicable
-        if (newAchievements.length > 0) {
-          await postAchievementUnlock(
-            interaction,
-            user.username,
-            avatarUrl,
-            newAchievements
-          );
-        }
-
-        // Post level-up celebration if applicable
-        if (statsUpdate.leveledUp && statsUpdate.newLevel) {
-          // Calculate old level from XP
-          const currentXP = statsUpdate.stats.xp || 0;
-          const oldXP = currentXP - statsUpdate.xpGained;
-          const oldLevel = calculateLevel(oldXP);
-
-          await postLevelUp(
-            interaction,
-            user.username,
-            avatarUrl,
-            statsUpdate.newLevel,
-            oldLevel
-          );
-        }
       } catch (error) {
         console.error('Error handling end session modal:', error);
 
         const errorMessage = 'An error occurred while completing your session. Please try again.';
 
         try {
-          // We always defer at the start, so use editReply
-          await interaction.editReply({ content: errorMessage });
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({ content: errorMessage, ephemeral: true });
+          } else {
+            await interaction.reply({ content: errorMessage, ephemeral: true });
+          }
         } catch (replyError) {
           console.error('Could not send error message to user:', replyError);
         }
@@ -1432,50 +1040,8 @@ client.on('interactionCreate', async (interaction) => {
             { name: '\u200B', value: formatLeaderboard(monthlyAll, '🌟', 'Monthly'), inline: false }
           )
           .setFooter({ text: 'Use the dropdown below to view full leaderboards' });
-      } else if (selectedValue === 'xp') {
-        // XP Leaderboard
-        const xpUsers = await statsService.getTopUsersByXP(20);
-
-        if (xpUsers.length === 0) {
-          embed = new EmbedBuilder()
-            .setColor(0xFFD700)
-            .setTitle('⚡ XP Leaderboard')
-            .setDescription('No XP data yet! Complete sessions to earn XP! 🚀')
-            .setFooter({ text: 'Use the dropdown below to view other timeframes' });
-        } else {
-          const top10 = xpUsers.slice(0, 10);
-          const ranks: string[] = [];
-          const names: string[] = [];
-          const xpLevels: string[] = [];
-
-          top10.forEach((u, index) => {
-            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-            ranks.push(medal);
-            names.push(`**${u.username}** 🏆 ${u.achievementCount}`);
-            xpLevels.push(`Lvl ${u.level} • ${u.xp.toLocaleString()} XP`);
-          });
-
-          // Add current user if not in top 10
-          const userPosition = xpUsers.findIndex(u => u.userId === user.id);
-          if (userPosition >= 10) {
-            const currentUser = xpUsers[userPosition];
-            ranks.push(`**#${userPosition + 1}**`);
-            names.push(`**${currentUser.username}** 🏆 ${currentUser.achievementCount}`);
-            xpLevels.push(`**Lvl ${currentUser.level} • ${currentUser.xp.toLocaleString()} XP**`);
-          }
-
-          embed = new EmbedBuilder()
-            .setColor(0xFFD700)
-            .setTitle('⚡ XP Leaderboard')
-            .addFields(
-              { name: 'Rank', value: ranks.join('\n'), inline: true },
-              { name: 'Name', value: names.join('\n'), inline: true },
-              { name: 'Level • XP', value: xpLevels.join('\n'), inline: true }
-            )
-            .setFooter({ text: 'Complete sessions to earn XP and level up! 💪' });
-        }
       } else {
-        // Full leaderboard for specific time-based timeframe
+        // Full leaderboard for specific timeframe
         let users: Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>;
         let title: string;
         let emoji: string;
@@ -1547,104 +1113,21 @@ client.on('interactionCreate', async (interaction) => {
           },
           {
             label: 'Daily Leaderboard',
-            description: 'Full top 10 daily rankings by hours',
+            description: 'Full top 10 daily rankings',
             value: 'daily',
             emoji: '📅',
           },
           {
             label: 'Weekly Leaderboard',
-            description: 'Full top 10 weekly rankings by hours',
+            description: 'Full top 10 weekly rankings',
             value: 'weekly',
             emoji: '📊',
           },
           {
             label: 'Monthly Leaderboard',
-            description: 'Full top 10 monthly rankings by hours',
+            description: 'Full top 10 monthly rankings',
             value: 'monthly',
             emoji: '🌟',
-          },
-          {
-            label: 'XP Leaderboard',
-            description: 'Top 10 by total XP and level',
-            value: 'xp',
-            emoji: '⚡',
-          },
-        ]);
-
-      const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-
-      await interaction.editReply({ embeds: [embed], components: [row] });
-      return;
-    }
-
-    // Achievement filter dropdown handler
-    if (interaction.customId.startsWith('achievement_filter:')) {
-      const userId = interaction.customId.split(':')[1];
-      const selectedValue = interaction.values[0];
-
-      // Only allow the owner to interact with their achievement menu
-      if (interaction.user.id !== userId) {
-        await interaction.reply({
-          content: 'This achievement menu belongs to someone else!',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      await interaction.deferUpdate();
-
-      const userAchievements = await achievementService.getUserAchievements(userId);
-      const allAchievements = getAllAchievements();
-
-      // Get unlocked achievement IDs
-      const unlockedIds = new Set(userAchievements.map(b => b.id));
-
-      // Separate unlocked and locked achievements
-      const unlockedAchievements = allAchievements.filter(b => unlockedIds.has(b.id)).sort((a, b) => a.order - b.order);
-      const lockedAchievements = allAchievements.filter(b => !unlockedIds.has(b.id)).sort((a, b) => a.order - b.order);
-
-      // Create achievement list based on selection
-      let achievementList: string;
-      if (selectedValue === 'unlocked') {
-        achievementList = unlockedAchievements.length > 0
-          ? unlockedAchievements.map(b => `${b.emoji} **${b.name}** - *${b.description}*`).join('\n')
-          : '*No achievements unlocked yet. Keep studying to earn your first achievement!*';
-      } else {
-        achievementList = lockedAchievements.length > 0
-          ? lockedAchievements.map(b => `🔒 ${b.emoji} **${b.name}** - *${b.description}*`).join('\n')
-          : '*You\'ve unlocked all achievements! Amazing work!*';
-      }
-
-      const user = await interaction.client.users.fetch(userId);
-      const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-      const embed = new EmbedBuilder()
-        .setColor(0xFFD700) // Gold
-        .setTitle(`🏆 Your Achievements (${unlockedAchievements.length}/${allAchievements.length})`)
-        .setDescription(achievementList)
-        .setFooter({
-          text: user.username,
-          iconURL: avatarUrl
-        });
-
-      // Recreate dropdown menu with updated default
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`achievement_filter:${userId}`)
-        .setPlaceholder('Filter achievements')
-        .addOptions([
-          {
-            label: 'Unlocked',
-            description: `View your ${unlockedAchievements.length} unlocked achievements`,
-            value: 'unlocked',
-            emoji: '✅',
-            default: selectedValue === 'unlocked',
-          },
-          {
-            label: 'Locked',
-            description: `View ${lockedAchievements.length} achievements you haven't earned yet`,
-            value: 'locked',
-            emoji: '🔒',
-            default: selectedValue === 'locked',
           },
         ]);
 
@@ -1692,9 +1175,7 @@ client.on('interactionCreate', async (interaction) => {
             name: '📊 Statistics & Leaderboards',
             value:
               '`/stats` - View your personal statistics\n' +
-              '`/leaderboard` - Interactive leaderboard with daily/weekly/monthly views\n' +
-              '`/achievements` - View your achievements\n' +
-              '`/profile [@user]` - View detailed user profile',
+              '`/leaderboard` - Interactive leaderboard with daily/weekly/monthly views',
             inline: false
           },
           {
@@ -1713,11 +1194,9 @@ client.on('interactionCreate', async (interaction) => {
           {
             name: '💡 Tips',
             value:
-              '• Earn XP and level up by completing sessions (10 XP/hour + bonuses)\n' +
-              '• Unlock 20 achievements by hitting milestones\n' +
-              '• React to others\' session posts to unlock social achievements\n' +
               '• Voice channel sessions auto-track when you join a focus room\n' +
-              '• Build streaks by completing sessions daily',
+              '• Build streaks by completing sessions daily\n' +
+              '• Share your accomplishments in the feed to inspire others!',
             inline: false
           }
         )
@@ -1755,7 +1234,7 @@ client.on('interactionCreate', async (interaction) => {
       );
 
       await interaction.reply({
-        content: `🚀 You're live! Your session is now active.\n\n**Working on:** ${activity}`,
+        content: `🚀 You're live! Your session is now active.\n\n**Working on:** ${activity}\n\nUse /time to check progress, /pause to take a break, or /end when done.`,
         ephemeral: false,
       });
 
@@ -2040,42 +1519,12 @@ client.on('interactionCreate', async (interaction) => {
       const currentStreakEmojis = getStreakEmojis(stats.currentStreak);
       const longestStreakEmojis = getStreakEmojis(stats.longestStreak);
 
-      // XP & Level info
-      const currentXp = stats.xp || 0;
-      const currentLevel = calculateLevel(currentXp);
-      const xpToNext = xpToNextLevel(currentXp);
-      const progress = levelProgress(currentXp);
-
-      // Create progress bar (20 characters wide)
-      const progressBarLength = 20;
-      const filledLength = Math.floor((progress / 100) * progressBarLength);
-      const progressBar = '█'.repeat(filledLength) + '░'.repeat(progressBarLength - filledLength);
-
-      // Get user achievements
-      const userAchievements = await achievementService.getUserAchievements(user.id);
-
-      // Achievement display (show first 10, or "X more" if > 10)
-      let achievementDisplay = '';
-      if (userAchievements.length > 0) {
-        const displayAchievements = userAchievements.slice(0, 10);
-        achievementDisplay = displayAchievements.map(b => b.emoji).join(' ');
-        if (userAchievements.length > 10) {
-          achievementDisplay += ` +${userAchievements.length - 10} more`;
-        }
-      } else {
-        achievementDisplay = '*No achievements yet - complete sessions to earn achievements!*';
-      }
-
       // Create embed with separate fields for better formatting
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
       const embed = new EmbedBuilder()
         .setColor(0x0080FF)
         .setTitle('📊 Personal Study Statistics')
-        .setDescription(
-          `**Level ${currentLevel}** ${progressBar} ${progress.toFixed(0)}%\n` +
-          `${currentXp.toLocaleString()} XP • ${xpToNext.toLocaleString()} XP to Level ${currentLevel + 1}`
-        )
         .addFields(
           { name: '📅 Timeframe', value: '**Daily**\n**Weekly**\n**Monthly**\n**All-time**', inline: true },
           { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
@@ -2085,432 +1534,12 @@ client.on('interactionCreate', async (interaction) => {
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
           { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true },
-          { name: `🏆 Achievements (${userAchievements.length})`, value: achievementDisplay, inline: false }
+          { name: '\u200B', value: '\u200B', inline: true }
         )
         .setFooter({
           text: user.username,
           iconURL: avatarUrl
         });
-
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: false,
-      });
-      return;
-    }
-
-    // /achievements command
-    if (commandName === 'testlevelup') {
-      // Preview level-up and session post embeds
-      const config = await getServerConfig(interaction.guildId!);
-
-      if (!config || !config.feedChannelId) {
-        await interaction.reply({
-          content: '❌ No feed channel configured! Use `/setup-feed` first.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      await interaction.deferReply({ ephemeral: true });
-
-      try {
-        const channel = await client.channels.fetch(config.feedChannelId);
-
-        if (!channel || !channel.isTextBased()) {
-          await interaction.editReply('❌ Feed channel not found or not text-based');
-          return;
-        }
-
-        const textChannel = channel as TextChannel;
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // 1. Post example session completion embed
-        const sessionEmbed = new EmbedBuilder()
-          .setColor(0x0080FF) // Electric blue
-          .setAuthor({
-            name: `${user.username} 🎯`,
-            iconURL: avatarUrl
-          })
-          .setTitle('Deep work on React components')
-          .setDescription('Built the new dashboard UI with real-time updates and fixed several performance issues')
-          .addFields(
-            { name: 'Activity', value: 'Frontend Development', inline: true },
-            { name: 'Duration', value: '2h 45m', inline: true },
-            { name: '', value: '', inline: false },
-            { name: 'XP Earned', value: '+275 XP', inline: true },
-            { name: 'Level', value: 'Level 8 → 9', inline: true }
-          )
-          .setFooter({ text: `Session completed • ${new Date().toLocaleDateString()}` });
-
-        const sessionMessage = await textChannel.send({
-          embeds: [sessionEmbed]
-        });
-
-        await sessionMessage.react('❤️').catch(() => {});
-
-        // 2. Post example level-up embed (right after)
-        const levelUpEmbed = new EmbedBuilder()
-          .setColor(0x9B59B6) // Purple
-          .setAuthor({
-            name: `${user.username} 🎉`,
-            iconURL: avatarUrl
-          })
-          .setDescription(`**@${user.username}** is now Level 9! 🎉`)
-          .setFooter({ text: 'About 5 more hours needed to reach Level 10!' });
-
-        const levelUpMessage = await textChannel.send({
-          embeds: [levelUpEmbed]
-        });
-
-        await levelUpMessage.react('🎉').catch(() => {});
-        await levelUpMessage.react('✨').catch(() => {});
-
-        await interaction.editReply({
-          content: `✅ Test embeds posted to <#${config.feedChannelId}>!\n\n**Posted:**\n1. Session completion embed (blue)\n2. Level-up celebration embed (purple)`
-        });
-      } catch (error) {
-        console.error('Error posting test embeds:', error);
-        await interaction.editReply('❌ Failed to post test embeds. Check bot permissions in the feed channel.');
-      }
-      return;
-    }
-
-    if (commandName === 'testachievements') {
-      // Preview achievement unlock embed
-      const config = await getServerConfig(interaction.guildId!);
-
-      if (!config || !config.feedChannelId) {
-        await interaction.reply({
-          content: '❌ No feed channel configured! Use `/setup-feed` first.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      await interaction.deferReply({ ephemeral: true });
-
-      try {
-        const channel = await client.channels.fetch(config.feedChannelId);
-
-        if (!channel || !channel.isTextBased()) {
-          await interaction.editReply('❌ Feed channel not found or not text-based');
-          return;
-        }
-
-        const textChannel = channel as TextChannel;
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Example: User unlocked 3 achievements
-        const exampleAchievements = [
-          {
-            emoji: '🎯',
-            name: 'First Steps',
-            description: 'Complete your first session',
-            xpReward: 50
-          },
-          {
-            emoji: '🔥',
-            name: 'Hot Streak',
-            description: 'Maintain a 3-day streak',
-            xpReward: 50
-          },
-          {
-            emoji: '💯',
-            name: 'Centurion',
-            description: 'Study for 100 hours total',
-            xpReward: 200
-          }
-        ];
-
-        const achievementList = exampleAchievements.map(b => `${b.emoji} **${b.name}**\n${b.description}`).join('\n\n');
-        const totalXP = exampleAchievements.reduce((sum, b) => sum + b.xpReward, 0);
-
-        const message = `**@${user.username}** unlocked ${exampleAchievements.length} new achievements! 🏆`;
-
-        // Create achievement unlock embed
-        const embed = new EmbedBuilder()
-          .setColor(0xFFD700) // Gold
-          .setAuthor({
-            name: `${user.username} 🏆`,
-            iconURL: avatarUrl
-          })
-          .setDescription(`${message}\n\n${achievementList}`)
-          .setFooter({ text: `+${totalXP} bonus XP earned` });
-
-        const achievementMessage = await textChannel.send({
-          embeds: [embed]
-        });
-
-        // React with confetti if bot has permission
-        await achievementMessage.react('🎉').catch(() => {});
-
-        await interaction.editReply({
-          content: `✅ Test achievement embed posted to <#${config.feedChannelId}>!\n\n**Posted:**\n- Achievement unlock embed (gold) with 3 example achievements`
-        });
-      } catch (error) {
-        console.error('Error posting test achievement embed:', error);
-        await interaction.editReply('❌ Failed to post test embed. Check bot permissions in the feed channel.');
-      }
-      return;
-    }
-
-    if (commandName === 'achievements') {
-      const stats = await statsService.getUserStats(user.id);
-
-      if (!stats) {
-        await interaction.reply({
-          content: 'No stats yet! Complete sessions to unlock achievements.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      const userAchievements = await achievementService.getUserAchievements(user.id);
-      const allAchievements = getAllAchievements();
-
-      // Get unlocked achievement IDs for quick lookup
-      const unlockedIds = new Set(userAchievements.map(b => b.id));
-
-      // Separate unlocked and locked achievements
-      const unlockedAchievements = allAchievements.filter(b => unlockedIds.has(b.id)).sort((a, b) => a.order - b.order);
-      const lockedAchievements = allAchievements.filter(b => !unlockedIds.has(b.id)).sort((a, b) => a.order - b.order);
-
-      // Create achievement list (show unlocked by default)
-      const achievementList = unlockedAchievements.length > 0
-        ? unlockedAchievements.map(b => `${b.emoji} **${b.name}** - *${b.description}*`).join('\n')
-        : '*No achievements unlocked yet. Keep studying to earn your first achievement!*';
-
-      const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-      const embed = new EmbedBuilder()
-        .setColor(0xFFD700) // Gold
-        .setTitle(`🏆 Your Achievements (${unlockedAchievements.length}/${allAchievements.length})`)
-        .setDescription(achievementList)
-        .setFooter({
-          text: user.username,
-          iconURL: avatarUrl
-        });
-
-      // Create dropdown menu
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`achievement_filter:${user.id}`)
-        .setPlaceholder('Filter achievements')
-        .addOptions([
-          {
-            label: 'Unlocked',
-            description: `View your ${unlockedAchievements.length} unlocked achievements`,
-            value: 'unlocked',
-            emoji: '✅',
-            default: true,
-          },
-          {
-            label: 'Locked',
-            description: `View ${lockedAchievements.length} achievements you haven't earned yet`,
-            value: 'locked',
-            emoji: '🔒',
-          },
-        ]);
-
-      const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-
-      await interaction.reply({
-        embeds: [embed],
-        components: [row],
-        ephemeral: false,
-      });
-      return;
-    }
-
-    // /profile command - View user profile with comprehensive stats
-    if (commandName === 'profile') {
-      const targetUser = interaction.options.getUser('user') || user;
-      const stats = await statsService.getUserStats(targetUser.id);
-
-      if (!stats) {
-        await interaction.reply({
-          content: `${targetUser.id === user.id ? 'You haven\'t' : `${targetUser.username} hasn't`} completed any sessions yet!`,
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Calculate XP and level
-      const currentXp = stats.xp || 0;
-      const currentLevel = calculateLevel(currentXp);
-      const xpToNext = xpToNextLevel(currentXp);
-      const progress = levelProgress(currentXp);
-
-      // Build progress bar
-      const progressBarLength = 20;
-      const filledLength = Math.floor((progress / 100) * progressBarLength);
-      const progressBar = '█'.repeat(filledLength) + '░'.repeat(progressBarLength - filledLength);
-
-      // Get achievements
-      const userAchievements = await achievementService.getUserAchievements(targetUser.id);
-      let achievementDisplay = '';
-      if (userAchievements.length > 0) {
-        const topAchievements = userAchievements.slice(0, 5);
-        achievementDisplay = topAchievements.map(b => b.emoji).join(' ');
-        if (userAchievements.length > 5) {
-          achievementDisplay += ` +${userAchievements.length - 5} more`;
-        }
-      } else {
-        achievementDisplay = '*No achievements yet*';
-      }
-
-      // Streak emojis
-      const currentStreakEmojis = '🔥'.repeat(Math.min(Math.floor(stats.currentStreak / 7), 5));
-      const longestStreakEmojis = '🔥'.repeat(Math.min(Math.floor(stats.longestStreak / 7), 5));
-
-      const avatarUrl = targetUser.displayAvatarURL({ size: 256 });
-
-      const embed = new EmbedBuilder()
-        .setColor(0x0080FF)
-        .setTitle(`${targetUser.username}'s Profile`)
-        .setThumbnail(avatarUrl)
-        .setDescription(
-          `**Level ${currentLevel}** ${progressBar} ${progress.toFixed(0)}%\n` +
-          `${currentXp.toLocaleString()} XP • ${xpToNext.toLocaleString()} XP to Level ${currentLevel + 1}`
-        )
-        .addFields(
-          {
-            name: '🏆 Achievements',
-            value: `${userAchievements.length}/20 • ${achievementDisplay}`,
-            inline: false
-          },
-          {
-            name: '📊 Statistics',
-            value:
-              `**Total Sessions:** ${stats.totalSessions}\n` +
-              `**Total Hours:** ${(stats.totalDuration / 3600).toFixed(1)}h\n` +
-              `**Longest Session:** ${stats.longestSessionDuration ? formatDuration(stats.longestSessionDuration) : 'N/A'}`,
-            inline: true
-          },
-          {
-            name: '🔥 Streaks',
-            value:
-              `**Current:** ${stats.currentStreak} days ${currentStreakEmojis}\n` +
-              `**Longest:** ${stats.longestStreak} days ${longestStreakEmojis}`,
-            inline: true
-          }
-        )
-        .setFooter({
-          text: `Member since their first session`,
-          iconURL: avatarUrl
-        })
-        .setTimestamp(stats.firstSessionAt.toDate());
-
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: false,
-      });
-      return;
-    }
-
-    // /compare command - Compare two users' stats
-    if (commandName === 'compare') {
-      const targetUser = interaction.options.getUser('user', true);
-
-      // Prevent comparing with yourself
-      if (targetUser.id === user.id) {
-        await interaction.reply({
-          content: '❌ You cannot compare with yourself! Try `/stats` to view your own stats.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Prevent comparing with bots
-      if (targetUser.bot) {
-        await interaction.reply({
-          content: '❌ Cannot compare with bots!',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Get both users' stats
-      const [yourStats, theirStats] = await Promise.all([
-        statsService.getUserStats(user.id),
-        statsService.getUserStats(targetUser.id),
-      ]);
-
-      if (!yourStats) {
-        await interaction.reply({
-          content: 'You haven\'t completed any sessions yet! Complete your first session with `/start` and `/end`.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      if (!theirStats) {
-        await interaction.reply({
-          content: `${targetUser.username} hasn't completed any sessions yet!`,
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Calculate stats for both users
-      const yourXP = yourStats.xp || 0;
-      const theirXP = theirStats.xp || 0;
-      const yourLevel = calculateLevel(yourXP);
-      const theirLevel = calculateLevel(theirXP);
-      const yourHours = yourStats.totalDuration / 3600;
-      const theirHours = theirStats.totalDuration / 3600;
-
-      // Get achievements for both users
-      const [yourAchievements, theirAchievements] = await Promise.all([
-        achievementService.getUserAchievements(user.id),
-        achievementService.getUserAchievements(targetUser.id),
-      ]);
-
-      const avatarUrl1 = user.displayAvatarURL({ size: 128 });
-      const avatarUrl2 = targetUser.displayAvatarURL({ size: 128 });
-
-      // Determine who's ahead overall
-      const xpDiff = Math.abs(yourXP - theirXP);
-      let headerText = '';
-      if (yourXP > theirXP) {
-        headerText = `+${xpDiff.toLocaleString()} XP ahead`;
-      } else if (theirXP > yourXP) {
-        headerText = `${xpDiff.toLocaleString()} XP behind`;
-      } else {
-        headerText = 'Tied';
-      }
-
-      const embed = new EmbedBuilder()
-        .setColor(0x5865F2)
-        .setTitle(`${user.username} vs ${targetUser.username}`)
-        .setThumbnail(avatarUrl1)
-        .setDescription(headerText)
-        .addFields(
-          {
-            name: user.username,
-            value:
-              `Level **${yourLevel}**\n` +
-              `**${yourXP.toLocaleString()}** XP\n` +
-              `**${yourHours.toFixed(1)}h** logged\n` +
-              `**${yourStats.totalSessions}** sessions\n` +
-              `**${yourStats.currentStreak}d** streak\n` +
-              `**${yourAchievements.length}** achievements`,
-            inline: true
-          },
-          {
-            name: targetUser.username,
-            value:
-              `Level **${theirLevel}**\n` +
-              `**${theirXP.toLocaleString()}** XP\n` +
-              `**${theirHours.toFixed(1)}h** logged\n` +
-              `**${theirStats.totalSessions}** sessions\n` +
-              `**${theirStats.currentStreak}d** streak\n` +
-              `**${theirAchievements.length}** achievements`,
-            inline: true
-          }
-        )
-        .setImage(avatarUrl2);
 
       await interaction.reply({
         embeds: [embed],
@@ -2679,27 +1708,21 @@ client.on('interactionCreate', async (interaction) => {
           },
           {
             label: 'Daily Leaderboard',
-            description: 'Full top 10 daily rankings by hours',
+            description: 'Full top 10 daily rankings',
             value: 'daily',
             emoji: '📅',
           },
           {
             label: 'Weekly Leaderboard',
-            description: 'Full top 10 weekly rankings by hours',
+            description: 'Full top 10 weekly rankings',
             value: 'weekly',
             emoji: '📊',
           },
           {
             label: 'Monthly Leaderboard',
-            description: 'Full top 10 monthly rankings by hours',
+            description: 'Full top 10 monthly rankings',
             value: 'monthly',
             emoji: '🌟',
-          },
-          {
-            label: 'XP Leaderboard',
-            description: 'Top 10 by total XP and level',
-            value: 'xp',
-            emoji: '⚡',
           },
         ]);
 
@@ -3096,37 +2119,15 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 endTime,
               });
 
-              // Update stats and award XP
-              const statsUpdate = await statsService.updateUserStats(
-                userId,
-                username,
-                duration,
-                currentSession.activity
-              );
-
-              // Check for new achievements
-              const newAchievements = await achievementService.checkAndAwardAchievements(userId);
+              // Update stats
+              await statsService.updateUserStats(userId, username, duration);
 
               console.log(`[VOICE] Auto-ended session for ${username} (${formatDuration(duration)})`);
 
-              // Try to send DM to user with XP and achievement info
+              // Try to send DM to user
               try {
                 const user = await client.users.fetch(userId);
-                let xpMessage = '';
-                if (statsUpdate.leveledUp) {
-                  xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
-                } else {
-                  xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned!`;
-                }
-
-                let achievementMessage = '';
-                if (newAchievements.length > 0) {
-                  const achievementDetails = newAchievements.map(id => getAchievement(id)).filter(b => b);
-                  const achievementList = achievementDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
-                  achievementMessage = `\n🏆 **NEW ACHIEVEMENT${newAchievements.length > 1 ? 'S' : ''}!** ${achievementList}`;
-                }
-
-                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}${xpMessage}${achievementMessage}\n\nYour session has been saved!`);
+                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}\n\nYour session has been saved!`);
               } catch (dmError) {
                 console.log(`[VOICE] Could not send DM to ${username}`);
               }
