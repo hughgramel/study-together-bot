@@ -565,6 +565,7 @@ async function postToFeed(
       .addFields(
         { name: '⏱️ Time', value: durationStr, inline: true },
         { name: '🎯 Activity', value: activity, inline: true },
+        { name: '\u200b', value: '\u200b', inline: true }, // Empty third column
         { name: '\u200b', value: `**✨ +${xpGained} XP Earned**`, inline: false }
       );
 
