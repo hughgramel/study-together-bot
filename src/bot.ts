@@ -565,7 +565,7 @@ async function postToFeed(
       .addFields(
         { name: '⏱️ Time', value: durationStr, inline: true },
         { name: '🎯 Activity', value: activity, inline: true },
-        { name: '✨ XP Earned', value: `+${xpGained} XP`, inline: false }
+        { name: '\u200b', value: `**✨ +${xpGained} XP Earned**`, inline: false }
       );
 
     const message = await textChannel.send({
@@ -1017,6 +1017,24 @@ client.on('interactionCreate', async (interaction) => {
         // Check for new badges
         const newBadges = await badgeService.checkAndAwardBadges(user.id);
 
+        // DEV: Award random badge for testing (REMOVE FOR PRODUCTION)
+        const { getAllBadges } = await import('./data/badges');
+        const allBadges = getAllBadges();
+        const userBadges = await badgeService.getUserBadges(user.id);
+        const userBadgeIds = userBadges.map(b => b.id);
+        const unlockedBadges = allBadges.filter(b => !userBadgeIds.includes(b.id));
+        if (unlockedBadges.length > 0) {
+          const randomBadge = unlockedBadges[Math.floor(Math.random() * unlockedBadges.length)];
+          const statsRef = db.collection('discord-data').doc('userStats').collection('stats').doc(user.id);
+          await statsRef.update({
+            badges: admin.firestore.FieldValue.arrayUnion(randomBadge.id),
+            [`badgesUnlockedAt.${randomBadge.id}`]: admin.firestore.Timestamp.now(),
+            xp: admin.firestore.FieldValue.increment(randomBadge.xpReward)
+          });
+          newBadges.push(randomBadge.id);
+          console.log(`[DEV] Randomly awarded badge: ${randomBadge.name} to ${user.username}`);
+        }
+
         const durationStr = formatDuration(duration);
 
         // Build XP message with multiplier display
@@ -1157,6 +1175,24 @@ client.on('interactionCreate', async (interaction) => {
 
         // Check for new badges
         const newBadges = await badgeService.checkAndAwardBadges(user.id);
+
+        // DEV: Award random badge for testing (REMOVE FOR PRODUCTION)
+        const { getAllBadges } = await import('./data/badges');
+        const allBadges = getAllBadges();
+        const userBadges = await badgeService.getUserBadges(user.id);
+        const userBadgeIds = userBadges.map(b => b.id);
+        const unlockedBadges = allBadges.filter(b => !userBadgeIds.includes(b.id));
+        if (unlockedBadges.length > 0) {
+          const randomBadge = unlockedBadges[Math.floor(Math.random() * unlockedBadges.length)];
+          const statsRef = db.collection('discord-data').doc('userStats').collection('stats').doc(user.id);
+          await statsRef.update({
+            badges: admin.firestore.FieldValue.arrayUnion(randomBadge.id),
+            [`badgesUnlockedAt.${randomBadge.id}`]: admin.firestore.Timestamp.now(),
+            xp: admin.firestore.FieldValue.increment(randomBadge.xpReward)
+          });
+          newBadges.push(randomBadge.id);
+          console.log(`[DEV] Randomly awarded badge: ${randomBadge.name} to ${user.username}`);
+        }
 
         const durationStr = formatDuration(duration);
 
