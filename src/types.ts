@@ -64,6 +64,23 @@ export interface UserStats {
   // Time-of-Day Tracking (for Early Bird/Night Owl badges)
   sessionsBeforeNoon?: number;     // Count of sessions started before 12:00 PM
   sessionsAfterMidnight?: number;  // Count of sessions started after 12:00 AM
+
+  // Social Engagement (Phase 2)
+  reactionsReceived?: number;      // Total reactions received on user's posts
+  reactionsGiven?: number;         // Total reactions given to others' posts
+  cheersReceived?: number;         // Total cheers/kudos received
+  cheersGiven?: number;            // Total cheers/kudos given
+
+  // Weekly Challenge Tracking (Phase 2)
+  weeklyXpEarned?: {               // Map of week key -> XP earned
+    [weekKey: string]: number;     // Example: { '2025-W03': 1250 }
+  };
+  weeklyStreakCount?: number;      // Consecutive weeks hitting challenge target
+
+  // Profile Stats (Phase 2)
+  favoriteActivity?: string;       // Most common activity type
+  peakLevel?: number;              // Highest level ever reached
+  firstBadgeUnlockedAt?: Timestamp; // When first badge was unlocked
 }
 
 /**
@@ -93,4 +110,50 @@ export interface BadgeDefinition {
   };
   rarity: 'common' | 'rare' | 'epic' | 'legendary'; // Badge rarity (affects display color)
   order: number;            // Display sort order (lower = shown first)
+}
+
+/**
+ * Session post - tracks session feed posts for social features (Phase 2)
+ */
+export interface SessionPost {
+  messageId: string;        // Discord message ID (document ID)
+  userId: string;           // User who completed the session
+  username: string;         // Discord username
+  guildId: string;          // Discord server ID
+  channelId: string;        // Feed channel ID
+  sessionId: string;        // Reference to completed session
+  duration: number;         // Session duration in seconds
+  xpGained: number;         // XP awarded for this session
+  levelGained?: number;     // New level if leveled up
+  badgesUnlocked?: string[]; // Badge IDs unlocked in this session
+  postedAt: Timestamp;      // When posted to feed
+  reactions: {              // Map of emoji -> array of user IDs who reacted
+    [emoji: string]: string[];
+  };
+  cheers: Array<{           // Cheers/kudos given to this post
+    userId: string;
+    username: string;
+    message: string;
+    timestamp: Timestamp;
+  }>;
+}
+
+/**
+ * Weekly challenge - tracks weekly XP goals and leaderboards (Phase 2)
+ */
+export interface WeeklyChallenge {
+  weekKey: string;          // ISO week format (e.g., '2025-W03')
+  startDate: Timestamp;     // Week start (Monday 00:00)
+  endDate: Timestamp;       // Week end (Sunday 23:59)
+  targetXp: number;         // XP goal for the week
+  bonusXp: number;          // Bonus XP for completing
+  bonusBadge?: string;      // Optional badge ID for completion
+  participants: string[];   // User IDs who participated this week
+  completedBy: string[];    // User IDs who completed the challenge
+  topEarners: Array<{       // Top 10 leaderboard for the week
+    userId: string;
+    username: string;
+    xpEarned: number;
+    level: number;
+  }>;
 }
