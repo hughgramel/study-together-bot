@@ -147,6 +147,23 @@ export class BadgeService {
         // 5 sessions after 11 PM
         return (stats.sessionsAfterMidnight || 0) >= threshold;
 
+      // ===== SOCIAL BADGES (Phase 2) =====
+      case 'supportive':
+        // Give 25 reactions to others
+        return (stats.reactionsGiven || 0) >= threshold;
+
+      case 'encourager':
+        // Give 100 reactions to others
+        return (stats.reactionsGiven || 0) >= threshold;
+
+      case 'popular':
+        // Receive 100 reactions on your posts
+        return (stats.reactionsReceived || 0) >= threshold;
+
+      case 'influencer':
+        // Receive 500 reactions on your posts
+        return (stats.reactionsReceived || 0) >= threshold;
+
       default:
         return false;
     }

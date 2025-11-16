@@ -319,6 +319,64 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     rarity: 'rare',
     order: 51,
   },
+
+  // ===== SOCIAL BADGES (Phase 2) =====
+  {
+    id: 'supportive',
+    name: 'Supportive',
+    emoji: '👏',
+    description: 'Give 25 reactions to others',
+    category: 'social',
+    xpReward: 50,
+    condition: {
+      type: 'custom',
+      threshold: 25,
+    },
+    rarity: 'common',
+    order: 60,
+  },
+  {
+    id: 'encourager',
+    name: 'Encourager',
+    emoji: '💬',
+    description: 'Give 100 reactions to others',
+    category: 'social',
+    xpReward: 100,
+    condition: {
+      type: 'custom',
+      threshold: 100,
+    },
+    rarity: 'rare',
+    order: 61,
+  },
+  {
+    id: 'popular',
+    name: 'Popular',
+    emoji: '⭐',
+    description: 'Receive 100 reactions on your posts',
+    category: 'social',
+    xpReward: 100,
+    condition: {
+      type: 'custom',
+      threshold: 100,
+    },
+    rarity: 'rare',
+    order: 62,
+  },
+  {
+    id: 'influencer',
+    name: 'Influencer',
+    emoji: '👑',
+    description: 'Receive 500 reactions on your posts',
+    category: 'social',
+    xpReward: 250,
+    condition: {
+      type: 'custom',
+      threshold: 500,
+    },
+    rarity: 'epic',
+    order: 63,
+  },
 ];
 
 /**

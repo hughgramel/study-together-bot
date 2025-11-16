@@ -156,6 +156,16 @@ const commands = [
     .setDescription('View all your unlocked achievement badges'),
 
   new SlashCommandBuilder()
+    .setName('profile')
+    .setDescription('View a user\'s profile with all stats and achievements')
+    .addUserOption(option =>
+      option
+        .setName('user')
+        .setDescription('User to view (defaults to yourself)')
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
     .setName('leaderboard')
     .setDescription('View server leaderboards with timeframe selector'),
 
@@ -1344,7 +1354,8 @@ client.on('interactionCreate', async (interaction) => {
             value:
               '`/stats` - View your personal statistics\n' +
               '`/leaderboard` - Interactive leaderboard with daily/weekly/monthly views\n' +
-              '`/badges` - View your achievement badges',
+              '`/badges` - View your achievement badges\n' +
+              '`/profile [@user]` - View detailed user profile',
             inline: false
           },
           {
@@ -1736,7 +1747,8 @@ client.on('interactionCreate', async (interaction) => {
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
           { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
-          { name: `🏆 Badges (${userBadges.length})`, value: badgeDisplay, inline: false }
+          { name: `🏆 Badges (${userBadges.length})`, value: badgeDisplay, inline: false },
+          { name: '❤️ Social', value: `**${stats.reactionsReceived || 0}** reactions received • **${stats.reactionsGiven || 0}** given`, inline: false }
         )
         .setFooter({
           text: user.username,
@@ -1808,6 +1820,115 @@ client.on('interactionCreate', async (interaction) => {
           text: user.username,
           iconURL: avatarUrl
         });
+
+      await interaction.reply({
+        embeds: [embed],
+        ephemeral: false,
+      });
+      return;
+    }
+
+    // /profile command - View user profile with comprehensive stats
+    if (commandName === 'profile') {
+      const targetUser = interaction.options.getUser('user') || user;
+      const stats = await statsService.getUserStats(targetUser.id);
+
+      if (!stats) {
+        await interaction.reply({
+          content: `${targetUser.id === user.id ? 'You haven\'t' : `${targetUser.username} hasn't`} completed any sessions yet!`,
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Calculate XP and level
+      const currentXp = stats.xp || 0;
+      const currentLevel = calculateLevel(currentXp);
+      const xpToNext = xpToNextLevel(currentXp);
+      const progress = levelProgress(currentXp);
+
+      // Build progress bar
+      const progressBarLength = 20;
+      const filledLength = Math.floor((progress / 100) * progressBarLength);
+      const progressBar = '█'.repeat(filledLength) + '░'.repeat(progressBarLength - filledLength);
+
+      // Get badges
+      const userBadges = await badgeService.getUserBadges(targetUser.id);
+      let badgeDisplay = '';
+      if (userBadges.length > 0) {
+        const topBadges = userBadges.slice(0, 5);
+        badgeDisplay = topBadges.map(b => b.emoji).join(' ');
+        if (userBadges.length > 5) {
+          badgeDisplay += ` +${userBadges.length - 5} more`;
+        }
+      } else {
+        badgeDisplay = '*No badges yet*';
+      }
+
+      // Calculate favorite activity
+      const activityTypes = stats.activityTypes || [];
+      let favoriteActivity = 'None yet';
+      if (activityTypes.length > 0) {
+        // For now, just show the first one (could be enhanced to track counts)
+        favoriteActivity = activityTypes[0];
+      }
+
+      // Format social stats
+      const reactionsReceived = stats.reactionsReceived || 0;
+      const reactionsGiven = stats.reactionsGiven || 0;
+
+      // Streak emojis
+      const currentStreakEmojis = '🔥'.repeat(Math.min(Math.floor(stats.currentStreak / 7), 5));
+      const longestStreakEmojis = '🔥'.repeat(Math.min(Math.floor(stats.longestStreak / 7), 5));
+
+      const avatarUrl = targetUser.displayAvatarURL({ size: 256 });
+
+      const embed = new EmbedBuilder()
+        .setColor(0x0080FF)
+        .setTitle(`${targetUser.username}'s Profile`)
+        .setThumbnail(avatarUrl)
+        .setDescription(
+          `**Level ${currentLevel}** ${progressBar} ${progress.toFixed(0)}%\n` +
+          `${currentXp.toLocaleString()} XP • ${xpToNext.toLocaleString()} XP to Level ${currentLevel + 1}`
+        )
+        .addFields(
+          {
+            name: '🏆 Badges',
+            value: `${userBadges.length}/20 • ${badgeDisplay}`,
+            inline: false
+          },
+          {
+            name: '📊 Statistics',
+            value:
+              `**Total Sessions:** ${stats.totalSessions}\n` +
+              `**Total Hours:** ${(stats.totalDuration / 3600).toFixed(1)}h\n` +
+              `**Longest Session:** ${stats.longestSessionDuration ? formatDuration(stats.longestSessionDuration) : 'N/A'}`,
+            inline: true
+          },
+          {
+            name: '🔥 Streaks',
+            value:
+              `**Current:** ${stats.currentStreak} days ${currentStreakEmojis}\n` +
+              `**Longest:** ${stats.longestStreak} days ${longestStreakEmojis}`,
+            inline: true
+          },
+          {
+            name: '❤️ Social',
+            value:
+              `**Reactions:** ${reactionsReceived} received • ${reactionsGiven} given`,
+            inline: false
+          },
+          {
+            name: '🎨 Favorite Activity',
+            value: favoriteActivity,
+            inline: false
+          }
+        )
+        .setFooter({
+          text: `Member since their first session`,
+          iconURL: avatarUrl
+        })
+        .setTimestamp(stats.firstSessionAt.toDate());
 
       await interaction.reply({
         embeds: [embed],
