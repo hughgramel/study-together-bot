@@ -69,19 +69,19 @@ export class XPService {
 
   /**
    * Calculate XP earned from session duration
-   * Formula: 10 XP per hour
+   * Formula: 100 XP per hour
    *
    * @param durationSeconds - Session duration in seconds
    * @returns XP earned from time studied
    *
    * @example
-   * calculateSessionXP(3600)  // 1 hour = 10 XP
-   * calculateSessionXP(1800)  // 30 minutes = 5 XP
-   * calculateSessionXP(7200)  // 2 hours = 20 XP
+   * calculateSessionXP(3600)  // 1 hour = 100 XP
+   * calculateSessionXP(1800)  // 30 minutes = 50 XP
+   * calculateSessionXP(7200)  // 2 hours = 200 XP
    */
   calculateSessionXP(durationSeconds: number): number {
     const hours = durationSeconds / 3600;
-    return Math.floor(hours * 10);
+    return Math.floor(hours * 100);
   }
 
   /**

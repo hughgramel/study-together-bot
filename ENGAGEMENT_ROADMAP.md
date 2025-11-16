@@ -119,12 +119,9 @@
 - 🎯 **Laser Focus** - Complete 3 sessions in a row without pausing
 - ⚔️ **Warrior** - Complete session over 6 hours on weekend
 
-#### **Social Badges**
+#### **Social Badges** *(Future Feature)*
 - 👥 **Team Player** - Participate in 5 group sessions
 - 🤝 **Reliable Buddy** - Complete 10 buddy sessions
-- 💬 **Supporter** - React to 50 other users' sessions
-- 🎉 **Motivator** - Get 100 reactions on your sessions
-- 👑 **Influencer** - Have 5+ study buddies
 
 ### **Group Badges**
 
@@ -689,6 +686,86 @@ Total Hours:   342h       456h  ⬆️
 4. Goal progress display
 
 **By end of Month 1:** Have XP, levels, badges, buddies, goals all functional.
+
+---
+
+## 🔮 Deferred Features (Future Roadmap)
+
+### **Quest/Challenge System** *(Removed - Future Implementation)*
+
+The weekly challenge system has been removed from the current implementation. A more comprehensive Quest system is planned for future development.
+
+#### **Removed Features:**
+- ❌ Weekly XP challenges
+- ❌ Weekly challenge leaderboard
+- ❌ Challenge completion bonuses
+- ❌ `/challenge` command
+
+#### **Future Quest System Vision:**
+
+**Quest Structure:**
+- **Daily Quests:** Quick, achievable tasks (Complete 1 session, Study for 30 mins)
+- **Weekly Quests:** Medium-term goals (5 sessions this week, 10 hours total)
+- **Monthly Quests:** Long-term challenges (Maintain 7-day streak, Earn 3 badges)
+
+**User Choice & Engagement:**
+- Users can accept quests from an available pool
+- Limit to 3 active quests at once
+- Optional daily reroll for variety
+- Quest board to browse available options
+
+**Quest Types:**
+- **Streak Quests:** Maintain consistency over time
+- **Volume Quests:** Hit specific hour/session targets
+- **Variety Quests:** Try different activities
+- **Social Quests:** Engage with community features
+- **Time-based:** Study at specific times or durations
+
+**Rewards:**
+- Bonus XP multipliers (e.g., 1.5x XP for quest completions)
+- Quest-exclusive badges
+- Potential cosmetic unlocks (profile customization)
+
+**UI/UX:**
+- `/quests` - View active quests with progress bars
+- `/quest-board` - Browse and accept available quests
+- Progress notifications (milestone alerts)
+
+**Implementation Considerations:**
+- Quest rotation system (daily/weekly refresh)
+- Difficulty tiers with scaled rewards
+- Quest completion analytics
+- Anti-abuse measures (cooldowns, limits)
+
+---
+
+### **Reaction System** *(Temporarily Removed)*
+
+The following features have been removed from the current implementation and may be reconsidered in the future:
+
+#### **Removed Components:**
+- ❌ Reaction tracking on session posts
+- ❌ `reactionsReceived` and `reactionsGiven` stats
+- ❌ Social badges based on reactions:
+  - 👏 **Supportive** - Give 25 reactions to others
+  - 💬 **Encourager** - Give 100 reactions to others
+  - ⭐ **Popular** - Receive 100 reactions on your posts
+  - 👑 **Influencer** - Receive 500 reactions on your posts
+- ❌ Social stats display in `/mystats` and `/profile`
+- ❌ Discord reaction event listeners (`messageReactionAdd`, `messageReactionRemove`)
+
+#### **Rationale:**
+- Simplifying initial feature set to focus on core productivity tracking
+- Reducing complexity in social engagement systems
+- Prioritizing study/work tracking over social validation metrics
+- May revisit when community grows and requests social features
+
+#### **Future Considerations:**
+If reaction features are re-implemented, consider:
+- Alternative engagement metrics (comments, kudos system)
+- More meaningful social interactions than simple reactions
+- Integration with buddy/group systems for context-aware engagement
+- Preventing reaction spam/farming
 
 ---
 

@@ -28,7 +28,7 @@ export class PostService {
    * @param duration - Session duration in seconds
    * @param xpGained - XP awarded for this session
    * @param levelGained - New level if leveled up (optional)
-   * @param badgesUnlocked - Badge IDs unlocked in this session (optional)
+   * @param achievementsUnlocked - Achievement IDs unlocked in this session (optional)
    */
   async createSessionPost(
     messageId: string,
@@ -40,7 +40,7 @@ export class PostService {
     duration: number,
     xpGained: number,
     levelGained?: number,
-    badgesUnlocked?: string[]
+    achievementsUnlocked?: string[]
   ): Promise<void> {
     const postData: SessionPost = {
       messageId,
@@ -60,8 +60,8 @@ export class PostService {
     if (levelGained !== undefined) {
       postData.levelGained = levelGained;
     }
-    if (badgesUnlocked !== undefined) {
-      postData.badgesUnlocked = badgesUnlocked;
+    if (achievementsUnlocked !== undefined) {
+      postData.achievementsUnlocked = achievementsUnlocked;
     }
 
     await this.db
@@ -118,47 +118,6 @@ export class PostService {
     return snapshot.docs[0].data() as SessionPost;
   }
 
-  /**
-   * Add a reaction to a session post
-   *
-   * @param messageId - Discord message ID
-   * @param emoji - Emoji used for reaction
-   * @param userId - User ID who reacted
-   */
-  async addReaction(messageId: string, emoji: string, userId: string): Promise<void> {
-    const postRef = this.db
-      .collection('discord-data')
-      .doc('sessionPosts')
-      .collection('posts')
-      .doc(messageId);
-
-    await postRef.update({
-      [`reactions.${emoji}`]: FieldValue.arrayUnion(userId)
-    });
-
-    console.log(`[POST] Added reaction ${emoji} from ${userId} to post ${messageId}`);
-  }
-
-  /**
-   * Remove a reaction from a session post
-   *
-   * @param messageId - Discord message ID
-   * @param emoji - Emoji used for reaction
-   * @param userId - User ID who removed reaction
-   */
-  async removeReaction(messageId: string, emoji: string, userId: string): Promise<void> {
-    const postRef = this.db
-      .collection('discord-data')
-      .doc('sessionPosts')
-      .collection('posts')
-      .doc(messageId);
-
-    await postRef.update({
-      [`reactions.${emoji}`]: FieldValue.arrayRemove(userId)
-    });
-
-    console.log(`[POST] Removed reaction ${emoji} from ${userId} on post ${messageId}`);
-  }
 
   /**
    * Add a cheer/kudos to a session post
@@ -194,16 +153,6 @@ export class PostService {
     console.log(`[POST] Added cheer from ${userId} to post ${messageId}`);
   }
 
-  /**
-   * Get all reactions for a specific post
-   *
-   * @param messageId - Discord message ID
-   * @returns Reactions map or null if post not found
-   */
-  async getReactions(messageId: string): Promise<{ [emoji: string]: string[] } | null> {
-    const post = await this.getSessionPost(messageId);
-    return post ? post.reactions : null;
-  }
 
   /**
    * Get all cheers for a specific post

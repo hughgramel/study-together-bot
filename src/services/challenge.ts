@@ -8,7 +8,7 @@ import { calculateLevel } from '../utils/xp';
  * This service handles:
  * - Creating and managing weekly challenges
  * - Tracking user weekly XP progress
- * - Awarding bonus XP and badges for completion
+ * - Awarding bonus XP and achievements for completion
  * - Maintaining weekly leaderboards
  */
 export class WeeklyChallengeService {
