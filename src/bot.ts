@@ -27,6 +27,7 @@ import { SessionService } from './services/sessions';
 import { StatsService } from './services/stats';
 import { BadgeService } from './services/badges';
 import { PostService } from './services/posts';
+import { WeeklyChallengeService } from './services/challenge';
 import { getBadge } from './data/badges';
 import { ServerConfig } from './types';
 import {
@@ -79,6 +80,7 @@ const sessionService = new SessionService(db);
 const statsService = new StatsService(db);
 const badgeService = new BadgeService(db);
 const postService = new PostService(db);
+const challengeService = new WeeklyChallengeService(db);
 
 // Create Discord client
 const client = new Client({
@@ -164,6 +166,10 @@ const commands = [
         .setDescription('User to view (defaults to yourself)')
         .setRequired(false)
     ),
+
+  new SlashCommandBuilder()
+    .setName('challenge')
+    .setDescription('View the current weekly XP challenge and leaderboard'),
 
   new SlashCommandBuilder()
     .setName('leaderboard')
@@ -785,6 +791,13 @@ function scheduleAutoPost(userId: string, guildId: string) {
         'VC Session'
       );
 
+      // Track weekly challenge progress
+      const challengeResult = await challengeService.recordWeeklyXP(
+        session.userId,
+        session.username,
+        statsUpdate.xpGained
+      );
+
       // Check for new badges
       const newBadges = await badgeService.checkAndAwardBadges(session.userId);
 
@@ -799,6 +812,11 @@ function scheduleAutoPost(userId: string, guildId: string) {
           xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
         } else {
           xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        }
+
+        // Add weekly challenge completion bonus
+        if (challengeResult.newlyCompleted) {
+          xpMessage += `\n🎊 **WEEKLY CHALLENGE COMPLETED!** +${challengeResult.bonusXpAwarded} bonus XP!`;
         }
 
         let badgeMessage = '';
@@ -912,6 +930,13 @@ client.on('interactionCreate', async (interaction) => {
           activity
         );
 
+        // Track weekly challenge progress
+        const challengeResult = await challengeService.recordWeeklyXP(
+          user.id,
+          user.username,
+          statsUpdate.xpGained
+        );
+
         // Check for new badges
         const newBadges = await badgeService.checkAndAwardBadges(user.id);
 
@@ -923,6 +948,11 @@ client.on('interactionCreate', async (interaction) => {
           xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
         } else {
           xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        }
+
+        // Add weekly challenge completion bonus
+        if (challengeResult.newlyCompleted) {
+          xpMessage += `\n🎊 **WEEKLY CHALLENGE COMPLETED!** +${challengeResult.bonusXpAwarded} bonus XP!`;
         }
 
         // Build badge message
@@ -1037,6 +1067,13 @@ client.on('interactionCreate', async (interaction) => {
           session.activity
         );
 
+        // Track weekly challenge progress
+        const challengeResult = await challengeService.recordWeeklyXP(
+          user.id,
+          user.username,
+          statsUpdate.xpGained
+        );
+
         // Check for new badges
         const newBadges = await badgeService.checkAndAwardBadges(user.id);
 
@@ -1048,6 +1085,11 @@ client.on('interactionCreate', async (interaction) => {
           xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
         } else {
           xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+        }
+
+        // Add weekly challenge completion bonus
+        if (challengeResult.newlyCompleted) {
+          xpMessage += `\n🎊 **WEEKLY CHALLENGE COMPLETED!** +${challengeResult.bonusXpAwarded} bonus XP!`;
         }
 
         // Build badge message
@@ -1355,7 +1397,8 @@ client.on('interactionCreate', async (interaction) => {
               '`/stats` - View your personal statistics\n' +
               '`/leaderboard` - Interactive leaderboard with daily/weekly/monthly views\n' +
               '`/badges` - View your achievement badges\n' +
-              '`/profile [@user]` - View detailed user profile',
+              '`/profile [@user]` - View detailed user profile\n' +
+              '`/challenge` - View weekly XP challenge and top earners',
             inline: false
           },
           {
@@ -1375,10 +1418,11 @@ client.on('interactionCreate', async (interaction) => {
             name: '💡 Tips',
             value:
               '• Earn XP and level up by completing sessions (10 XP/hour + bonuses)\n' +
+              '• Complete weekly challenges for bonus XP rewards\n' +
               '• Unlock 20 achievement badges by hitting milestones\n' +
+              '• React to others\' session posts to unlock social badges\n' +
               '• Voice channel sessions auto-track when you join a focus room\n' +
-              '• Build streaks by completing sessions daily\n' +
-              '• Share your accomplishments in the feed to inspire others!',
+              '• Build streaks by completing sessions daily',
             inline: false
           }
         )
@@ -1929,6 +1973,94 @@ client.on('interactionCreate', async (interaction) => {
           iconURL: avatarUrl
         })
         .setTimestamp(stats.firstSessionAt.toDate());
+
+      await interaction.reply({
+        embeds: [embed],
+        ephemeral: false,
+      });
+      return;
+    }
+
+    // /challenge command - View weekly XP challenge and leaderboard
+    if (commandName === 'challenge') {
+      const challenge = await challengeService.getCurrentChallenge();
+      const userProgress = await challengeService.getUserProgress(user.id);
+
+      // Format week date range
+      const startDate = challenge.startDate.toDate();
+      const endDate = challenge.endDate.toDate();
+      const dateRange = `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
+      // Build progress bar for user
+      const progressPercent = Math.min((userProgress.weeklyXp / userProgress.targetXp) * 100, 100);
+      const progressBarLength = 20;
+      const filledLength = Math.floor((progressPercent / 100) * progressBarLength);
+      const progressBar = '█'.repeat(filledLength) + '░'.repeat(progressBarLength - filledLength);
+
+      // Build challenge description with user's progress
+      let challengeDescription = `**Goal:** Earn ${challenge.targetXp.toLocaleString()} XP this week\n` +
+        `**Reward:** ${challenge.bonusXp} bonus XP 🎁\n` +
+        `**Dates:** ${dateRange}\n\n`;
+
+      if (userProgress.weeklyXp > 0) {
+        challengeDescription += `**Your Progress:**\n` +
+          `${progressBar} ${progressPercent.toFixed(0)}%\n` +
+          `${userProgress.weeklyXp.toLocaleString()} / ${userProgress.targetXp.toLocaleString()} XP`;
+
+        if (userProgress.completed) {
+          challengeDescription += ` ✅ **COMPLETED!**`;
+        }
+      } else {
+        challengeDescription += `*You haven't earned any XP this week yet. Complete sessions to get started!*`;
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0xFFD700)
+        .setTitle(`🏆 Weekly Challenge - ${challenge.weekKey}`)
+        .setDescription(challengeDescription);
+
+      // Add top 10 leaderboard
+      if (challenge.topEarners.length > 0) {
+        const top10 = challenge.topEarners.slice(0, 10);
+        const ranks: string[] = [];
+        const names: string[] = [];
+        const xpValues: string[] = [];
+
+        top10.forEach((earner, index) => {
+          const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+          const isCurrentUser = earner.userId === user.id;
+
+          ranks.push(medal);
+          names.push(isCurrentUser ? `**${earner.username}** (you)` : earner.username);
+          xpValues.push(`${earner.xpEarned.toLocaleString()} XP`);
+        });
+
+        // Add current user if not in top 10
+        if (userProgress.rank && userProgress.rank > 10 && userProgress.weeklyXp > 0) {
+          ranks.push(`**#${userProgress.rank}**`);
+          names.push(`**${user.username}** (you)`);
+          xpValues.push(`**${userProgress.weeklyXp.toLocaleString()} XP**`);
+        }
+
+        embed.addFields(
+          {
+            name: '📊 Top Earners This Week',
+            value: '** **', // Spacer
+            inline: false
+          },
+          { name: 'Rank', value: ranks.join('\n'), inline: true },
+          { name: 'Name', value: names.join('\n'), inline: true },
+          { name: 'XP Earned', value: xpValues.join('\n'), inline: true }
+        );
+      } else {
+        embed.addFields({
+          name: '📊 Top Earners This Week',
+          value: '*No participants yet! Complete sessions to be the first on the leaderboard!*',
+          inline: false
+        });
+      }
+
+      embed.setFooter({ text: `Complete sessions to earn XP and climb the ranks! 💪` });
 
       await interaction.reply({
         embeds: [embed],
@@ -2522,6 +2654,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                 currentSession.activity
               );
 
+              // Track weekly challenge progress
+              const challengeResult = await challengeService.recordWeeklyXP(
+                userId,
+                username,
+                statsUpdate.xpGained
+              );
+
               // Check for new badges
               const newBadges = await badgeService.checkAndAwardBadges(userId);
 
@@ -2535,6 +2674,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                   xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
                 } else {
                   xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned! (${statsUpdate.xpMultiplier.toFixed(2)}x)`;
+                }
+
+                // Add weekly challenge completion bonus
+                if (challengeResult.newlyCompleted) {
+                  xpMessage += `\n🎊 **WEEKLY CHALLENGE COMPLETED!** +${challengeResult.bonusXpAwarded} bonus XP!`;
                 }
 
                 let badgeMessage = '';
