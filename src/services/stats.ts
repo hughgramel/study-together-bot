@@ -176,10 +176,12 @@ export class StatsService {
         stats.longestSessionDuration || 0,
         sessionDuration
       ),
-      firstSessionOfDayCount: isFirstSessionToday
-        ? (stats.firstSessionOfDayCount || 0) + 1
-        : stats.firstSessionOfDayCount,
     };
+
+    // Only include firstSessionOfDayCount if it needs to be updated
+    if (isFirstSessionToday) {
+      updates.firstSessionOfDayCount = (stats.firstSessionOfDayCount || 0) + 1;
+    }
 
     await statsRef.update(updates);
 
