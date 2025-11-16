@@ -33,6 +33,7 @@ import {
   isSameDay,
   isYesterday,
 } from './utils/formatters';
+import { calculateLevel, xpToNextLevel, levelProgress } from './utils/xp';
 
 // Load environment variables
 dotenv.config();
@@ -1599,12 +1600,42 @@ client.on('interactionCreate', async (interaction) => {
       const currentStreakEmojis = getStreakEmojis(stats.currentStreak);
       const longestStreakEmojis = getStreakEmojis(stats.longestStreak);
 
+      // XP & Level info
+      const currentXp = stats.xp || 0;
+      const currentLevel = calculateLevel(currentXp);
+      const xpToNext = xpToNextLevel(currentXp);
+      const progress = levelProgress(currentXp);
+
+      // Create progress bar (20 characters wide)
+      const progressBarLength = 20;
+      const filledLength = Math.floor((progress / 100) * progressBarLength);
+      const progressBar = '█'.repeat(filledLength) + '░'.repeat(progressBarLength - filledLength);
+
+      // Get user badges
+      const userBadges = await badgeService.getUserBadges(user.id);
+
+      // Badge display (show first 10, or "X more" if > 10)
+      let badgeDisplay = '';
+      if (userBadges.length > 0) {
+        const displayBadges = userBadges.slice(0, 10);
+        badgeDisplay = displayBadges.map(b => b.emoji).join(' ');
+        if (userBadges.length > 10) {
+          badgeDisplay += ` +${userBadges.length - 10} more`;
+        }
+      } else {
+        badgeDisplay = '*No badges yet - complete sessions to earn badges!*';
+      }
+
       // Create embed with separate fields for better formatting
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
       const embed = new EmbedBuilder()
         .setColor(0x0080FF)
         .setTitle('📊 Personal Study Statistics')
+        .setDescription(
+          `**Level ${currentLevel}** ${progressBar} ${progress.toFixed(0)}%\n` +
+          `${currentXp.toLocaleString()} XP • ${xpToNext.toLocaleString()} XP to Level ${currentLevel + 1}`
+        )
         .addFields(
           { name: '📅 Timeframe', value: '**Daily**\n**Weekly**\n**Monthly**\n**All-time**', inline: true },
           { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
@@ -1614,7 +1645,8 @@ client.on('interactionCreate', async (interaction) => {
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
           { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true }
+          { name: '\u200B', value: '\u200B', inline: true },
+          { name: `🏆 Badges (${userBadges.length})`, value: badgeDisplay, inline: false }
         )
         .setFooter({
           text: user.username,
