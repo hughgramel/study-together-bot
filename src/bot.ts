@@ -1,6 +1,7 @@
 import {
   Client,
   GatewayIntentBits,
+  Partials,
   REST,
   Routes,
   SlashCommandBuilder,
@@ -86,6 +87,12 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessageReactions,
+  ],
+  partials: [
+    Partials.Message,
+    Partials.Channel,
+    Partials.Reaction,
   ],
 });
 
@@ -2467,6 +2474,111 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
   } catch (error) {
     console.error(`[VOICE] Error handling voice state update for ${username}:`, error);
+  }
+});
+
+// Handle reactions on session posts
+client.on('messageReactionAdd', async (reaction, user) => {
+  try {
+    // Ignore bot reactions
+    if (user.bot) return;
+
+    // Fetch partial reactions
+    if (reaction.partial) {
+      try {
+        await reaction.fetch();
+      } catch (error) {
+        console.error('[REACTION] Failed to fetch partial reaction:', error);
+        return;
+      }
+    }
+
+    const messageId = reaction.message.id;
+    const emoji = reaction.emoji.name;
+
+    if (!emoji) return;
+
+    // Check if this is a session post
+    const sessionPost = await postService.getSessionPost(messageId);
+
+    if (!sessionPost) {
+      // Not a session post, ignore
+      return;
+    }
+
+    console.log(`[REACTION] ${user.username} reacted ${emoji} to post ${messageId}`);
+
+    // Add reaction to post
+    await postService.addReaction(messageId, emoji, user.id);
+
+    // Update stats for both users
+    const statsRef = db.collection('discord-data').doc('userStats').collection('stats');
+
+    // Increment reactionsReceived for post author
+    await statsRef.doc(sessionPost.userId).update({
+      reactionsReceived: admin.firestore.FieldValue.increment(1)
+    });
+
+    // Increment reactionsGiven for reactor
+    await statsRef.doc(user.id).update({
+      reactionsGiven: admin.firestore.FieldValue.increment(1)
+    });
+
+    console.log(`[REACTION] Updated stats for reaction`);
+  } catch (error) {
+    console.error('[REACTION] Error handling reaction add:', error);
+  }
+});
+
+client.on('messageReactionRemove', async (reaction, user) => {
+  try {
+    // Ignore bot reactions
+    if (user.bot) return;
+
+    // Fetch partial reactions
+    if (reaction.partial) {
+      try {
+        await reaction.fetch();
+      } catch (error) {
+        console.error('[REACTION] Failed to fetch partial reaction:', error);
+        return;
+      }
+    }
+
+    const messageId = reaction.message.id;
+    const emoji = reaction.emoji.name;
+
+    if (!emoji) return;
+
+    // Check if this is a session post
+    const sessionPost = await postService.getSessionPost(messageId);
+
+    if (!sessionPost) {
+      // Not a session post, ignore
+      return;
+    }
+
+    console.log(`[REACTION] ${user.username} removed reaction ${emoji} from post ${messageId}`);
+
+    // Remove reaction from post
+    await postService.removeReaction(messageId, emoji, user.id);
+
+    // Update stats for both users (decrement)
+    const statsRef = db.collection('discord-data').doc('userStats').collection('stats');
+
+    // Decrement reactionsReceived for post author
+    await statsRef.doc(sessionPost.userId).update({
+      reactionsReceived: admin.firestore.FieldValue.increment(-1)
+    });
+
+    // Decrement reactionsGiven for reactor
+    await statsRef.doc(user.id).update({
+      reactionsGiven: admin.firestore.FieldValue.increment(-1)
+    });
+
+    console.log(`[REACTION] Updated stats for reaction removal`);
+  } catch (error) {
+    console.error('[REACTION] Error handling reaction remove:', error);
   }
 });
 
