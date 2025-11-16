@@ -143,6 +143,10 @@ const commands = [
     ),
 
   new SlashCommandBuilder()
+    .setName('badges')
+    .setDescription('View all your unlocked achievement badges'),
+
+  new SlashCommandBuilder()
     .setName('leaderboard')
     .setDescription('View server leaderboards with timeframe selector'),
 
@@ -1648,6 +1652,72 @@ client.on('interactionCreate', async (interaction) => {
           { name: '\u200B', value: '\u200B', inline: true },
           { name: `🏆 Badges (${userBadges.length})`, value: badgeDisplay, inline: false }
         )
+        .setFooter({
+          text: user.username,
+          iconURL: avatarUrl
+        });
+
+      await interaction.reply({
+        embeds: [embed],
+        ephemeral: false,
+      });
+      return;
+    }
+
+    // /badges command
+    if (commandName === 'badges') {
+      const stats = await statsService.getUserStats(user.id);
+
+      if (!stats) {
+        await interaction.reply({
+          content: 'No stats yet! Complete sessions to unlock badges.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const userBadges = await badgeService.getUserBadges(user.id);
+
+      if (userBadges.length === 0) {
+        await interaction.reply({
+          content: '🏆 You haven\'t unlocked any badges yet! Keep studying to earn your first badge.\n\nTry `/stats` to see your progress!',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Group badges by category
+      const categories = ['milestone', 'time', 'streak', 'diversity', 'intensity'];
+      const fields: any[] = [];
+
+      for (const category of categories) {
+        const categoryBadges = userBadges.filter(b => b.category === category);
+        if (categoryBadges.length === 0) continue;
+
+        // Sort by order
+        categoryBadges.sort((a, b) => a.order - b.order);
+
+        const badgeList = categoryBadges
+          .map(b => `${b.emoji} **${b.name}** - *${b.description}*`)
+          .join('\n');
+
+        // Capitalize category name
+        const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
+
+        fields.push({
+          name: `${categoryName} (${categoryBadges.length})`,
+          value: badgeList,
+          inline: false,
+        });
+      }
+
+      const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+      const embed = new EmbedBuilder()
+        .setColor(0xFFD700) // Gold
+        .setTitle(`🏆 Your Badges (${userBadges.length}/20)`)
+        .setDescription('Keep grinding to unlock more achievements!')
+        .addFields(fields)
         .setFooter({
           text: user.username,
           iconURL: avatarUrl
