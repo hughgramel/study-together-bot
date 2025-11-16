@@ -51,12 +51,18 @@ export class PostService {
       sessionId,
       duration,
       xpGained,
-      levelGained,
-      badgesUnlocked,
       postedAt: Timestamp.now(),
       reactions: {},
       cheers: []
     };
+
+    // Only include optional fields if they have values
+    if (levelGained !== undefined) {
+      postData.levelGained = levelGained;
+    }
+    if (badgesUnlocked !== undefined) {
+      postData.badgesUnlocked = badgesUnlocked;
+    }
 
     await this.db
       .collection('discord-data')
