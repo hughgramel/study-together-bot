@@ -1260,7 +1260,8 @@ client.on('interactionCreate', async (interaction) => {
             name: '📊 Statistics & Leaderboards',
             value:
               '`/stats` - View your personal statistics\n' +
-              '`/leaderboard` - Interactive leaderboard with daily/weekly/monthly views',
+              '`/leaderboard` - Interactive leaderboard with daily/weekly/monthly views\n' +
+              '`/badges` - View your achievement badges',
             inline: false
           },
           {
@@ -1279,6 +1280,8 @@ client.on('interactionCreate', async (interaction) => {
           {
             name: '💡 Tips',
             value:
+              '• Earn XP and level up by completing sessions (10 XP/hour + bonuses)\n' +
+              '• Unlock 20 achievement badges by hitting milestones\n' +
               '• Voice channel sessions auto-track when you join a focus room\n' +
               '• Build streaks by completing sessions daily\n' +
               '• Share your accomplishments in the feed to inspire others!',
