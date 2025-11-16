@@ -697,6 +697,87 @@ async function postStreakMilestone(
   }
 }
 
+// Helper function to post badge unlock celebrations to feed
+async function postBadgeUnlock(
+  interaction: CommandInteraction | ModalSubmitInteraction,
+  username: string,
+  avatarUrl: string,
+  badgeIds: string[]
+) {
+  try {
+    if (!badgeIds || badgeIds.length === 0) {
+      return;
+    }
+
+    const config = await getServerConfig(interaction.guildId!);
+
+    if (!config || !config.feedChannelId) {
+      // No feed channel configured - skip posting
+      return;
+    }
+
+    const channel = await client.channels.fetch(config.feedChannelId);
+
+    if (!channel || !channel.isTextBased()) {
+      console.error('Feed channel not found or not text-based');
+      return;
+    }
+
+    const textChannel = channel as TextChannel;
+
+    // Check bot permissions in the channel
+    const botMember = await interaction.guild?.members.fetch(client.user!.id);
+    const permissions = textChannel.permissionsFor(botMember!);
+
+    if (!permissions?.has(PermissionFlagsBits.ViewChannel) || !permissions?.has(PermissionFlagsBits.SendMessages)) {
+      console.error(`Bot lacks necessary permissions in feed channel ${config.feedChannelId}`);
+      return;
+    }
+
+    // Get badge details
+    const badges = badgeIds.map(id => getBadge(id)).filter(b => b !== undefined);
+    if (badges.length === 0) {
+      return;
+    }
+
+    // Build badge list with emojis and names
+    const badgeList = badges.map(b => `${b!.emoji} **${b!.name}**`).join('\n');
+    const totalXP = badges.reduce((sum, b) => sum + b!.xpReward, 0);
+
+    const message = badges.length === 1
+      ? `**@${username}** unlocked a new badge! 🏆`
+      : `**@${username}** unlocked ${badges.length} new badges! 🏆`;
+
+    // Create badge unlock embed
+    const embed = new EmbedBuilder()
+      .setColor(0xFFD700) // Gold
+      .setAuthor({
+        name: `${username} 🏆`,
+        iconURL: avatarUrl
+      })
+      .setDescription(message)
+      .addFields({
+        name: badges.length === 1 ? 'Badge Unlocked' : 'Badges Unlocked',
+        value: badgeList,
+        inline: false
+      })
+      .setFooter({ text: `+${totalXP} bonus XP earned` });
+
+    const badgeMessage = await textChannel.send({
+      embeds: [embed]
+    });
+
+    // React with trophy if bot has permission
+    if (permissions?.has(PermissionFlagsBits.AddReactions)) {
+      await badgeMessage.react('🏆');
+      await badgeMessage.react('🎉');
+    }
+  } catch (error) {
+    console.error('Error posting badge unlock:', error);
+    // Don't throw - we don't want to fail the session completion
+  }
+}
+
 // Helper function to post basic session completion to feed (for auto-posted VC sessions)
 async function postBasicSessionToFeed(
   guildId: string,
@@ -956,16 +1037,8 @@ client.on('interactionCreate', async (interaction) => {
           xpMessage += `\n🎊 **WEEKLY CHALLENGE COMPLETED!** +${challengeResult.bonusXpAwarded} bonus XP!`;
         }
 
-        // Build badge message
-        let badgeMessage = '';
-        if (newBadges.length > 0) {
-          const badgeDetails = newBadges.map(id => getBadge(id)).filter(b => b);
-          const badgeList = badgeDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
-          badgeMessage = `\n🏆 **NEW BADGE${newBadges.length > 1 ? 'S' : ''}!** ${badgeList}`;
-        }
-
         await interaction.editReply({
-          content: `✅ Manual session logged! (${durationStr})${xpMessage}${badgeMessage}\n\nYour session has been saved and posted to the feed.`,
+          content: `✅ Manual session logged! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
         });
 
         // Get user's avatar URL
@@ -998,6 +1071,16 @@ client.on('interactionCreate', async (interaction) => {
             avatarUrl,
             updatedStats.currentStreak,
             updatedStats.totalSessions
+          );
+        }
+
+        // Post badge unlock celebration if applicable
+        if (newBadges.length > 0) {
+          await postBadgeUnlock(
+            interaction,
+            user.username,
+            avatarUrl,
+            newBadges
           );
         }
       } catch (error) {
@@ -1095,16 +1178,8 @@ client.on('interactionCreate', async (interaction) => {
           xpMessage += `\n🎊 **WEEKLY CHALLENGE COMPLETED!** +${challengeResult.bonusXpAwarded} bonus XP!`;
         }
 
-        // Build badge message
-        let badgeMessage = '';
-        if (newBadges.length > 0) {
-          const badgeDetails = newBadges.map(id => getBadge(id)).filter(b => b);
-          const badgeList = badgeDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
-          badgeMessage = `\n🏆 **NEW BADGE${newBadges.length > 1 ? 'S' : ''}!** ${badgeList}`;
-        }
-
         await interaction.editReply({
-          content: `✅ Session completed! (${durationStr})${xpMessage}${badgeMessage}\n\nYour session has been saved and posted to the feed.`,
+          content: `✅ Session completed! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
         });
 
         // Get user's avatar URL
@@ -1137,6 +1212,16 @@ client.on('interactionCreate', async (interaction) => {
             avatarUrl,
             updatedStats.currentStreak,
             updatedStats.totalSessions
+          );
+        }
+
+        // Post badge unlock celebration if applicable
+        if (newBadges.length > 0) {
+          await postBadgeUnlock(
+            interaction,
+            user.username,
+            avatarUrl,
+            newBadges
           );
         }
       } catch (error) {
