@@ -1125,8 +1125,50 @@ client.on('interactionCreate', async (interaction) => {
             { name: '\u200B', value: formatLeaderboard(monthlyAll, '🌟', 'Monthly'), inline: false }
           )
           .setFooter({ text: 'Use the dropdown below to view full leaderboards' });
+      } else if (selectedValue === 'xp') {
+        // XP Leaderboard
+        const xpUsers = await statsService.getTopUsersByXP(20);
+
+        if (xpUsers.length === 0) {
+          embed = new EmbedBuilder()
+            .setColor(0xFFD700)
+            .setTitle('⚡ XP Leaderboard')
+            .setDescription('No XP data yet! Complete sessions to earn XP! 🚀')
+            .setFooter({ text: 'Use the dropdown below to view other timeframes' });
+        } else {
+          const top10 = xpUsers.slice(0, 10);
+          const ranks: string[] = [];
+          const names: string[] = [];
+          const xpLevels: string[] = [];
+
+          top10.forEach((u, index) => {
+            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+            ranks.push(medal);
+            names.push(`**${u.username}** 🏆 ${u.badgeCount}`);
+            xpLevels.push(`Lvl ${u.level} • ${u.xp.toLocaleString()} XP`);
+          });
+
+          // Add current user if not in top 10
+          const userPosition = xpUsers.findIndex(u => u.userId === user.id);
+          if (userPosition >= 10) {
+            const currentUser = xpUsers[userPosition];
+            ranks.push(`**#${userPosition + 1}**`);
+            names.push(`**${currentUser.username}** 🏆 ${currentUser.badgeCount}`);
+            xpLevels.push(`**Lvl ${currentUser.level} • ${currentUser.xp.toLocaleString()} XP**`);
+          }
+
+          embed = new EmbedBuilder()
+            .setColor(0xFFD700)
+            .setTitle('⚡ XP Leaderboard')
+            .addFields(
+              { name: 'Rank', value: ranks.join('\n'), inline: true },
+              { name: 'Name', value: names.join('\n'), inline: true },
+              { name: 'Level • XP', value: xpLevels.join('\n'), inline: true }
+            )
+            .setFooter({ text: 'Complete sessions to earn XP and level up! 💪' });
+        }
       } else {
-        // Full leaderboard for specific timeframe
+        // Full leaderboard for specific time-based timeframe
         let users: Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>;
         let title: string;
         let emoji: string;
@@ -1198,21 +1240,27 @@ client.on('interactionCreate', async (interaction) => {
           },
           {
             label: 'Daily Leaderboard',
-            description: 'Full top 10 daily rankings',
+            description: 'Full top 10 daily rankings by hours',
             value: 'daily',
             emoji: '📅',
           },
           {
             label: 'Weekly Leaderboard',
-            description: 'Full top 10 weekly rankings',
+            description: 'Full top 10 weekly rankings by hours',
             value: 'weekly',
             emoji: '📊',
           },
           {
             label: 'Monthly Leaderboard',
-            description: 'Full top 10 monthly rankings',
+            description: 'Full top 10 monthly rankings by hours',
             value: 'monthly',
             emoji: '🌟',
+          },
+          {
+            label: 'XP Leaderboard',
+            description: 'Top 10 by total XP and level',
+            value: 'xp',
+            emoji: '⚡',
           },
         ]);
 
@@ -1893,21 +1941,27 @@ client.on('interactionCreate', async (interaction) => {
           },
           {
             label: 'Daily Leaderboard',
-            description: 'Full top 10 daily rankings',
+            description: 'Full top 10 daily rankings by hours',
             value: 'daily',
             emoji: '📅',
           },
           {
             label: 'Weekly Leaderboard',
-            description: 'Full top 10 weekly rankings',
+            description: 'Full top 10 weekly rankings by hours',
             value: 'weekly',
             emoji: '📊',
           },
           {
             label: 'Monthly Leaderboard',
-            description: 'Full top 10 monthly rankings',
+            description: 'Full top 10 monthly rankings by hours',
             value: 'monthly',
             emoji: '🌟',
+          },
+          {
+            label: 'XP Leaderboard',
+            description: 'Top 10 by total XP and level',
+            value: 'xp',
+            emoji: '⚡',
           },
         ]);
 

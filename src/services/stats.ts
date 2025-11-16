@@ -231,4 +231,45 @@ export class StatsService {
       total: users.length
     };
   }
+
+  /**
+   * Gets top users sorted by XP (for XP leaderboards)
+   * Returns array of users with their XP, level, and badge count
+   */
+  async getTopUsersByXP(limit: number = 20): Promise<Array<{
+    userId: string;
+    username: string;
+    xp: number;
+    level: number;
+    badgeCount: number;
+  }>> {
+    const snapshot = await this.db
+      .collection('discord-data')
+      .doc('userStats')
+      .collection('stats')
+      .orderBy('xp', 'desc')
+      .limit(limit)
+      .get();
+
+    if (snapshot.empty) {
+      return [];
+    }
+
+    const users = snapshot.docs.map(doc => {
+      const data = doc.data() as UserStats;
+      const xp = data.xp || 0;
+      const level = calculateLevel(xp);
+      const badgeCount = (data.badges || []).length;
+
+      return {
+        userId: doc.id,
+        username: data.username,
+        xp,
+        level,
+        badgeCount
+      };
+    });
+
+    return users;
+  }
 }
