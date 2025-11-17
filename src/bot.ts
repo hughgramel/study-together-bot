@@ -518,7 +518,8 @@ async function postToFeed(
   sessionId: string,
   xpGained: number,
   newLevel?: number,
-  achievementsUnlocked?: string[]
+  achievementsUnlocked?: string[],
+  intensity?: number
 ) {
   try {
     const config = await getServerConfig(interaction.guildId!);
@@ -557,6 +558,19 @@ async function postToFeed(
 
     const durationStr = formatDuration(duration);
 
+    // Get intensity display (visual bars)
+    const getIntensityDisplay = (intensity?: number): string => {
+      if (!intensity) return 'Not specified';
+
+      // Create visual bar representation
+      const filled = '█';
+      const empty = '░';
+      const bars = filled.repeat(intensity) + empty.repeat(5 - intensity);
+
+      const labels = ['Light', 'Easy', 'Normal', 'Hard', 'Max'];
+      return `${bars} ${labels[intensity - 1]}`;
+    };
+
     // Create the Strava-like embed
     const embed = new EmbedBuilder()
       .setColor(0x0080FF) // Electric blue
@@ -569,7 +583,7 @@ async function postToFeed(
       .addFields(
         { name: '⏱️ Time', value: durationStr, inline: true },
         { name: '🎯 Activity', value: activity, inline: true },
-        { name: '\u200b', value: '\u200b', inline: true }, // Empty third column
+        { name: '💪 Intensity', value: getIntensityDisplay(intensity), inline: true },
         { name: '\u200b', value: `**✨ +${xpGained} XP Earned**`, inline: false }
       );
 
@@ -1084,36 +1098,55 @@ client.on('interactionCreate', async (interaction) => {
         const activity = interaction.fields.getTextInputValue('activity');
         const title = interaction.fields.getTextInputValue('title');
         const description = interaction.fields.getTextInputValue('description');
-        const hoursStr = interaction.fields.getTextInputValue('hours');
-        const minutesStr = interaction.fields.getTextInputValue('minutes');
+        const durationInput = interaction.fields.getTextInputValue('duration');
+        const intensityStr = interaction.fields.getTextInputValue('intensity');
 
-        // Parse and validate hours and minutes
-        const hours = parseInt(hoursStr, 10);
-        const minutes = parseInt(minutesStr, 10);
-
-        if (isNaN(hours) || isNaN(minutes)) {
+        // Validate and parse intensity (1-5 scale)
+        const intensity = parseInt(intensityStr, 10);
+        if (isNaN(intensity) || intensity < 1 || intensity > 5) {
           await interaction.editReply({
-            content: '❌ Invalid input. Hours and minutes must be numbers.',
+            content: '❌ Invalid intensity value. Please enter a number between 1 and 5.',
           });
           return;
         }
 
-        if (hours < 0 || minutes < 0) {
+        // Parse duration string (supports formats like "2h 30m", "1h", "45m", "90m")
+        const parseDuration = (input: string): number | null => {
+          const trimmed = input.trim().toLowerCase();
+
+          // Try to match "Xh Ym" or "Xh" or "Ym" format
+          const hourMinuteMatch = trimmed.match(/(\d+)\s*h(?:\s+(\d+)\s*m)?/);
+          if (hourMinuteMatch) {
+            const hours = parseInt(hourMinuteMatch[1], 10);
+            const minutes = hourMinuteMatch[2] ? parseInt(hourMinuteMatch[2], 10) : 0;
+            return (hours * 3600) + (minutes * 60);
+          }
+
+          // Try to match "Ym" format only
+          const minuteMatch = trimmed.match(/^(\d+)\s*m$/);
+          if (minuteMatch) {
+            const minutes = parseInt(minuteMatch[1], 10);
+            return minutes * 60;
+          }
+
+          return null;
+        };
+
+        const duration = parseDuration(durationInput);
+
+        if (duration === null) {
           await interaction.editReply({
-            content: '❌ Hours and minutes must be positive numbers.',
+            content: '❌ Invalid duration format. Please use formats like "2h 30m", "1h", or "45m".',
           });
           return;
         }
 
-        if (hours === 0 && minutes === 0) {
+        if (duration <= 0) {
           await interaction.editReply({
             content: '❌ Duration must be greater than 0.',
           });
           return;
         }
-
-        // Calculate duration in seconds
-        const duration = (hours * 3600) + (minutes * 60);
 
         // Create timestamps
         const endTime = Timestamp.now();
@@ -1130,6 +1163,7 @@ client.on('interactionCreate', async (interaction) => {
           duration,
           startTime,
           endTime,
+          intensity,
         });
 
         // Update stats and award XP
@@ -1137,7 +1171,8 @@ client.on('interactionCreate', async (interaction) => {
           user.id,
           user.username,
           duration,
-          activity
+          activity,
+          intensity
         );
 
         // Check for new achievements
@@ -1145,12 +1180,16 @@ client.on('interactionCreate', async (interaction) => {
 
         const durationStr = formatDuration(duration);
 
-        // Build XP message with multiplier display
+        // Build XP message with intensity multiplier display
+        const intensityLabels = ['Light', 'Easy', 'Normal', 'Hard', 'Max'];
+        const intensityLabel = intensityLabels[intensity - 1];
+        const multiplierText = `(${statsUpdate.xpMultiplier}x ${intensityLabel} intensity)`;
+
         let xpMessage = '';
         if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
+          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned ${multiplierText}`;
         } else {
-          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned!`;
+          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned ${multiplierText}`;
         }
 
         await interaction.editReply({
@@ -1174,7 +1213,8 @@ client.on('interactionCreate', async (interaction) => {
           sessionId,
           statsUpdate.xpGained,
           statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
-          newAchievements.length > 0 ? newAchievements : undefined
+          newAchievements.length > 0 ? newAchievements : undefined,
+          intensity
         );
 
         // Get updated stats to check for streak milestones
@@ -1238,6 +1278,17 @@ client.on('interactionCreate', async (interaction) => {
         // Get modal inputs
         const title = interaction.fields.getTextInputValue('title');
         const description = interaction.fields.getTextInputValue('description');
+        const intensityStr = interaction.fields.getTextInputValue('intensity');
+
+        // Validate and parse intensity (1-5 scale)
+        const intensity = parseInt(intensityStr, 10);
+        if (isNaN(intensity) || intensity < 1 || intensity > 5) {
+          await interaction.reply({
+            content: '❌ Invalid intensity value. Please enter a number between 1 and 5.',
+            ephemeral: true,
+          });
+          return;
+        }
 
         // Defer reply immediately to prevent timeout (we have complex processing ahead)
         await interaction.deferReply({ ephemeral: false });
@@ -1275,6 +1326,7 @@ client.on('interactionCreate', async (interaction) => {
           duration,
           startTime: session.startTime,
           endTime,
+          intensity,
         });
 
         // Update stats and award XP
@@ -1282,7 +1334,8 @@ client.on('interactionCreate', async (interaction) => {
           user.id,
           user.username,
           duration,
-          session.activity
+          session.activity,
+          intensity
         );
 
         // Check for new achievements
@@ -1290,12 +1343,16 @@ client.on('interactionCreate', async (interaction) => {
 
         const durationStr = formatDuration(duration);
 
-        // Build XP message with multiplier display
+        // Build XP message with intensity multiplier display
+        const intensityLabels = ['Light', 'Easy', 'Normal', 'Hard', 'Max'];
+        const intensityLabel = intensityLabels[intensity - 1];
+        const multiplierText = `(${statsUpdate.xpMultiplier}x ${intensityLabel} intensity)`;
+
         let xpMessage = '';
         if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
+          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned ${multiplierText}`;
         } else {
-          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned!`;
+          xpMessage = `\n\n✨ +${statsUpdate.xpGained} XP earned ${multiplierText}`;
         }
 
         await interaction.editReply({
@@ -1319,7 +1376,8 @@ client.on('interactionCreate', async (interaction) => {
           sessionId,
           statsUpdate.xpGained,
           statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
-          newAchievements.length > 0 ? newAchievements : undefined
+          newAchievements.length > 0 ? newAchievements : undefined,
+          intensity
         );
 
         // Get updated stats to check for streak milestones
@@ -1741,7 +1799,7 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({
           content:
             'You already have an active session! Use /end to complete it first.',
-          ephemeral: false,
+          ephemeral: true,
         });
         return;
       }
@@ -1756,7 +1814,7 @@ client.on('interactionCreate', async (interaction) => {
 
       await interaction.reply({
         content: `🚀 You're live! Your session is now active.\n\n**Working on:** ${activity}`,
-        ephemeral: false,
+        ephemeral: true,
       });
 
       // Get user's avatar URL and post to feed
@@ -1966,11 +2024,22 @@ client.on('interactionCreate', async (interaction) => {
         .setRequired(true)
         .setMaxLength(1000);
 
+      // Intensity input (1-5 scale)
+      const intensityInput = new TextInputBuilder()
+        .setCustomId('intensity')
+        .setLabel('Session Intensity (1-5)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('1=Light, 2=Easy, 3=Normal, 4=Hard, 5=Max Effort')
+        .setRequired(true)
+        .setMinLength(1)
+        .setMaxLength(1);
+
       // Add inputs to action rows
       const titleRow = new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput);
       const descriptionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
+      const intensityRow = new ActionRowBuilder<TextInputBuilder>().addComponents(intensityInput);
 
-      modal.addComponents(titleRow, descriptionRow);
+      modal.addComponents(titleRow, descriptionRow, intensityRow);
 
       await interaction.showModal(modal);
       return;
@@ -2745,32 +2814,33 @@ client.on('interactionCreate', async (interaction) => {
         .setRequired(true)
         .setMaxLength(1000);
 
-      // Hours input
-      const hoursInput = new TextInputBuilder()
-        .setCustomId('hours')
-        .setLabel('Hours')
+      // Duration input (combined hours and minutes)
+      const durationInput = new TextInputBuilder()
+        .setCustomId('duration')
+        .setLabel('Duration (format: "2h 30m" or "90m")')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('0')
+        .setPlaceholder('e.g., 1h 30m, 2h, 45m')
         .setRequired(true)
-        .setMaxLength(3);
+        .setMaxLength(20);
 
-      // Minutes input
-      const minutesInput = new TextInputBuilder()
-        .setCustomId('minutes')
-        .setLabel('Minutes')
+      // Intensity input (1-5 scale)
+      const intensityInput = new TextInputBuilder()
+        .setCustomId('intensity')
+        .setLabel('Session Intensity (1-5)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('0')
+        .setPlaceholder('1=Light, 2=Easy, 3=Normal, 4=Hard, 5=Max Effort')
         .setRequired(true)
-        .setMaxLength(2);
+        .setMinLength(1)
+        .setMaxLength(1);
 
       // Add inputs to action rows
       const activityRow = new ActionRowBuilder<TextInputBuilder>().addComponents(activityInput);
       const titleRow = new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput);
       const descriptionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
-      const hoursRow = new ActionRowBuilder<TextInputBuilder>().addComponents(hoursInput);
-      const minutesRow = new ActionRowBuilder<TextInputBuilder>().addComponents(minutesInput);
+      const durationRow = new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput);
+      const intensityRow = new ActionRowBuilder<TextInputBuilder>().addComponents(intensityInput);
 
-      modal.addComponents(activityRow, titleRow, descriptionRow, hoursRow, minutesRow);
+      modal.addComponents(activityRow, titleRow, descriptionRow, durationRow, intensityRow);
 
       await interaction.showModal(modal);
       return;

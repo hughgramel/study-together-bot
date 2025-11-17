@@ -33,13 +33,14 @@ export class StatsService {
 
   /**
    * Updates user statistics after completing a session
-   * Now includes XP awarding with randomization
+   * Now includes XP awarding with intensity multiplier
    */
   async updateUserStats(
     userId: string,
     username: string,
     sessionDuration: number,
-    activity?: string
+    activity?: string,
+    intensity?: number
   ): Promise<{
     stats: UserStats;
     xpGained: number;
@@ -56,21 +57,35 @@ export class StatsService {
     const doc = await statsRef.get();
     const now = Timestamp.now();
 
-    // Generate random XP multiplier (0.75x - 1.25x)
-    const xpMultiplier = 0.75 + Math.random() * 0.5;
+    // Calculate XP multiplier based on intensity (1-5 scale)
+    // 1=0.8x, 2=0.9x, 3=1.0x, 4=1.2x, 5=1.5x
+    let xpMultiplier: number;
+    if (intensity === 1) {
+      xpMultiplier = 0.8;
+    } else if (intensity === 2) {
+      xpMultiplier = 0.9;
+    } else if (intensity === 3) {
+      xpMultiplier = 1.0;
+    } else if (intensity === 4) {
+      xpMultiplier = 1.2;
+    } else if (intensity === 5) {
+      xpMultiplier = 1.5;
+    } else {
+      // Default to 1.0x if no intensity provided (for backwards compatibility)
+      xpMultiplier = 1.0;
+    }
 
     if (!doc.exists) {
       // First session ever - award initial XP
       const xpBreakdown = this.xpService.getSessionXPBreakdown(
         sessionDuration,
-        true, // first session of day
         false, // no streak milestone yet
         1
       );
 
-      // Apply randomization to total XP
+      // Apply intensity multiplier to total XP
       const baseXP = xpBreakdown.total;
-      const randomizedXP = Math.floor(baseXP * xpMultiplier);
+      const finalXP = Math.ceil(baseXP * xpMultiplier);
 
       const newStats: UserStats = {
         username,
@@ -81,7 +96,7 @@ export class StatsService {
         lastSessionAt: now,
         firstSessionAt: now,
         // XP & Achievement fields
-        xp: randomizedXP,
+        xp: finalXP,
         achievements: [],
         achievementsUnlockedAt: {},
         // Session analytics
@@ -99,7 +114,7 @@ export class StatsService {
 
       return {
         stats: newStats,
-        xpGained: randomizedXP,
+        xpGained: finalXP,
         leveledUp: false,
         xpMultiplier,
       };
@@ -107,9 +122,6 @@ export class StatsService {
 
     // Update existing stats
     const stats = doc.data() as UserStats;
-
-    // Check if this is first session of the day
-    const isFirstSessionToday = !isSameDay(stats.lastSessionAt, now);
 
     // Calculate new streak
     let newStreak = stats.currentStreak;
@@ -133,22 +145,21 @@ export class StatsService {
     // Update longest streak if needed
     const newLongestStreak = Math.max(newStreak, stats.longestStreak);
 
-    // Calculate XP to award with randomization
+    // Calculate XP to award with intensity multiplier
     const xpBreakdown = this.xpService.getSessionXPBreakdown(
       sessionDuration,
-      isFirstSessionToday,
       isStreakMilestone,
       newStreak
     );
 
-    // Apply random multiplier (0.75x - 1.25x)
+    // Apply intensity multiplier to total XP
     const baseXP = xpBreakdown.total;
-    const randomizedXP = Math.floor(baseXP * xpMultiplier);
+    const finalXP = Math.floor(baseXP * xpMultiplier);
 
     // Award XP
     const xpResult = await this.xpService.awardXP(
       userId,
-      randomizedXP,
+      finalXP,
       'Session completed'
     );
 
@@ -277,18 +288,13 @@ export class StatsService {
       updates.newRecordUnlocked = true;
     }
 
-    // Only include firstSessionOfDayCount if it needs to be updated
-    if (isFirstSessionToday) {
-      updates.firstSessionOfDayCount = (stats.firstSessionOfDayCount || 0) + 1;
-    }
-
     await statsRef.update(updates);
 
     const updatedStats = { ...stats, ...updates, xp: xpResult.newXp };
 
     return {
       stats: updatedStats as UserStats,
-      xpGained: randomizedXP,
+      xpGained: finalXP,
       leveledUp: xpResult.leveledUp,
       newLevel: xpResult.leveledUp ? xpResult.newLevel : undefined,
       xpMultiplier,
