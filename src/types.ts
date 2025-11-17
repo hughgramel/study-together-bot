@@ -16,6 +16,7 @@ export interface ActiveSession {
   vcChannelId?: string;     // Voice channel ID if VC session
   leftVCAt?: Timestamp;     // Timestamp when user left VC (for pending completion)
   pendingCompletion?: boolean; // Whether waiting for /end or 1-hour auto-post
+  intensity?: number;       // Session intensity (1-5 scale) - affects XP multiplier
 }
 
 /**
@@ -32,6 +33,7 @@ export interface CompletedSession {
   startTime: Timestamp;     // When session started
   endTime: Timestamp;       // When session ended
   createdAt: Timestamp;     // Document creation time (for sorting)
+  intensity?: number;       // Session intensity (1-5 scale) - affects XP multiplier
 }
 
 /**

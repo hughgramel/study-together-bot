@@ -69,7 +69,7 @@ export class XPService {
 
   /**
    * Calculate XP earned from session duration
-   * Formula: 100 XP per hour
+   * Formula: 100 XP per hour (rounded up)
    *
    * @param durationSeconds - Session duration in seconds
    * @returns XP earned from time studied
@@ -78,10 +78,11 @@ export class XPService {
    * calculateSessionXP(3600)  // 1 hour = 100 XP
    * calculateSessionXP(1800)  // 30 minutes = 50 XP
    * calculateSessionXP(7200)  // 2 hours = 200 XP
+   * calculateSessionXP(60)    // 1 minute = 2 XP (rounds up from 1.67)
    */
   calculateSessionXP(durationSeconds: number): number {
     const hours = durationSeconds / 3600;
-    return Math.floor(hours * 100);
+    return Math.ceil(hours * 100);
   }
 
   /**
@@ -89,42 +90,30 @@ export class XPService {
    * Includes base XP from time plus all applicable bonuses
    *
    * @param durationSeconds - Session duration in seconds
-   * @param isFirstSessionToday - Whether this is the first session of the day
    * @param isStreakMilestone - Whether this session hits a streak milestone
    * @param streakDays - Current streak length
    * @returns Object with total XP and itemized breakdown
    *
    * @example
-   * getSessionXPBreakdown(3600, true, false, 1)
+   * getSessionXPBreakdown(3600, false, 1)
    * // Returns:
    * // {
-   * //   total: 60,
+   * //   total: 100,
    * //   breakdown: [
-   * //     { source: 'Time studied', amount: 10 },
-   * //     { source: 'Session completed', amount: 25 },
-   * //     { source: 'First session today', amount: 25 }
+   * //     { source: 'Time studied', amount: 100 }
    * //   ]
    * // }
    */
   getSessionXPBreakdown(
     durationSeconds: number,
-    isFirstSessionToday: boolean,
     isStreakMilestone: boolean,
     streakDays: number
   ): { total: number; breakdown: Array<{ source: string; amount: number }> } {
     const breakdown: Array<{ source: string; amount: number }> = [];
 
-    // Base XP from time studied (10 XP/hour)
+    // Base XP from time studied (100 XP/hour)
     const timeXP = this.calculateSessionXP(durationSeconds);
     breakdown.push({ source: 'Time studied', amount: timeXP });
-
-    // Session completion bonus (always awarded)
-    breakdown.push({ source: 'Session completed', amount: 25 });
-
-    // First session of the day bonus
-    if (isFirstSessionToday) {
-      breakdown.push({ source: 'First session today', amount: 25 });
-    }
 
     // Streak milestone bonuses
     if (isStreakMilestone) {
