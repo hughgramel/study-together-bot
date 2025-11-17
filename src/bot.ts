@@ -27,6 +27,8 @@ import { SessionService } from './services/sessions';
 import { StatsService } from './services/stats';
 import { AchievementService } from './services/achievements';
 import { PostService } from './services/posts';
+import { DailyGoalService } from './services/dailyGoal';
+import { XPService } from './services/xp';
 import { getAchievement, getAllAchievements } from './data/achievements';
 import { ServerConfig } from './types';
 import {
@@ -79,6 +81,8 @@ const sessionService = new SessionService(db);
 const statsService = new StatsService(db);
 const achievementService = new AchievementService(db);
 const postService = new PostService(db);
+const dailyGoalService = new DailyGoalService(db);
+const xpService = new XPService(db);
 
 // Create Discord client
 const client = new Client({
@@ -214,6 +218,16 @@ const commands = [
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('View all available commands and how to use them'),
+
+  new SlashCommandBuilder()
+    .setName('daily-goal')
+    .setDescription('Set your daily goal and build a streak!')
+    .addStringOption((option) =>
+      option
+        .setName('goal')
+        .setDescription('Your goal for today (e.g., "Finish chapter 3 of calculus")')
+        .setRequired(true)
+    ),
 ].map((command) => command.toJSON());
 
 // Register commands
@@ -991,7 +1005,7 @@ function scheduleAutoPost(userId: string, guildId: string) {
       await sessionService.deleteActiveSession(session.userId);
 
       // Create completed session
-      await sessionService.createCompletedSession({
+      const sessionId = await sessionService.createCompletedSession({
         userId: session.userId,
         username: session.username,
         serverId: session.serverId,
@@ -1010,6 +1024,9 @@ function scheduleAutoPost(userId: string, guildId: string) {
         duration,
         'VC Session'
       );
+
+      // Update completed session with XP gained (for leaderboards)
+      await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
 
       // Check for new achievements
       const newAchievements = await achievementService.checkAndAwardAchievements(session.userId);
@@ -1175,6 +1192,9 @@ client.on('interactionCreate', async (interaction) => {
           intensity
         );
 
+        // Update completed session with XP gained (for leaderboards)
+        await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
+
         // Check for new achievements
         const newAchievements = await achievementService.checkAndAwardAchievements(user.id);
 
@@ -1338,6 +1358,9 @@ client.on('interactionCreate', async (interaction) => {
           intensity
         );
 
+        // Update completed session with XP gained (for leaderboards)
+        await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
+
         // Check for new achievements
         const newAchievements = await achievementService.checkAndAwardAchievements(user.id);
 
@@ -1450,16 +1473,16 @@ client.on('interactionCreate', async (interaction) => {
       const monthStart = getStartOfMonthPacific();
 
       const [dailyAll, weeklyAll, monthlyAll] = await Promise.all([
-        sessionService.getTopUsers(Timestamp.fromDate(today), 20, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20, guildId!),
+        statsService.getTopUsersByXPWithTimeframe(Timestamp.fromDate(today), 20, guildId!),
+        statsService.getTopUsersByXPWithTimeframe(Timestamp.fromDate(weekStart), 20, guildId!),
+        statsService.getTopUsersByXPWithTimeframe(Timestamp.fromDate(monthStart), 20, guildId!),
       ]);
 
       let embed: EmbedBuilder;
 
       if (selectedValue === 'overview') {
-        // Overview: Top 3 from each timeframe + user position
-        const formatLeaderboard = (allUsers: Array<{ userId: string; username: string; totalDuration: number }>, emoji: string, label: string) => {
+        // Overview: Top 3 from each timeframe + user position (with timeframe XP and hours)
+        const formatLeaderboard = (allUsers: Array<{ userId: string; username: string; xp: number; level: number; timeframeHours: number }>, emoji: string, label: string) => {
           if (allUsers.length === 0) return `${emoji} **${label}**\nNo data yet`;
 
           const lines: string[] = [];
@@ -1469,13 +1492,13 @@ client.on('interactionCreate', async (interaction) => {
           for (let i = 0; i < Math.min(3, allUsers.length); i++) {
             const u = allUsers[i];
             const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-            lines.push(`${medal} **${u.username}** - ${(u.totalDuration / 3600).toFixed(1)}h`);
+            lines.push(`${medal} **${u.username}** - ${u.xp} XP • ${u.timeframeHours.toFixed(1)}h`);
           }
 
           // Add current user if not in top 3
           if (userPosition > 2) {
             const current = allUsers[userPosition];
-            lines.push(`**${userPosition + 1}. ${current.username} - ${(current.totalDuration / 3600).toFixed(1)}h**`);
+            lines.push(`**${userPosition + 1}. ${current.username} - ${current.xp} XP • ${current.timeframeHours.toFixed(1)}h**`);
           }
 
           return `${emoji} **${label}**\n${lines.join('\n')}`;
@@ -1533,8 +1556,8 @@ client.on('interactionCreate', async (interaction) => {
             .setFooter({ text: 'Complete sessions to earn XP and level up! 💪' });
         }
       } else {
-        // Full leaderboard for specific time-based timeframe
-        let users: Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>;
+        // Full leaderboard for specific time-based timeframe (sorted by XP, showing level and hours)
+        let users: Array<{ userId: string; username: string; xp: number; level: number; timeframeHours: number; sessionCount: number }>;
         let title: string;
         let emoji: string;
 
@@ -1562,13 +1585,13 @@ client.on('interactionCreate', async (interaction) => {
           const top10 = users.slice(0, 10);
           const ranks: string[] = [];
           const names: string[] = [];
-          const hours: string[] = [];
+          const xpHours: string[] = [];
 
           top10.forEach((u, index) => {
             const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
             ranks.push(medal);
             names.push(`**${u.username}**`);
-            hours.push(`${(u.totalDuration / 3600).toFixed(1)}h`);
+            xpHours.push(`${u.xp} XP • ${u.timeframeHours.toFixed(1)}h`);
           });
 
           // Add current user if not in top 10
@@ -1577,7 +1600,7 @@ client.on('interactionCreate', async (interaction) => {
             const currentUser = users[userPosition];
             ranks.push(`**#${userPosition + 1}**`);
             names.push(`**${currentUser.username}**`);
-            hours.push(`**${(currentUser.totalDuration / 3600).toFixed(1)}h**`);
+            xpHours.push(`**${currentUser.xp} XP • ${currentUser.timeframeHours.toFixed(1)}h**`);
           }
 
           embed = new EmbedBuilder()
@@ -1586,9 +1609,9 @@ client.on('interactionCreate', async (interaction) => {
             .addFields(
               { name: 'Rank', value: ranks.join('\n'), inline: true },
               { name: 'Name', value: names.join('\n'), inline: true },
-              { name: 'Hours', value: hours.join('\n'), inline: true }
+              { name: 'XP • Hours', value: xpHours.join('\n'), inline: true }
             )
-            .setFooter({ text: 'Keep grinding to make it to the top! 💪' });
+            .setFooter({ text: 'Ranked by XP earned in this timeframe. Keep grinding! 💪' });
         }
       }
 
@@ -1605,19 +1628,19 @@ client.on('interactionCreate', async (interaction) => {
           },
           {
             label: 'Daily Leaderboard',
-            description: 'Full top 10 daily rankings by hours',
+            description: 'Full top 10 daily rankings by XP',
             value: 'daily',
             emoji: '📅',
           },
           {
             label: 'Weekly Leaderboard',
-            description: 'Full top 10 weekly rankings by hours',
+            description: 'Full top 10 weekly rankings by XP',
             value: 'weekly',
             emoji: '📊',
           },
           {
             label: 'Monthly Leaderboard',
-            description: 'Full top 10 monthly rankings by hours',
+            description: 'Full top 10 monthly rankings by XP',
             value: 'monthly',
             emoji: '🌟',
           },
@@ -1743,7 +1766,8 @@ client.on('interactionCreate', async (interaction) => {
               '`/resume` - Resume your paused session\n' +
               '`/end` - Complete and share your session\n' +
               '`/cancel` - Cancel session without saving\n' +
-              '`/manual` - Log a past session manually',
+              '`/manual` - Log a past session manually\n' +
+              '`/daily-goal {goal}` - Set your daily goal and build a streak!',
             inline: false
           },
           {
@@ -1786,6 +1810,66 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: true,
       });
       return;
+    }
+
+    // /daily-goal command
+    if (commandName === 'daily-goal') {
+      const goal = interaction.options.getString('goal', true);
+
+      // Defer reply to give time for Firebase operations
+      await interaction.deferReply({ ephemeral: false });
+
+      try {
+        // Set the daily goal
+        const dailyGoal = await dailyGoalService.setDailyGoal(
+          user.id,
+          user.username,
+          goal
+        );
+
+        // Award 100 XP for setting a daily goal
+        let xpResult;
+        try {
+          xpResult = await xpService.awardXP(user.id, 100, 'Daily goal set');
+        } catch (error) {
+          // If user doesn't have stats yet (no sessions), we'll create them
+          console.log('User has no stats yet, skipping XP award for daily goal');
+        }
+
+        // Get current streak from StatsService (considers both sessions and goals)
+        const { currentStreak } = await statsService.getCurrentStreak(user.id);
+
+        // Create streak display with fire emoji
+        const fireEmoji = '🔥';
+
+        // Get user's avatar
+        const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+        // Build XP text
+        const xpText = xpResult && xpResult.leveledUp
+          ? `+100 XP • 🎉 Level ${xpResult.newLevel}!`
+          : '+100 XP';
+
+        // Build the minimalist embed
+        const embed = new EmbedBuilder()
+          .setColor(0x00FF00) // Green for success
+          .setAuthor({
+            name: `${user.username}`,
+            iconURL: avatarUrl
+          })
+          .setTitle(`🎯 Daily Goal Set! • ${currentStreak} ${fireEmoji} • ✨ ${xpText}`)
+          .setDescription(`**Today's Goal:**\n${goal}`);
+
+        await interaction.editReply({ embeds: [embed] });
+
+        return;
+      } catch (error) {
+        console.error('Error setting daily goal:', error);
+        await interaction.editReply({
+          content: 'An error occurred while setting your daily goal. Please try again.',
+        });
+        return;
+      }
     }
 
     // /start command
@@ -2654,9 +2738,9 @@ client.on('interactionCreate', async (interaction) => {
       console.log(`[LEADERBOARD] Timeframes - Today: ${today.toISOString()}, Week: ${weekStart.toISOString()}, Month: ${monthStart.toISOString()}`);
 
       const [dailyAll, weeklyAll, monthlyAll] = await Promise.all([
-        sessionService.getTopUsers(Timestamp.fromDate(today), 20, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20, guildId!),
+        statsService.getTopUsersByXPWithTimeframe(Timestamp.fromDate(today), 20, guildId!),
+        statsService.getTopUsersByXPWithTimeframe(Timestamp.fromDate(weekStart), 20, guildId!),
+        statsService.getTopUsersByXPWithTimeframe(Timestamp.fromDate(monthStart), 20, guildId!),
       ]);
 
       console.log(`[LEADERBOARD] Fetched users - Daily: ${dailyAll.length}, Weekly: ${weeklyAll.length}, Monthly: ${monthlyAll.length}`);
@@ -2665,24 +2749,27 @@ client.on('interactionCreate', async (interaction) => {
       console.log(`[LEADERBOARD] Daily top users:`, dailyAll.map(u => ({
         username: u.username,
         userId: u.userId,
-        totalDuration: u.totalDuration,
-        hours: (u.totalDuration / 3600).toFixed(2),
+        xp: u.xp,
+        level: u.level,
+        hours: u.timeframeHours.toFixed(2),
         sessionCount: u.sessionCount
       })));
 
       console.log(`[LEADERBOARD] Weekly top users:`, weeklyAll.map(u => ({
         username: u.username,
         userId: u.userId,
-        totalDuration: u.totalDuration,
-        hours: (u.totalDuration / 3600).toFixed(2),
+        xp: u.xp,
+        level: u.level,
+        hours: u.timeframeHours.toFixed(2),
         sessionCount: u.sessionCount
       })));
 
       console.log(`[LEADERBOARD] Monthly top users:`, monthlyAll.map(u => ({
         username: u.username,
         userId: u.userId,
-        totalDuration: u.totalDuration,
-        hours: (u.totalDuration / 3600).toFixed(2),
+        xp: u.xp,
+        level: u.level,
+        hours: u.timeframeHours.toFixed(2),
         sessionCount: u.sessionCount
       })));
 
@@ -2696,14 +2783,15 @@ client.on('interactionCreate', async (interaction) => {
       if (dailyUserPos >= 0) {
         const userData = dailyAll[dailyUserPos];
         console.log(`[LEADERBOARD] User ${user.username} daily data:`, {
-          totalDuration: userData.totalDuration,
-          hours: (userData.totalDuration / 3600).toFixed(2),
+          xp: userData.xp,
+          level: userData.level,
+          hours: userData.timeframeHours.toFixed(2),
           sessionCount: userData.sessionCount
         });
       }
 
-      // Helper to format top 3 + user position
-      const formatLeaderboard = (allUsers: Array<{ userId: string; username: string; totalDuration: number }>, emoji: string, label: string) => {
+      // Helper to format top 3 + user position (with timeframe XP and hours)
+      const formatLeaderboard = (allUsers: Array<{ userId: string; username: string; xp: number; level: number; timeframeHours: number }>, emoji: string, label: string) => {
         if (allUsers.length === 0) return `${emoji} **${label}**\nNo data yet`;
 
         const lines: string[] = [];
@@ -2713,13 +2801,13 @@ client.on('interactionCreate', async (interaction) => {
         for (let i = 0; i < Math.min(3, allUsers.length); i++) {
           const u = allUsers[i];
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-          lines.push(`${medal} **${u.username}** - ${(u.totalDuration / 3600).toFixed(1)}h`);
+          lines.push(`${medal} **${u.username}** - ${u.xp} XP • ${u.timeframeHours.toFixed(1)}h`);
         }
 
         // Add current user if not in top 3
         if (userPosition > 2) {
           const current = allUsers[userPosition];
-          lines.push(`**${userPosition + 1}. ${current.username} - ${(current.totalDuration / 3600).toFixed(1)}h**`);
+          lines.push(`**${userPosition + 1}. ${current.username} - ${current.xp} XP • ${current.timeframeHours.toFixed(1)}h**`);
         }
 
         return `${emoji} **${label}**\n${lines.join('\n')}`;
@@ -2748,19 +2836,19 @@ client.on('interactionCreate', async (interaction) => {
           },
           {
             label: 'Daily Leaderboard',
-            description: 'Full top 10 daily rankings by hours',
+            description: 'Full top 10 daily rankings by XP',
             value: 'daily',
             emoji: '📅',
           },
           {
             label: 'Weekly Leaderboard',
-            description: 'Full top 10 weekly rankings by hours',
+            description: 'Full top 10 weekly rankings by XP',
             value: 'weekly',
             emoji: '📊',
           },
           {
             label: 'Monthly Leaderboard',
-            description: 'Full top 10 monthly rankings by hours',
+            description: 'Full top 10 monthly rankings by XP',
             value: 'monthly',
             emoji: '🌟',
           },

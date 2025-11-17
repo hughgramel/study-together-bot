@@ -34,6 +34,7 @@ export interface CompletedSession {
   endTime: Timestamp;       // When session ended
   createdAt: Timestamp;     // Document creation time (for sorting)
   intensity?: number;       // Session intensity (1-5 scale) - affects XP multiplier
+  xpGained?: number;        // XP earned from this session (for leaderboards)
 }
 
 /**
@@ -174,4 +175,17 @@ export interface WeeklyChallenge {
     xpEarned: number;
     level: number;
   }>;
+}
+
+/**
+ * Daily goal - tracks user's daily goal
+ */
+export interface DailyGoal {
+  userId: string;           // Discord user ID
+  username: string;         // Discord username
+  currentGoal?: string;     // Current daily goal text
+  lastGoalSetAt?: Timestamp; // Most recent goal set timestamp
+  goalsByDay?: {            // Map of date (YYYY-MM-DD) -> goal text
+    [date: string]: string;
+  };
 }

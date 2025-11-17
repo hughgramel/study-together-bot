@@ -146,6 +146,18 @@ export class SessionService {
   }
 
   /**
+   * Updates a completed session with XP gained
+   */
+  async updateCompletedSessionXP(sessionId: string, xpGained: number): Promise<void> {
+    await this.db
+      .collection('discord-data')
+      .doc('sessions')
+      .collection('completed')
+      .doc(sessionId)
+      .update({ xpGained });
+  }
+
+  /**
    * Gets completed sessions for a user within a timeframe
    */
   async getCompletedSessions(

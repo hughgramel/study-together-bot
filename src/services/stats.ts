@@ -1,6 +1,6 @@
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { UserStats } from '../types';
-import { isSameDay, isYesterday } from '../utils/formatters';
+import { isSameDay, isYesterday, getDateKey } from '../utils/formatters';
 import { XPService } from './xp';
 import { calculateLevel } from '../utils/xp';
 
@@ -11,6 +11,46 @@ export class StatsService {
   constructor(db: Firestore) {
     this.db = db;
     this.xpService = new XPService(db);
+  }
+
+  /**
+   * Check if user has a daily goal set for a specific date
+   */
+  private async hasGoalForDate(userId: string, timestamp: Timestamp): Promise<boolean> {
+    try {
+      const dailyGoalRef = this.db
+        .collection('discord-data')
+        .doc('dailyGoals')
+        .collection('goals')
+        .doc(userId);
+
+      const doc = await dailyGoalRef.get();
+      if (!doc.exists) {
+        return false;
+      }
+
+      const data = doc.data();
+      const dateKey = getDateKey(timestamp);
+      return data?.goalsByDay?.[dateKey] !== undefined;
+    } catch (error) {
+      console.error('Error checking goal for date:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if user had activity (session OR goal) on a specific date
+   */
+  private async hasActivityForDate(userId: string, timestamp: Timestamp): Promise<boolean> {
+    // Check sessions
+    const dateKey = getDateKey(timestamp);
+    const stats = await this.getUserStats(userId);
+    const hasSession = stats?.sessionsByDay?.[dateKey] !== undefined && stats.sessionsByDay[dateKey] > 0;
+
+    // Check goals
+    const hasGoal = await this.hasGoalForDate(userId, timestamp);
+
+    return hasSession || hasGoal;
   }
 
   /**
@@ -29,6 +69,50 @@ export class StatsService {
     }
 
     return doc.data() as UserStats;
+  }
+
+  /**
+   * Calculate current streak considering both sessions AND goals
+   * This is used by the daily-goal command to show accurate streak
+   */
+  async getCurrentStreak(userId: string): Promise<{ currentStreak: number; longestStreak: number }> {
+    const stats = await this.getUserStats(userId);
+
+    if (!stats) {
+      // Check if user has set any goals
+      const dailyGoalRef = this.db
+        .collection('discord-data')
+        .doc('dailyGoals')
+        .collection('goals')
+        .doc(userId);
+      const goalDoc = await dailyGoalRef.get();
+
+      if (!goalDoc.exists || !goalDoc.data()?.lastGoalSetAt) {
+        return { currentStreak: 0, longestStreak: 0 };
+      }
+
+      // User has goals but no sessions - calculate streak from goals only
+      const goalData = goalDoc.data();
+      if (!goalData) {
+        return { currentStreak: 0, longestStreak: 0 };
+      }
+
+      const today = Timestamp.now();
+
+      if (goalData.lastGoalSetAt && isSameDay(goalData.lastGoalSetAt, today)) {
+        return { currentStreak: 1, longestStreak: 1 };
+      } else if (goalData.lastGoalSetAt && isYesterday(goalData.lastGoalSetAt, today)) {
+        return { currentStreak: 1, longestStreak: 1 };
+      }
+
+      return { currentStreak: 0, longestStreak: 0 };
+    }
+
+    // User has stats - use the stored streak (which already considers goals via updateUserStats)
+    return {
+      currentStreak: stats.currentStreak,
+      longestStreak: stats.longestStreak,
+    };
   }
 
   /**
@@ -123,7 +207,7 @@ export class StatsService {
     // Update existing stats
     const stats = doc.data() as UserStats;
 
-    // Calculate new streak
+    // Calculate new streak (considering both sessions and goals)
     let newStreak = stats.currentStreak;
     let isStreakMilestone = false;
 
@@ -138,8 +222,34 @@ export class StatsService {
         isStreakMilestone = true;
       }
     } else {
-      // 2+ days ago - reset streak
-      newStreak = 1;
+      // More than 1 day ago - check if goals were set to maintain streak
+      // We need to check each day between last session and today
+      let streakBroken = false;
+      const lastActivityDate = new Date(stats.lastSessionAt.toMillis());
+      const today = new Date(now.toMillis());
+
+      // Check each day between last session and today (exclusive)
+      for (let d = new Date(lastActivityDate); d < today; d.setDate(d.getDate() + 1)) {
+        const checkDate = Timestamp.fromDate(new Date(d));
+        const hadActivity = await this.hasActivityForDate(userId, checkDate);
+
+        if (!hadActivity && !isSameDay(checkDate, stats.lastSessionAt)) {
+          streakBroken = true;
+          break;
+        }
+      }
+
+      if (streakBroken) {
+        // Reset streak
+        newStreak = 1;
+      } else {
+        // Maintain or increment streak
+        newStreak = stats.currentStreak + 1;
+        // Check for milestone
+        if (newStreak === 7 || newStreak === 30) {
+          isStreakMilestone = true;
+        }
+      }
     }
 
     // Update longest streak if needed
@@ -454,6 +564,109 @@ export class StatsService {
         achievementCount
       };
     });
+
+    return users;
+  }
+
+  /**
+   * Gets top users sorted by XP earned in timeframe with hours
+   * Used for daily/weekly/monthly leaderboards sorted by timeframe XP
+   */
+  async getTopUsersByXPWithTimeframe(
+    since: Timestamp,
+    limit: number = 20,
+    serverId?: string
+  ): Promise<Array<{
+    userId: string;
+    username: string;
+    xp: number;
+    level: number;
+    timeframeHours: number;
+    sessionCount: number;
+  }>> {
+    // Get all sessions in the timeframe
+    let sessionsQuery = this.db
+      .collection('discord-data')
+      .doc('sessions')
+      .collection('completed')
+      .where('createdAt', '>=', since);
+
+    if (serverId) {
+      sessionsQuery = sessionsQuery.where('serverId', '==', serverId);
+    }
+
+    const sessionsSnapshot = await sessionsQuery.get();
+
+    if (sessionsSnapshot.empty) {
+      return [];
+    }
+
+    // Aggregate XP and hours by user for this timeframe
+    const userDataMap = new Map<string, {
+      username: string;
+      totalXP: number;
+      totalDuration: number;
+      sessionCount: number;
+      totalAllTimeXP: number;
+    }>();
+
+    sessionsSnapshot.docs.forEach(doc => {
+      const session = doc.data();
+      const userId = session.userId;
+      const duration = session.duration || 0;
+      const xpGained = session.xpGained || 0;
+
+      if (userDataMap.has(userId)) {
+        const existing = userDataMap.get(userId)!;
+        existing.totalXP += xpGained;
+        existing.totalDuration += duration;
+        existing.sessionCount += 1;
+      } else {
+        userDataMap.set(userId, {
+          username: session.username,
+          totalXP: xpGained,
+          totalDuration: duration,
+          sessionCount: 1,
+          totalAllTimeXP: 0
+        });
+      }
+    });
+
+    // Get all-time XP for each user (for level display)
+    const userIds = Array.from(userDataMap.keys());
+    const userStatsPromises = userIds.map(userId =>
+      this.db
+        .collection('discord-data')
+        .doc('userStats')
+        .collection('stats')
+        .doc(userId)
+        .get()
+    );
+
+    const userStatsDocs = await Promise.all(userStatsPromises);
+    userStatsDocs.forEach((doc, index) => {
+      if (doc.exists) {
+        const data = doc.data() as UserStats;
+        const userId = userIds[index];
+        const userData = userDataMap.get(userId);
+        if (userData) {
+          userData.totalAllTimeXP = data.xp || 0;
+        }
+      }
+    });
+
+    // Convert to array and sort by timeframe XP
+    const users = Array.from(userDataMap.entries())
+      .map(([userId, data]) => ({
+        userId,
+        username: data.username,
+        xp: data.totalXP, // XP earned in this timeframe
+        level: calculateLevel(data.totalAllTimeXP), // Level based on all-time XP
+        timeframeHours: data.totalDuration / 3600,
+        sessionCount: data.sessionCount
+      }))
+      .sort((a, b) => b.xp - a.xp) // Sort by timeframe XP descending
+      .slice(0, limit);
 
     return users;
   }

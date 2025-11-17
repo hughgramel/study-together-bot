@@ -88,3 +88,11 @@ export function daysBetween(date1: Timestamp, date2: Timestamp): number {
   const diffMs = Math.abs(ms2 - ms1);
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
+
+/**
+ * Gets date key in YYYY-MM-DD format
+ */
+export function getDateKey(timestamp: Timestamp): string {
+  const date = timestamp.toDate();
+  return date.toISOString().split('T')[0];
+}
