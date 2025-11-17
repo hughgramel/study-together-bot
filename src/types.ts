@@ -178,14 +178,27 @@ export interface WeeklyChallenge {
 }
 
 /**
- * Daily goal - tracks user's daily goal
+ * Individual goal item
+ */
+export interface Goal {
+  id: string;                // Unique goal ID (UUID)
+  text: string;              // Goal description
+  difficulty: 'easy' | 'medium' | 'hard'; // Difficulty level
+  createdAt: Timestamp;      // When goal was created
+  completedAt?: Timestamp;   // When goal was completed (if completed)
+  isCompleted: boolean;      // Completion status
+  xpAwarded?: number;        // XP awarded upon completion
+}
+
+/**
+ * Daily goal - tracks user's goals
  */
 export interface DailyGoal {
   userId: string;           // Discord user ID
   username: string;         // Discord username
-  currentGoal?: string;     // Current daily goal text
+  goals: Goal[];            // Array of goals
   lastGoalSetAt?: Timestamp; // Most recent goal set timestamp
-  goalsByDay?: {            // Map of date (YYYY-MM-DD) -> goal text
+  goalsByDay?: {            // Map of date (YYYY-MM-DD) -> goal text (legacy)
     [date: string]: string;
   };
 }

@@ -228,6 +228,42 @@ const commands = [
         .setDescription('Your goal for today (e.g., "Finish chapter 3 of calculus")')
         .setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName('goal')
+    .setDescription('Manage your goals')
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('add')
+        .setDescription('Add a new goal')
+        .addStringOption(option =>
+          option
+            .setName('goal')
+            .setDescription('Your goal (e.g., "Finish homework")')
+            .setRequired(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('difficulty')
+            .setDescription('Goal difficulty')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Easy (50 XP)', value: 'easy' },
+              { name: 'Medium (100 XP)', value: 'medium' },
+              { name: 'Hard (200 XP)', value: 'hard' }
+            )
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('complete')
+        .setDescription('Mark a goal as complete')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('list')
+        .setDescription('View all your goals')
+    ),
 ].map((command) => command.toJSON());
 
 // Register commands
@@ -1658,6 +1694,64 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
+    // Goal completion dropdown handler
+    if (interaction.customId.startsWith('goal_complete:')) {
+      const userId = interaction.customId.split(':')[1];
+      const goalId = interaction.values[0];
+
+      // Only allow the owner to interact with their goal menu
+      if (interaction.user.id !== userId) {
+        await interaction.reply({
+          content: 'This goal menu belongs to someone else!',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.deferUpdate();
+
+      try {
+        // Complete the goal
+        const result = await dailyGoalService.completeGoal(userId, goalId);
+        const { goal, xpAwarded } = result;
+
+        // Award XP to user
+        let xpResult;
+        try {
+          xpResult = await xpService.awardXP(userId, xpAwarded, `Completed goal: ${goal.text}`);
+        } catch (error) {
+          console.log('User has no stats yet, skipping XP award');
+        }
+
+        // Build XP text
+        const xpText = xpResult && xpResult.leveledUp
+          ? `+${xpAwarded} XP • 🎉 Level ${xpResult.newLevel}!`
+          : `+${xpAwarded} XP`;
+
+        // Create completion embed
+        const embed = new EmbedBuilder()
+          .setColor(0x00FF00)
+          .setTitle('🎉 Goal Completed!')
+          .setDescription(`**${goal.text}**`)
+          .addFields(
+            { name: 'XP Earned', value: xpText, inline: true },
+            { name: 'Difficulty', value: `${goal.difficulty.charAt(0).toUpperCase() + goal.difficulty.slice(1)}`, inline: true }
+          )
+          .setFooter({ text: 'Great work! Keep setting and completing goals!' })
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed], components: [] });
+        return;
+      } catch (error) {
+        console.error('Error completing goal:', error);
+        await interaction.editReply({
+          content: 'An error occurred while completing your goal. Please try again.',
+          components: [],
+        });
+        return;
+      }
+    }
+
     // Achievement filter dropdown handler
     if (interaction.customId.startsWith('achievement_filter:')) {
       const userId = interaction.customId.split(':')[1];
@@ -1869,6 +1963,145 @@ client.on('interactionCreate', async (interaction) => {
           content: 'An error occurred while setting your daily goal. Please try again.',
         });
         return;
+      }
+    }
+
+    // /goal command
+    if (commandName === 'goal') {
+      const subcommand = interaction.options.getSubcommand();
+
+      if (subcommand === 'add') {
+        // /goal add
+        const goalText = interaction.options.getString('goal', true);
+        const difficulty = interaction.options.getString('difficulty', true) as 'easy' | 'medium' | 'hard';
+
+        await interaction.deferReply({ ephemeral: false });
+
+        try {
+          // Add the goal
+          const newGoal = await dailyGoalService.addGoal(user.id, user.username, goalText, difficulty);
+
+          const xpAmount = difficulty === 'easy' ? 50 : difficulty === 'medium' ? 100 : 200;
+
+          const embed = new EmbedBuilder()
+            .setColor(0x00FF00)
+            .setTitle('✅ Goal Added!')
+            .setDescription(`**${goalText}**`)
+            .addFields(
+              { name: 'Difficulty', value: `${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}`, inline: true },
+              { name: 'Reward', value: `${xpAmount} XP upon completion`, inline: true }
+            )
+            .setFooter({ text: 'Use /goal complete to mark as done!' })
+            .setTimestamp();
+
+          await interaction.editReply({ embeds: [embed] });
+          return;
+        } catch (error) {
+          console.error('Error adding goal:', error);
+          await interaction.editReply({
+            content: 'An error occurred while adding your goal. Please try again.',
+          });
+          return;
+        }
+      }
+
+      if (subcommand === 'complete') {
+        // /goal complete
+        await interaction.deferReply({ ephemeral: false });
+
+        try {
+          // Get active goals
+          const activeGoals = await dailyGoalService.getActiveGoals(user.id);
+
+          if (activeGoals.length === 0) {
+            await interaction.editReply({
+              content: 'You have no active goals! Use `/goal add` to create one.',
+            });
+            return;
+          }
+
+          // Create select menu for goal selection
+          const selectMenu = new StringSelectMenuBuilder()
+            .setCustomId(`goal_complete:${user.id}`)
+            .setPlaceholder('Select a goal to mark as complete')
+            .addOptions(
+              activeGoals.map((goal) => {
+                const xpAmount = goal.difficulty === 'easy' ? 50 : goal.difficulty === 'medium' ? 100 : 200;
+
+                return {
+                  label: goal.text.substring(0, 100), // Discord limit
+                  description: `${goal.difficulty.charAt(0).toUpperCase() + goal.difficulty.slice(1)} - ${xpAmount} XP`,
+                  value: goal.id,
+                };
+              })
+            );
+
+          const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+
+          const embed = new EmbedBuilder()
+            .setColor(0x0080FF)
+            .setTitle('🎯 Complete a Goal')
+            .setDescription('Select which goal you completed:')
+            .setFooter({ text: `${activeGoals.length} active ${activeGoals.length === 1 ? 'goal' : 'goals'}` });
+
+          await interaction.editReply({ embeds: [embed], components: [row] });
+          return;
+        } catch (error) {
+          console.error('Error showing goals for completion:', error);
+          await interaction.editReply({
+            content: 'An error occurred while loading your goals. Please try again.',
+          });
+          return;
+        }
+      }
+
+      if (subcommand === 'list') {
+        // /goal list
+        await interaction.deferReply({ ephemeral: false });
+
+        try {
+          const allGoals = await dailyGoalService.getAllGoals(user.id);
+
+          if (allGoals.length === 0) {
+            await interaction.editReply({
+              content: 'You have no goals yet! Use `/goal add` to create one.',
+            });
+            return;
+          }
+
+          const activeGoals = allGoals.filter(g => !g.isCompleted);
+          const completedGoals = allGoals.filter(g => g.isCompleted);
+
+          const embed = new EmbedBuilder()
+            .setColor(0xFFD700)
+            .setTitle('📋 Your Goals');
+
+          // Add active goals
+          if (activeGoals.length > 0) {
+            const activeList = activeGoals.map((goal) => {
+              const xpAmount = goal.difficulty === 'easy' ? 50 : goal.difficulty === 'medium' ? 100 : 200;
+              return `**${goal.text}** (${xpAmount} XP)`;
+            }).join('\n');
+
+            embed.addFields({ name: '🎯 Active Goals', value: activeList, inline: false });
+          } else {
+            embed.addFields({ name: '🎯 Active Goals', value: 'No active goals! Use `/goal add` to create one.', inline: false });
+          }
+
+          // Show completed count only
+          embed.setFooter({
+            text: `${activeGoals.length} active • ${completedGoals.length} completed`
+          });
+
+          await interaction.editReply({ embeds: [embed] });
+          return;
+        } catch (error) {
+          console.error('Error listing goals:', error);
+          await interaction.editReply({
+            content: 'An error occurred while loading your goals. Please try again.',
+          });
+          return;
+        }
       }
     }
 
