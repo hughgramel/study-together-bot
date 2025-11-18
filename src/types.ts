@@ -100,13 +100,6 @@ export interface UserStats {
   favoriteActivity?: string;           // Most common activity type
   peakLevel?: number;                  // Highest level ever reached
   firstAchievementUnlockedAt?: Timestamp; // When first achievement was unlocked
-
-  // Goals Channel Streak (Passive XP System)
-  goalsStreak?: {
-    current: number;                   // Current consecutive days posting goals
-    lastPostDate: Timestamp;           // Last date goals were posted (UTC)
-    longest: number;                   // Longest goals streak ever
-  };
 }
 
 /**

@@ -3635,8 +3635,8 @@ client.on('messageCreate', async (message) => {
       return;
     }
 
-    // Update goals streak and award XP
-    const result = await statsService.updateGoalsStreak(
+    // Record goals channel post and award XP
+    const result = await statsService.recordGoalsChannelPost(
       message.author.id,
       message.author.username
     );
@@ -3646,15 +3646,25 @@ client.on('messageCreate', async (message) => {
       return;
     }
 
-    // Send ephemeral-style DM with streak info
+    // Send reply message with streak info (auto-deletes after 5 seconds)
     try {
-      const streakEmoji = '🔥'.repeat(Math.min(result.streak, 5));
-      await message.author.send(
-        `${streakEmoji} ${result.streak} day streak setting goals! +${result.xpGained} XP. Come back tomorrow to keep it going!`
+      const streakEmoji = '🔥'.repeat(Math.min(result.currentStreak, 5));
+      const replyMessage = await message.reply(
+        `${streakEmoji} ${result.currentStreak} day streak! +${result.xpGained} XP. Come back tomorrow to keep it going!`
       );
-    } catch (dmError) {
-      // User has DMs disabled - that's okay, just continue
-      console.log(`Could not send DM to ${message.author.username}:`, dmError);
+
+      // Delete the reply after 5 seconds to keep channel clean
+      setTimeout(async () => {
+        try {
+          await replyMessage.delete();
+        } catch (deleteError) {
+          // Message might already be deleted or bot lacks permissions
+          console.log('Could not delete goals channel reply:', deleteError);
+        }
+      }, 5000);
+    } catch (replyError) {
+      // Could not send reply - that's okay, just continue
+      console.log(`Could not send reply to ${message.author.username}:`, replyError);
     }
   } catch (error) {
     console.error('Error processing goals channel message:', error);
@@ -3670,27 +3680,40 @@ client.on('guildMemberAdd', async (member) => {
       return;
     }
 
-    const channel = await client.channels.fetch(config.welcomeChannelId);
-
-    if (!channel || !channel.isTextBased()) {
-      console.error('Welcome channel not found or not text-based');
-      return;
+    // Send DM to new member
+    try {
+      await member.send(
+        `Welcome to **${member.guild.name}**! 👋\n\n` +
+        `This server wants to make productivity social. Start tracking your study sessions with \`/start {activity}\` and see your progress on the leaderboard!\n\n` +
+        `**Quick commands:**\n` +
+        `• \`/start {activity}\` - Begin a session\n` +
+        `• \`/end\` - Finish your session\n` +
+        `• \`/stats\` - View your statistics\n` +
+        `• \`/help\` - See all commands`
+      );
+    } catch (dmError) {
+      console.error(`Could not send DM to ${member.user.tag}:`, dmError);
+      // If DM fails (user has DMs disabled), post in welcome channel as fallback
+      try {
+        const channel = await client.channels.fetch(config.welcomeChannelId);
+        if (channel && channel.isTextBased()) {
+          const textChannel = channel as TextChannel;
+          await textChannel.send(
+            `Welcome <@${member.id}>! 👋\n\n` +
+            `This server wants to make productivity social. Start tracking your study sessions with \`/start {activity}\` and see your progress on the leaderboard!\n\n` +
+            `**Quick commands:**\n` +
+            `• \`/start {activity}\` - Begin a session\n` +
+            `• \`/end\` - Finish your session\n` +
+            `• \`/stats\` - View your statistics\n` +
+            `• \`/help\` - See all commands`
+          );
+        }
+      } catch (channelError) {
+        console.error('Error posting to welcome channel as fallback:', channelError);
+      }
     }
-
-    const textChannel = channel as TextChannel;
-
-    // Send welcome message mentioning the new member
-    await textChannel.send(
-      `Welcome <@${member.id}>! 👋\n\n` +
-      `This server wants to make productivity social. Start tracking your study sessions with \`/start {activity}\` and see your progress on the leaderboard!\n\n` +
-      `**Quick commands:**\n` +
-      `• \`/start {activity}\` - Begin a session\n` +
-      `• \`/end\` - Finish your session\n` +
-      `• \`/stats\` - View your statistics\n` +
-      `• \`/help\` - See all commands`
-    );
   } catch (error) {
-    console.error('Error sending welcome message:', error);
+    console.error('Error in guildMemberAdd handler:', error);
   }
 });
 

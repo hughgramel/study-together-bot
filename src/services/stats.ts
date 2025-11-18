@@ -39,7 +39,7 @@ export class StatsService {
   }
 
   /**
-   * Check if user had activity (session OR goal) on a specific date
+   * Check if user had activity (session OR goal OR goals channel post) on a specific date
    */
   private async hasActivityForDate(userId: string, timestamp: Timestamp): Promise<boolean> {
     // Check sessions
@@ -47,10 +47,38 @@ export class StatsService {
     const stats = await this.getUserStats(userId);
     const hasSession = stats?.sessionsByDay?.[dateKey] !== undefined && stats.sessionsByDay[dateKey] > 0;
 
-    // Check goals
+    // Check goals (goal add command)
     const hasGoal = await this.hasGoalForDate(userId, timestamp);
 
-    return hasSession || hasGoal;
+    // Check goals channel posts
+    const hasGoalsChannelPost = await this.hasGoalsChannelPostForDate(userId, timestamp);
+
+    return hasSession || hasGoal || hasGoalsChannelPost;
+  }
+
+  /**
+   * Check if user posted in goals channel on a specific date
+   */
+  private async hasGoalsChannelPostForDate(userId: string, timestamp: Timestamp): Promise<boolean> {
+    try {
+      const goalsPostRef = this.db
+        .collection('discord-data')
+        .doc('goalsChannelPosts')
+        .collection('posts')
+        .doc(userId);
+
+      const doc = await goalsPostRef.get();
+      if (!doc.exists) {
+        return false;
+      }
+
+      const data = doc.data();
+      const dateKey = getDateKey(timestamp);
+      return data?.postsByDay?.[dateKey] === true;
+    } catch (error) {
+      console.error('Error checking goals channel post for date:', error);
+      return false;
+    }
   }
 
   /**
@@ -672,14 +700,14 @@ export class StatsService {
   }
 
   /**
-   * Update user's goals streak when they post in the goals channel
-   * Awards +100 XP and maintains streak tracking
-   * Returns the updated streak and XP awarded
+   * Record a goals channel post and award XP
+   * Integrates with unified activity tracking for streak calculation
+   * Returns the user's current unified streak and XP awarded
    */
-  async updateGoalsStreak(userId: string, username: string): Promise<{
-    streak: number;
+  async recordGoalsChannelPost(userId: string, username: string): Promise<{
+    currentStreak: number;
+    longestStreak: number;
     xpGained: number;
-    isNewStreak: boolean;
   } | null> {
     const statsRef = this.db
       .collection('discord-data')
@@ -691,14 +719,44 @@ export class StatsService {
     const now = Timestamp.now();
     const todayKey = this.getDateKey(now);
 
+    // Check if user already posted in goals channel today
+    const goalsPostRef = this.db
+      .collection('discord-data')
+      .doc('goalsChannelPosts')
+      .collection('posts')
+      .doc(userId);
+
+    const goalsPostDoc = await goalsPostRef.get();
+
+    if (goalsPostDoc.exists) {
+      const lastPostDate = goalsPostDoc.data()?.lastPostDate;
+      if (lastPostDate) {
+        const lastPostKey = this.getDateKey(lastPostDate);
+        if (lastPostKey === todayKey) {
+          // Already posted today - ignore
+          return null;
+        }
+      }
+    }
+
+    // Record today's post
+    await goalsPostRef.set({
+      userId,
+      username,
+      lastPostDate: now,
+      postsByDay: {
+        [todayKey]: true,
+      },
+    }, { merge: true });
+
     if (!doc.exists) {
-      // Create new stats document with first goals streak
+      // Create new stats document
       const newStats: Partial<UserStats> = {
         username,
         totalSessions: 0,
         totalDuration: 0,
-        currentStreak: 0,
-        longestStreak: 0,
+        currentStreak: 1,
+        longestStreak: 1,
         lastSessionAt: now,
         firstSessionAt: now,
         xp: 100, // Initial 100 XP
@@ -706,72 +764,30 @@ export class StatsService {
         achievementsUnlockedAt: {},
         sessionsByDay: {},
         activityTypes: [],
-        goalsStreak: {
-          current: 1,
-          lastPostDate: now,
-          longest: 1,
-        },
       };
 
       await statsRef.set(newStats);
 
+      // Award XP
+      await this.xpService.awardXP(userId, 100, 'Goals channel post');
+
       return {
-        streak: 1,
+        currentStreak: 1,
+        longestStreak: 1,
         xpGained: 100,
-        isNewStreak: true,
       };
     }
-
-    const stats = doc.data() as UserStats;
-    const goalsStreak = stats.goalsStreak || {
-      current: 0,
-      lastPostDate: Timestamp.fromMillis(0),
-      longest: 0,
-    };
-
-    // Check if user already posted today
-    const lastPostKey = this.getDateKey(goalsStreak.lastPostDate);
-    if (lastPostKey === todayKey) {
-      // Already posted today - ignore
-      return null;
-    }
-
-    // Calculate new streak
-    let newStreak: number;
-    const yesterdayKey = this.getDateKey(
-      Timestamp.fromMillis(now.toMillis() - 24 * 60 * 60 * 1000)
-    );
-
-    if (lastPostKey === yesterdayKey) {
-      // Posted yesterday - increment streak
-      newStreak = goalsStreak.current + 1;
-    } else {
-      // Missed days - reset to 1
-      newStreak = 1;
-    }
-
-    // Update longest streak if needed
-    const newLongest = Math.max(newStreak, goalsStreak.longest);
 
     // Award 100 XP
     await this.xpService.awardXP(userId, 100, 'Goals channel post');
 
-    // Update stats
-    const updates: Partial<UserStats> = {
-      username,
-      goalsStreak: {
-        current: newStreak,
-        lastPostDate: now,
-        longest: newLongest,
-      },
-    };
-
-    await statsRef.update(updates);
+    // Get current unified streak (considers sessions, goals, and goals channel posts)
+    const { currentStreak, longestStreak } = await this.getCurrentStreak(userId);
 
     return {
-      streak: newStreak,
+      currentStreak,
+      longestStreak,
       xpGained: 100,
-      isNewStreak: newStreak === 1 && goalsStreak.current > 1,
     };
   }
 }
