@@ -212,6 +212,18 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName('set-welcome-channel')
+    .setDescription('Configure the welcome channel for new members (Admin only)')
+    .addChannelOption((option) =>
+      option
+        .setName('channel')
+        .setDescription('The channel to send welcome messages')
+        .setRequired(true)
+        .addChannelTypes(ChannelType.GuildText)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName('manual')
     .setDescription('Log a manual session with custom duration'),
 
@@ -1883,7 +1895,8 @@ client.on('interactionCreate', async (interaction) => {
             name: '⚙️ Server Setup (Admin Only)',
             value:
               '`/setup-feed {channel}` - Set feed channel for session posts\n' +
-              '`/setup-focus-room {voice-channel}` - Enable auto-tracking in voice channel',
+              '`/setup-focus-room {voice-channel}` - Enable auto-tracking in voice channel\n' +
+              '`/set-welcome-channel {channel}` - Set welcome channel for new members',
             inline: false
           },
           {
@@ -3254,6 +3267,46 @@ client.on('interactionCreate', async (interaction) => {
       });
       return;
     }
+
+    // /set-welcome-channel command
+    if (commandName === 'set-welcome-channel') {
+      const channel = interaction.options.getChannel('channel', true);
+
+      // Check if user has admin permission
+      if (
+        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      ) {
+        await interaction.reply({
+          content: 'Only server administrators can set the welcome channel.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Get existing config
+      const existingConfig = await getServerConfig(guildId!);
+
+      // Update config
+      const config: ServerConfig = {
+        ...existingConfig,
+        welcomeChannelId: channel.id,
+        setupAt: Timestamp.now(),
+        setupBy: user.id,
+      };
+
+      await db
+        .collection('discord-data')
+        .doc('serverConfig')
+        .collection('configs')
+        .doc(guildId!)
+        .set(config);
+
+      await interaction.reply({
+        content: `✅ Welcome channel set to <#${channel.id}>\n\nNew members will receive a welcome message in this channel when they join!`,
+        ephemeral: true,
+      });
+      return;
+    }
   } catch (error) {
     console.error(`Error handling command ${commandName}:`, error);
 
@@ -3569,6 +3622,40 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
 client.once('clientReady', () => {
   console.log(`✅ Bot is online as ${client.user?.tag}`);
+});
+
+// Handle new member joins
+client.on('guildMemberAdd', async (member) => {
+  try {
+    const config = await getServerConfig(member.guild.id);
+
+    if (!config || !config.welcomeChannelId) {
+      // No welcome channel configured - skip
+      return;
+    }
+
+    const channel = await client.channels.fetch(config.welcomeChannelId);
+
+    if (!channel || !channel.isTextBased()) {
+      console.error('Welcome channel not found or not text-based');
+      return;
+    }
+
+    const textChannel = channel as TextChannel;
+
+    // Send welcome message mentioning the new member
+    await textChannel.send(
+      `Welcome <@${member.id}>! 👋\n\n` +
+      `This server wants to make productivity social. Start tracking your study sessions with \`/start {activity}\` and see your progress on the leaderboard!\n\n` +
+      `**Quick commands:**\n` +
+      `• \`/start {activity}\` - Begin a session\n` +
+      `• \`/end\` - Finish your session\n` +
+      `• \`/stats\` - View your statistics\n` +
+      `• \`/help\` - See all commands`
+    );
+  } catch (error) {
+    console.error('Error sending welcome message:', error);
+  }
 });
 
 // Start bot

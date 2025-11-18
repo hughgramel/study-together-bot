@@ -1,0 +1,2360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Together Bot - Analytics Dashboard</title>
+
+    <!--
+    ============================================================================
+    STUDY TOGETHER BOT - FIREBASE ANALYTICS DASHBOARD
+    ============================================================================
+
+    SETUP INSTRUCTIONS:
+    1. Replace the firebaseConfig object below (line ~100) with your Firebase credentials
+       - Find these in Firebase Console > Project Settings > General > Your apps
+
+    2. Set up Firestore Security Rules (Firebase Console > Firestore Database > Rules):
+       ```
+       rules_version = '2';
+       service cloud.firestore {
+         match /databases/{database}/documents {
+           // Allow read access to analytics dashboard
+           match /discord-data/{document=**} {
+             allow read: if true;  // Or add password protection
+             allow write: if false;
+           }
+         }
+       }
+       ```
+
+    3. Open this file in a browser - that's it!
+
+    OPTIONAL FEATURES:
+    - Auto-refresh: Toggle on/off in the dashboard
+    - Password protection: Uncomment the password prompt code (line ~120)
+    - Theme toggle: Dark/light mode switcher (already implemented)
+
+    KNOWN LIMITATIONS:
+    - Command usage data requires the analytics pipeline to be implemented
+    - Large datasets (10,000+ users) may take time to load
+    - Some charts show placeholder data if analytics events aren't tracked
+
+    ============================================================================
+    -->
+
+    <!-- CDN Dependencies -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase Config (gitignored) -->
+    <script src="firebase-config.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f0f1e;
+            --bg-secondary: #1a1a2e;
+            --bg-tertiary: #252541;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0c0;
+            --accent-purple: #7b68ee;
+            --accent-blue: #0080ff;
+            --accent-green: #00ff80;
+            --accent-red: #ff4444;
+            --border-color: #2e2e4e;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        body.light-theme {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #fafafa;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        /* Header */
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--border-color);
+            padding: 1.5rem 2rem;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(123, 104, 238, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        /* Quick Stats Banner */
+        .quick-stats {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-change {
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .stat-change.positive { color: var(--accent-green); }
+        .stat-change.negative { color: var(--accent-red); }
+
+        /* Main Container */
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Controls */
+        .controls {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        select, input[type="text"], input[type="date"] {
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95rem;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent-purple);
+        }
+
+        /* Charts Grid */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .chart-card h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .chart-card.wide {
+            grid-column: 1 / -1;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .chart-container.tall {
+            height: 400px;
+        }
+
+        /* Tables */
+        .table-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .table-card h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border-bottom: 2px solid var(--border-color);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th:hover {
+            background: var(--border-color);
+        }
+
+        td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge.level-low { background: #4a4a6a; color: #fff; }
+        .badge.level-mid { background: var(--accent-blue); color: #fff; }
+        .badge.level-high { background: var(--accent-purple); color: #fff; }
+        .badge.level-max { background: linear-gradient(135deg, #ffd700, #ff8800); color: #000; }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-purple);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Skeleton Loading */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--border-color) 50%, var(--bg-tertiary) 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s ease-in-out infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .error-message {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid var(--accent-red);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            color: var(--accent-red);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <div>
+                <h1>📊 Study Together Bot Analytics</h1>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">
+                    Last updated: <span id="lastUpdated">Loading...</span>
+                </p>
+            </div>
+            <div class="header-actions">
+                <button class="btn-secondary" id="themeToggle">🌙 Dark Mode</button>
+                <button class="btn-secondary" id="refreshBtn">🔄 Refresh</button>
+                <button class="btn-primary" id="exportBtn">📥 Export CSV</button>
+                <button class="btn-primary" id="screenshotBtn">📸 Screenshot</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Quick Stats Banner -->
+    <div class="quick-stats">
+        <div class="stat-card">
+            <div class="stat-label">Total Users</div>
+            <div class="stat-value" id="totalUsers">-</div>
+            <div class="stat-change" id="totalUsersChange">Loading...</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Active Today</div>
+            <div class="stat-value" id="activeToday">-</div>
+            <div class="stat-change" id="activeTodayChange">Loading...</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Sessions</div>
+            <div class="stat-value" id="totalSessions">-</div>
+            <div class="stat-change" id="totalSessionsChange">Loading...</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Study Hours</div>
+            <div class="stat-value" id="totalHours">-</div>
+            <div class="stat-change" id="totalHoursChange">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main>
+        <!-- Controls -->
+        <div class="controls">
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label for="timeRange">Time Range</label>
+                    <select id="timeRange">
+                        <option value="7">Last 7 Days</option>
+                        <option value="30" selected>Last 30 Days</option>
+                        <option value="90">Last 90 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="serverFilter">Server Filter</label>
+                    <select id="serverFilter">
+                        <option value="all">All Servers</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="userSearch">Search User ID</label>
+                    <input type="text" id="userSearch" placeholder="Enter user ID...">
+                </div>
+                <div class="control-group">
+                    <label for="autoRefresh">Auto Refresh</label>
+                    <select id="autoRefresh">
+                        <option value="off">Off</option>
+                        <option value="30">Every 30 seconds</option>
+                        <option value="60">Every 1 minute</option>
+                        <option value="300">Every 5 minutes</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-card wide">
+                <h3>📈 Daily Active Users (Last 30 Days)</h3>
+                <div class="chart-container tall">
+                    <canvas id="dauChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card wide">
+                <h3>⏰ Total Study Hours Per Day (Last 30 Days)</h3>
+                <div class="chart-container tall">
+                    <canvas id="dailyHoursChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>📊 User Level Distribution</h3>
+                <div class="chart-container">
+                    <canvas id="levelChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>⏱️ Session Duration Distribution</h3>
+                <div class="chart-container">
+                    <canvas id="durationChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>🔥 User Streak Distribution</h3>
+                <div class="chart-container">
+                    <canvas id="streakChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>🏆 Top 10 Achievements</h3>
+                <div class="chart-container">
+                    <canvas id="achievementsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- New Analytics Charts -->
+            <div class="chart-card wide">
+                <h3>📊 7-Day Retention Curve</h3>
+                <div class="chart-container">
+                    <canvas id="retentionChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card wide">
+                <h3>📈 Week-over-Week Growth Metrics</h3>
+                <div class="chart-container">
+                    <canvas id="growthChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>🎯 Feature Adoption Rates</h3>
+                <div class="chart-container">
+                    <canvas id="featureAdoptionChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>⚡ Power User Contribution</h3>
+                <div class="chart-container">
+                    <canvas id="powerUserChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card wide">
+                <h3>🕐 Peak Activity Heatmap (Hour of Day)</h3>
+                <div class="chart-container">
+                    <canvas id="heatmapChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>📅 Day of Week Activity</h3>
+                <div class="chart-container">
+                    <canvas id="dayOfWeekChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>🎮 XP Sources Breakdown</h3>
+                <div class="chart-container">
+                    <canvas id="xpSourcesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>🚀 Level Progression Speed</h3>
+                <div class="chart-container">
+                    <canvas id="levelProgressionChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card wide">
+                <h3>🎪 Session Completion Funnel</h3>
+                <div class="chart-container">
+                    <canvas id="sessionFunnelChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>🌍 Server Growth Over Time</h3>
+                <div class="chart-container">
+                    <canvas id="serverGrowthChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Growth Insights Cards -->
+        <div class="table-card">
+            <h2>🚀 Growth Insights</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <div class="stat-card">
+                    <div class="stat-label">WoW DAU Growth</div>
+                    <div class="stat-value" id="wowGrowthDAU">-</div>
+                    <div class="stat-change" id="wowGrowthDAUChange">Calculating...</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">New User Activation</div>
+                    <div class="stat-value" id="activationRate">-</div>
+                    <div class="stat-change">% complete first session in 24h</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Day 7 Retention</div>
+                    <div class="stat-value" id="day7Retention">-</div>
+                    <div class="stat-change">% of users returning after 1 week</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Churn Risk Users</div>
+                    <div class="stat-value" id="churnRisk">-</div>
+                    <div class="stat-change">Inactive 7-30 days</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Power User %</div>
+                    <div class="stat-value" id="powerUserPct">-</div>
+                    <div class="stat-change">Level 50+ users</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Sessions/User</div>
+                    <div class="stat-value" id="avgSessionsPerUser">-</div>
+                    <div class="stat-change">Per active user (30d)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Milestones Table -->
+        <div class="table-card">
+            <div class="table-header">
+                <h2>🎯 Milestone Achievements This Week</h2>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Milestone</th>
+                            <th>Users Reached</th>
+                            <th>Median Time to Reach</th>
+                            <th>Drop-off Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="milestonesTableBody">
+                        <tr><td colspan="4" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Top Users Table -->
+        <div class="table-card">
+            <div class="table-header">
+                <h2>🏅 Top Users</h2>
+                <button class="btn-secondary" id="exportUsersBtn">Export Users</button>
+            </div>
+            <div class="table-wrapper">
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('rank')">Rank</th>
+                            <th onclick="sortTable('userId')">User ID</th>
+                            <th onclick="sortTable('level')">Level</th>
+                            <th onclick="sortTable('xp')">Total XP</th>
+                            <th onclick="sortTable('totalStudyTime')">Study Time</th>
+                            <th onclick="sortTable('totalSessions')">Sessions</th>
+                            <th onclick="sortTable('currentStreak')">Streak</th>
+                            <th onclick="sortTable('lastActive')">Last Active</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr><td colspan="8" class="loading"><div class="spinner"></div>Loading users...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Sessions Table -->
+        <div class="table-card">
+            <div class="table-header">
+                <h2>📝 Recent Sessions</h2>
+                <button class="btn-secondary" id="exportSessionsBtn">Export Sessions</button>
+            </div>
+            <div class="table-wrapper">
+                <table id="sessionsTable">
+                    <thead>
+                        <tr>
+                            <th>User ID</th>
+                            <th>Duration</th>
+                            <th>Intensity</th>
+                            <th>XP Earned</th>
+                            <th>Date/Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessionsTableBody">
+                        <tr><td colspan="5" class="loading"><div class="spinner"></div>Loading sessions...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Server Activity Table -->
+        <div class="table-card">
+            <div class="table-header">
+                <h2>🌐 Server Activity</h2>
+            </div>
+            <div class="table-wrapper">
+                <table id="serversTable">
+                    <thead>
+                        <tr>
+                            <th>Server ID</th>
+                            <th>Total Sessions</th>
+                            <th>Unique Users</th>
+                            <th>Avg Session Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="serversTableBody">
+                        <tr><td colspan="4" class="loading"><div class="spinner"></div>Loading servers...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // ========== CONFIGURATION ==========
+
+        // Firebase configuration - loaded from external file
+        // This keeps credentials out of version control
+        let firebaseConfig;
+
+        // Try to load from firebase-config.js (gitignored)
+        try {
+            // firebase-config.js should export: window.firebaseConfig = { ... }
+            if (window.firebaseConfig) {
+                firebaseConfig = window.firebaseConfig;
+            } else {
+                throw new Error("firebase-config.js not loaded");
+            }
+        } catch (error) {
+            console.error("❌ Firebase config not found. Please create firebase-config.js");
+            document.body.innerHTML = `
+                <div style="max-width: 600px; margin: 4rem auto; padding: 2rem; background: #1a1a2e; border-radius: 12px; text-align: center; color: white;">
+                    <h1>⚙️ Configuration Required</h1>
+                    <p style="margin: 1rem 0; color: #a0a0c0;">
+                        Create <code>firebase-config.js</code> with your Firebase credentials:
+                    </p>
+                    <pre style="background: #0f0f1e; padding: 1rem; border-radius: 6px; text-align: left; overflow-x: auto;">
+window.firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abc123"
+};
+                    </pre>
+                    <p style="margin-top: 1rem; color: #a0a0c0;">
+                        Get these from: <a href="https://console.firebase.google.com" style="color: #7b68ee;">Firebase Console</a> → Project Settings → Web App
+                    </p>
+                </div>
+            `;
+            throw error;
+        }
+
+        // Optional: Password protection
+        // Uncomment to enable simple password prompt
+        /*
+        const PASSWORD = "your-secure-password";
+        const enteredPassword = prompt("Enter dashboard password:");
+        if (enteredPassword !== PASSWORD) {
+            document.body.innerHTML = "<h1 style='text-align: center; margin-top: 2rem;'>Access Denied</h1>";
+            throw new Error("Invalid password");
+        }
+        */
+
+        // ========== FIREBASE SETUP ==========
+
+        let db;
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            console.log("✅ Firebase initialized successfully");
+        } catch (error) {
+            console.error("❌ Firebase initialization error:", error);
+            document.body.innerHTML = `
+                <div style="max-width: 600px; margin: 4rem auto; padding: 2rem; background: var(--bg-secondary); border-radius: 12px; text-align: center;">
+                    <h1>❌ Configuration Error</h1>
+                    <p style="margin: 1rem 0; color: var(--text-secondary);">
+                        Firebase credentials not configured. Please edit this file and add your Firebase config.
+                    </p>
+                    <pre style="background: var(--bg-tertiary); padding: 1rem; border-radius: 6px; text-align: left; overflow-x: auto;">
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  ...
+};
+                    </pre>
+                </div>
+            `;
+        }
+
+        // ========== GLOBAL STATE ==========
+
+        let allUserStats = [];
+        let allSessions = [];
+        let serverStats = {};
+        let charts = {};
+        let autoRefreshInterval = null;
+
+        // ========== DATA FETCHING ==========
+
+        async function fetchAllData() {
+            try {
+                console.log("📊 Fetching data from Firebase...");
+                updateLastUpdated();
+
+                await Promise.all([
+                    fetchUserStats(),
+                    fetchRecentSessions()
+                ]);
+
+                processServerStats();
+                updateDashboard();
+
+                console.log("✅ Data fetched successfully");
+            } catch (error) {
+                console.error("❌ Error fetching data:", error);
+                showError("Failed to load data: " + error.message);
+            }
+        }
+
+        async function fetchUserStats() {
+            const snapshot = await db.collection('discord-data')
+                .doc('userStats')
+                .collection('stats')
+                .get();
+
+            allUserStats = snapshot.docs.map(doc => ({
+                userId: doc.id,
+                ...doc.data()
+            }));
+
+            console.log(`📊 Loaded ${allUserStats.length} user stats`);
+        }
+
+        async function fetchRecentSessions() {
+            const timeRange = parseInt(document.getElementById('timeRange').value);
+            let query = db.collection('discord-data')
+                .doc('sessions')
+                .collection('completed')
+                .orderBy('endTime', 'desc');
+
+            if (timeRange !== 'all') {
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - timeRange);
+                query = query.where('endTime', '>=', firebase.firestore.Timestamp.fromDate(cutoff));
+            }
+
+            const snapshot = await query.limit(500).get();
+
+            allSessions = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            console.log(`📝 Loaded ${allSessions.length} sessions`);
+        }
+
+        function processServerStats() {
+            serverStats = {};
+
+            allSessions.forEach(session => {
+                const serverId = session.serverId || 'Unknown';
+
+                if (!serverStats[serverId]) {
+                    serverStats[serverId] = {
+                        totalSessions: 0,
+                        uniqueUsers: new Set(),
+                        totalDuration: 0
+                    };
+                }
+
+                serverStats[serverId].totalSessions++;
+                serverStats[serverId].uniqueUsers.add(session.userId);
+                serverStats[serverId].totalDuration += (session.duration || 0);
+            });
+        }
+
+        // ========== DATA PROCESSING ==========
+
+        function calculateDAU(days = 30) {
+            const dailyUsers = {};
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - days);
+
+            allSessions.forEach(session => {
+                const endTime = session.endTime?.toDate();
+                if (!endTime || endTime < cutoff) return;
+
+                const dateKey = endTime.toISOString().split('T')[0];
+
+                if (!dailyUsers[dateKey]) {
+                    dailyUsers[dateKey] = new Set();
+                }
+
+                dailyUsers[dateKey].add(session.userId);
+            });
+
+            // Fill in missing days with 0
+            const result = [];
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateKey = date.toISOString().split('T')[0];
+
+                result.push({
+                    date: dateKey,
+                    users: dailyUsers[dateKey] ? dailyUsers[dateKey].size : 0
+                });
+            }
+
+            return result;
+        }
+
+        function calculateDailyStudyHours(days = 30) {
+            const dailyHours = {};
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - days);
+
+            allSessions.forEach(session => {
+                const endTime = session.endTime?.toDate();
+                if (!endTime || endTime < cutoff) return;
+
+                const dateKey = endTime.toISOString().split('T')[0];
+
+                if (!dailyHours[dateKey]) {
+                    dailyHours[dateKey] = 0;
+                }
+
+                // Add session duration in hours
+                dailyHours[dateKey] += (session.duration || 0) / 3600;
+            });
+
+            // Fill in missing days with 0
+            const result = [];
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateKey = date.toISOString().split('T')[0];
+
+                result.push({
+                    date: dateKey,
+                    hours: dailyHours[dateKey] || 0
+                });
+            }
+
+            return result;
+        }
+
+        function calculateLevelDistribution() {
+            const distribution = {
+                '1-10': 0,
+                '11-20': 0,
+                '21-30': 0,
+                '31-40': 0,
+                '41-50': 0,
+                '51-75': 0,
+                '76-100': 0
+            };
+
+            allUserStats.forEach(user => {
+                const level = calculateLevel(user.xp || 0);
+
+                if (level <= 10) distribution['1-10']++;
+                else if (level <= 20) distribution['11-20']++;
+                else if (level <= 30) distribution['21-30']++;
+                else if (level <= 40) distribution['31-40']++;
+                else if (level <= 50) distribution['41-50']++;
+                else if (level <= 75) distribution['51-75']++;
+                else distribution['76-100']++;
+            });
+
+            return distribution;
+        }
+
+        function calculateLevel(xp) {
+            // XP formula: level^2 * 100
+            return Math.floor(Math.sqrt(xp / 100)) || 1;
+        }
+
+        function calculateDurationDistribution() {
+            const distribution = {
+                '0-15min': 0,
+                '15-30min': 0,
+                '30-60min': 0,
+                '1-2hr': 0,
+                '2-4hr': 0,
+                '4hr+': 0
+            };
+
+            allSessions.forEach(session => {
+                const minutes = (session.duration || 0) / 60;
+
+                if (minutes <= 15) distribution['0-15min']++;
+                else if (minutes <= 30) distribution['15-30min']++;
+                else if (minutes <= 60) distribution['30-60min']++;
+                else if (minutes <= 120) distribution['1-2hr']++;
+                else if (minutes <= 240) distribution['2-4hr']++;
+                else distribution['4hr+']++;
+            });
+
+            return distribution;
+        }
+
+        function calculateStreakDistribution() {
+            const distribution = {
+                '0': 0,
+                '1-3': 0,
+                '4-7': 0,
+                '8-14': 0,
+                '15-30': 0,
+                '30+': 0
+            };
+
+            allUserStats.forEach(user => {
+                const streak = user.currentStreak || 0;
+
+                if (streak === 0) distribution['0']++;
+                else if (streak <= 3) distribution['1-3']++;
+                else if (streak <= 7) distribution['4-7']++;
+                else if (streak <= 14) distribution['8-14']++;
+                else if (streak <= 30) distribution['15-30']++;
+                else distribution['30+']++;
+            });
+
+            return distribution;
+        }
+
+        function getTopAchievements() {
+            const achievementCounts = {};
+
+            allUserStats.forEach(user => {
+                const achievements = user.achievements || [];
+                achievements.forEach(achievementId => {
+                    achievementCounts[achievementId] = (achievementCounts[achievementId] || 0) + 1;
+                });
+            });
+
+            return Object.entries(achievementCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+        }
+
+        // ========== NEW ANALYTICS CALCULATIONS ==========
+
+        function calculate7DayRetention() {
+            // Group users by first session date
+            const cohorts = {};
+
+            allUserStats.forEach(user => {
+                const firstSession = user.firstSessionAt?.toDate();
+                if (!firstSession) return;
+
+                const cohortDate = firstSession.toISOString().split('T')[0];
+                if (!cohorts[cohortDate]) {
+                    cohorts[cohortDate] = [];
+                }
+                cohorts[cohortDate].push(user);
+            });
+
+            // Calculate retention for each day (Day 0-7)
+            const retentionData = Array(8).fill(0);
+            const cohortCounts = Array(8).fill(0);
+
+            Object.entries(cohorts).forEach(([cohortDate, users]) => {
+                const cohortTime = new Date(cohortDate);
+
+                for (let day = 0; day <= 7; day++) {
+                    const targetDate = new Date(cohortTime);
+                    targetDate.setDate(targetDate.getDate() + day);
+                    const targetDateStr = targetDate.toISOString().split('T')[0];
+
+                    const activeCount = users.filter(user => {
+                        const lastActive = user.lastSessionAt?.toDate();
+                        return lastActive && lastActive.toISOString().split('T')[0] >= targetDateStr;
+                    }).length;
+
+                    retentionData[day] += activeCount;
+                    cohortCounts[day] += users.length;
+                }
+            });
+
+            return retentionData.map((count, day) => ({
+                day,
+                retention: cohortCounts[day] > 0 ? (count / cohortCounts[day]) * 100 : 0
+            }));
+        }
+
+        function calculateWeekOverWeekGrowth() {
+            const thisWeek = calculateDAU(7);
+            const lastWeek = calculateDAU(14).slice(0, 7);
+
+            const thisWeekDAU = thisWeek.reduce((sum, d) => sum + d.users, 0) / 7;
+            const lastWeekDAU = lastWeek.reduce((sum, d) => sum + d.users, 0) / 7;
+
+            const growth = lastWeekDAU > 0 ? ((thisWeekDAU - lastWeekDAU) / lastWeekDAU) * 100 : 0;
+
+            return {
+                thisWeek: thisWeekDAU,
+                lastWeek: lastWeekDAU,
+                growth: growth,
+                data: [
+                    { week: 'Last Week', users: lastWeekDAU },
+                    { week: 'This Week', users: thisWeekDAU }
+                ]
+            };
+        }
+
+        function calculateFeatureAdoption() {
+            const features = {
+                'Completed Session': 0,
+                'Set Goal': 0,
+                'Has Streak': 0,
+                'Has Achievement': 0,
+                'Level 10+': 0,
+                'Level 25+': 0
+            };
+
+            allUserStats.forEach(user => {
+                if (user.totalSessions > 0) features['Completed Session']++;
+                if (user.currentStreak > 0) features['Has Streak']++;
+                if ((user.achievements || []).length > 0) features['Has Achievement']++;
+
+                const level = calculateLevel(user.xp || 0);
+                if (level >= 10) features['Level 10+']++;
+                if (level >= 25) features['Level 25+']++;
+            });
+
+            const totalUsers = allUserStats.length || 1;
+            return Object.entries(features).map(([feature, count]) => ({
+                feature,
+                count,
+                rate: (count / totalUsers) * 100
+            }));
+        }
+
+        function calculatePowerUserContribution() {
+            const usersByLevel = allUserStats.map(user => ({
+                level: calculateLevel(user.xp || 0),
+                hours: (user.totalDuration || 0) / 60
+            })).sort((a, b) => b.level - a.level);
+
+            const totalHours = usersByLevel.reduce((sum, u) => sum + u.hours, 0);
+            const top10Pct = Math.ceil(usersByLevel.length * 0.1);
+            const top10Hours = usersByLevel.slice(0, top10Pct).reduce((sum, u) => sum + u.hours, 0);
+
+            const powerUsers = usersByLevel.filter(u => u.level >= 50).length;
+            const powerUserHours = usersByLevel.filter(u => u.level >= 50).reduce((sum, u) => sum + u.hours, 0);
+
+            return {
+                top10PctContribution: totalHours > 0 ? (top10Hours / totalHours) * 100 : 0,
+                powerUserPct: (powerUsers / usersByLevel.length) * 100,
+                powerUserContribution: totalHours > 0 ? (powerUserHours / totalHours) * 100 : 0,
+                data: [
+                    { category: 'Power Users (50+)', value: powerUserHours },
+                    { category: 'Regular Users', value: totalHours - powerUserHours }
+                ]
+            };
+        }
+
+        function calculatePeakActivity() {
+            const hourly = Array(24).fill(0);
+
+            allSessions.forEach(session => {
+                const startTime = session.startTime?.toDate();
+                if (!startTime) return;
+                hourly[startTime.getHours()]++;
+            });
+
+            return hourly.map((count, hour) => ({ hour, count }));
+        }
+
+        function calculateDayOfWeekActivity() {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const dailyCounts = Array(7).fill(0);
+            const dailyHours = Array(7).fill(0);
+
+            allSessions.forEach(session => {
+                const endTime = session.endTime?.toDate();
+                if (!endTime) return;
+                const day = endTime.getDay();
+                dailyCounts[day]++;
+                dailyHours[day] += (session.duration || 0) / 3600;
+            });
+
+            return days.map((day, index) => ({
+                day,
+                sessions: dailyCounts[index],
+                hours: dailyHours[index]
+            }));
+        }
+
+        function calculateXPSources() {
+            let sessionXP = 0;
+            let achievementXP = 0;
+            let goalXP = 0;
+
+            allSessions.forEach(session => {
+                sessionXP += session.xpGained || Math.floor((session.duration || 0) / 360);
+            });
+
+            allUserStats.forEach(user => {
+                const achievements = user.achievements || [];
+                achievementXP += achievements.length * 100; // Estimate
+            });
+
+            const totalXP = allUserStats.reduce((sum, u) => sum + (u.xp || 0), 0);
+            goalXP = totalXP - sessionXP - achievementXP;
+            if (goalXP < 0) goalXP = 0;
+
+            return [
+                { source: 'Sessions', xp: sessionXP },
+                { source: 'Achievements', xp: achievementXP },
+                { source: 'Goals', xp: goalXP }
+            ];
+        }
+
+        function calculateLevelProgression() {
+            const levels = [5, 10, 25, 50, 75, 100];
+            const usersAtLevel = levels.map(level => {
+                return allUserStats.filter(u => calculateLevel(u.xp || 0) >= level).length;
+            });
+
+            return levels.map((level, index) => ({
+                level: `Level ${level}+`,
+                users: usersAtLevel[index],
+                pct: (usersAtLevel[index] / (allUserStats.length || 1)) * 100
+            }));
+        }
+
+        function calculateSessionFunnel() {
+            // This would need active session data for accurate funnel
+            // For now, use completed sessions as proxy
+            const completed = allSessions.length;
+            const totalUsers = allUserStats.length;
+            const usersWithSessions = allUserStats.filter(u => u.totalSessions > 0).length;
+
+            return {
+                started: totalUsers,
+                firstSession: usersWithSessions,
+                completed: completed,
+                recurring: allUserStats.filter(u => u.totalSessions >= 5).length
+            };
+        }
+
+        function calculateServerGrowth() {
+            const serversByDate = {};
+
+            allSessions.forEach(session => {
+                const date = session.endTime?.toDate();
+                if (!date) return;
+                const dateKey = date.toISOString().split('T')[0];
+
+                if (!serversByDate[dateKey]) {
+                    serversByDate[dateKey] = new Set();
+                }
+                serversByDate[dateKey].add(session.serverId);
+            });
+
+            const last30Days = [];
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateKey = date.toISOString().split('T')[0];
+                last30Days.push({
+                    date: dateKey,
+                    servers: serversByDate[dateKey] ? serversByDate[dateKey].size : 0
+                });
+            }
+
+            return last30Days;
+        }
+
+        function calculateGrowthInsights() {
+            const wow = calculateWeekOverWeekGrowth();
+            const powerUsers = calculatePowerUserContribution();
+
+            // Calculate churn risk
+            const now = new Date();
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+            const churnRisk = allUserStats.filter(user => {
+                const lastActive = user.lastSessionAt?.toDate();
+                return lastActive && lastActive > thirtyDaysAgo && lastActive < sevenDaysAgo;
+            }).length;
+
+            // Calculate activation rate
+            const newUsersLast7 = allUserStats.filter(user => {
+                const first = user.firstSessionAt?.toDate();
+                return first && first > sevenDaysAgo;
+            });
+            const activated = newUsersLast7.filter(u => u.totalSessions >= 1).length;
+            const activationRate = newUsersLast7.length > 0 ? (activated / newUsersLast7.length) * 100 : 0;
+
+            // Avg sessions per user
+            const activeUsers = allUserStats.filter(user => {
+                const lastActive = user.lastSessionAt?.toDate();
+                return lastActive && lastActive > thirtyDaysAgo;
+            });
+            const avgSessions = activeUsers.length > 0
+                ? activeUsers.reduce((sum, u) => sum + (u.totalSessions || 0), 0) / activeUsers.length
+                : 0;
+
+            return {
+                wowGrowth: wow.growth,
+                activationRate,
+                churnRisk,
+                powerUserPct: powerUsers.powerUserPct,
+                avgSessionsPerUser: avgSessions
+            };
+        }
+
+        // ========== CHART RENDERING ==========
+
+        function renderDAUChart() {
+            const data = calculateDAU(30);
+
+            const ctx = document.getElementById('dauChart').getContext('2d');
+
+            if (charts.dau) charts.dau.destroy();
+
+            charts.dau = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                    datasets: [{
+                        label: 'Daily Active Users',
+                        data: data.map(d => d.users),
+                        borderColor: '#7b68ee',
+                        backgroundColor: 'rgba(123, 104, 238, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.9)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#2e2e4e',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDailyHoursChart() {
+            const data = calculateDailyStudyHours(30);
+
+            const ctx = document.getElementById('dailyHoursChart').getContext('2d');
+
+            if (charts.dailyHours) charts.dailyHours.destroy();
+
+            charts.dailyHours = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                    datasets: [{
+                        label: 'Study Hours',
+                        data: data.map(d => d.hours),
+                        backgroundColor: '#00ff80',
+                        borderColor: '#00ff80',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.9)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#2e2e4e',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.parsed.y.toFixed(1)} hours`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#a0a0c0',
+                                callback: function(value) {
+                                    return value + 'h';
+                                }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderLevelChart() {
+            const data = calculateLevelDistribution();
+
+            const ctx = document.getElementById('levelChart').getContext('2d');
+
+            if (charts.level) charts.level.destroy();
+
+            charts.level = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'Users',
+                        data: Object.values(data),
+                        backgroundColor: [
+                            '#4a4a6a',
+                            '#5a5a7a',
+                            '#0080ff',
+                            '#7b68ee',
+                            '#9370db',
+                            '#ff8800',
+                            '#ffd700'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDurationChart() {
+            const data = calculateDurationDistribution();
+
+            const ctx = document.getElementById('durationChart').getContext('2d');
+
+            if (charts.duration) charts.duration.destroy();
+
+            charts.duration = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'Sessions',
+                        data: Object.values(data),
+                        backgroundColor: '#00ff80'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderStreakChart() {
+            const data = calculateStreakDistribution();
+
+            const ctx = document.getElementById('streakChart').getContext('2d');
+
+            if (charts.streak) charts.streak.destroy();
+
+            charts.streak = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: [
+                            '#4a4a6a',
+                            '#0080ff',
+                            '#7b68ee',
+                            '#ff8800',
+                            '#ffd700',
+                            '#ff4444'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#a0a0c0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderAchievementsChart() {
+            const data = getTopAchievements();
+
+            const ctx = document.getElementById('achievementsChart').getContext('2d');
+
+            if (charts.achievements) charts.achievements.destroy();
+
+            charts.achievements = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(([id]) => id.replace(/_/g, ' ')),
+                    datasets: [{
+                        label: 'Unlocks',
+                        data: data.map(([, count]) => count),
+                        backgroundColor: '#7b68ee'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        y: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ========== NEW CHART RENDERERS ==========
+
+        function renderRetentionChart() {
+            const data = calculate7DayRetention();
+            const ctx = document.getElementById('retentionChart').getContext('2d');
+            if (charts.retention) charts.retention.destroy();
+
+            charts.retention = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => `Day ${d.day}`),
+                    datasets: [{
+                        label: 'Retention %',
+                        data: data.map(d => d.retention),
+                        borderColor: '#ff8800',
+                        backgroundColor: 'rgba(255, 136, 0, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.parsed.y.toFixed(1)}% retained`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#a0a0c0', callback: (v) => v + '%' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderGrowthChart() {
+            const data = calculateWeekOverWeekGrowth();
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            if (charts.growth) charts.growth.destroy();
+
+            charts.growth = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.data.map(d => d.week),
+                    datasets: [{
+                        label: 'Avg Daily Active Users',
+                        data: data.data.map(d => d.users),
+                        backgroundColor: ['#7b68ee', '#00ff80']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderFeatureAdoptionChart() {
+            const data = calculateFeatureAdoption();
+            const ctx = document.getElementById('featureAdoptionChart').getContext('2d');
+            if (charts.featureAdoption) charts.featureAdoption.destroy();
+
+            charts.featureAdoption = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.feature),
+                    datasets: [{
+                        label: 'Adoption %',
+                        data: data.map(d => d.rate),
+                        backgroundColor: '#0080ff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#a0a0c0', callback: (v) => v + '%' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        y: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderPowerUserChart() {
+            const data = calculatePowerUserContribution();
+            const ctx = document.getElementById('powerUserChart').getContext('2d');
+            if (charts.powerUser) charts.powerUser.destroy();
+
+            charts.powerUser = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.data.map(d => d.category),
+                    datasets: [{
+                        data: data.data.map(d => d.value),
+                        backgroundColor: ['#ffd700', '#7b68ee']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#a0a0c0' } }
+                    }
+                }
+            });
+        }
+
+        function renderHeatmapChart() {
+            const data = calculatePeakActivity();
+            const ctx = document.getElementById('heatmapChart').getContext('2d');
+            if (charts.heatmap) charts.heatmap.destroy();
+
+            charts.heatmap = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => `${d.hour}:00`),
+                    datasets: [{
+                        label: 'Sessions',
+                        data: data.map(d => d.count),
+                        backgroundColor: data.map(d => {
+                            const intensity = d.count / Math.max(...data.map(x => x.count));
+                            return `rgba(123, 104, 238, ${0.3 + intensity * 0.7})`;
+                        })
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0', maxRotation: 45, minRotation: 45 },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDayOfWeekChart() {
+            const data = calculateDayOfWeekActivity();
+            const ctx = document.getElementById('dayOfWeekChart').getContext('2d');
+            if (charts.dayOfWeek) charts.dayOfWeek.destroy();
+
+            charts.dayOfWeek = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.day.substring(0, 3)),
+                    datasets: [{
+                        label: 'Study Hours',
+                        data: data.map(d => d.hours),
+                        backgroundColor: '#00ff80'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0', callback: (v) => v + 'h' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderXPSourcesChart() {
+            const data = calculateXPSources();
+            const ctx = document.getElementById('xpSourcesChart').getContext('2d');
+            if (charts.xpSources) charts.xpSources.destroy();
+
+            charts.xpSources = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.source),
+                    datasets: [{
+                        data: data.map(d => d.xp),
+                        backgroundColor: ['#00ff80', '#ffd700', '#ff8800']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#a0a0c0' } }
+                    }
+                }
+            });
+        }
+
+        function renderLevelProgressionChart() {
+            const data = calculateLevelProgression();
+            const ctx = document.getElementById('levelProgressionChart').getContext('2d');
+            if (charts.levelProgression) charts.levelProgression.destroy();
+
+            charts.levelProgression = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.level),
+                    datasets: [{
+                        label: 'Users',
+                        data: data.map(d => d.users),
+                        backgroundColor: '#7b68ee'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderSessionFunnelChart() {
+            const data = calculateSessionFunnel();
+            const ctx = document.getElementById('sessionFunnelChart').getContext('2d');
+            if (charts.sessionFunnel) charts.sessionFunnel.destroy();
+
+            const stages = [
+                { label: 'Registered', value: data.started },
+                { label: 'First Session', value: data.firstSession },
+                { label: 'Sessions Completed', value: data.completed },
+                { label: 'Recurring (5+)', value: data.recurring }
+            ];
+
+            charts.sessionFunnel = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: stages.map(s => s.label),
+                    datasets: [{
+                        label: 'Users/Sessions',
+                        data: stages.map(s => s.value),
+                        backgroundColor: ['#7b68ee', '#0080ff', '#00ff80', '#ffd700']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderServerGrowthChart() {
+            const data = calculateServerGrowth();
+            const ctx = document.getElementById('serverGrowthChart').getContext('2d');
+            if (charts.serverGrowth) charts.serverGrowth.destroy();
+
+            charts.serverGrowth = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                    datasets: [{
+                        label: 'Active Servers',
+                        data: data.map(d => d.servers),
+                        borderColor: '#0080ff',
+                        backgroundColor: 'rgba(0, 128, 255, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0' },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: { color: '#a0a0c0', maxRotation: 45, minRotation: 45 },
+                            grid: { color: '#2e2e4e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateGrowthInsights() {
+            const insights = calculateGrowthInsights();
+
+            document.getElementById('wowGrowthDAU').textContent = insights.wowGrowth.toFixed(1) + '%';
+            document.getElementById('wowGrowthDAUChange').innerHTML = insights.wowGrowth >= 0
+                ? `<span style="color: #00ff80">↑ Growing</span>`
+                : `<span style="color: #ff4444">↓ Declining</span>`;
+
+            document.getElementById('activationRate').textContent = insights.activationRate.toFixed(1) + '%';
+            document.getElementById('day7Retention').textContent = calculate7DayRetention()[7]?.retention.toFixed(1) + '%' || '0%';
+            document.getElementById('churnRisk').textContent = insights.churnRisk;
+            document.getElementById('powerUserPct').textContent = insights.powerUserPct.toFixed(1) + '%';
+            document.getElementById('avgSessionsPerUser').textContent = insights.avgSessionsPerUser.toFixed(1);
+        }
+
+        function updateMilestonesTable() {
+            const milestones = [
+                { name: 'First Session', level: 1 },
+                { name: 'Level 5', level: 5 },
+                { name: 'Level 10', level: 10 },
+                { name: 'Level 25', level: 25 },
+                { name: 'Level 50', level: 50 },
+                { name: '100 Hours', hours: 6000 }
+            ];
+
+            const tbody = document.getElementById('milestonesTableBody');
+            const rows = milestones.map(milestone => {
+                const usersReached = milestone.level
+                    ? allUserStats.filter(u => calculateLevel(u.xp || 0) >= milestone.level).length
+                    : allUserStats.filter(u => (u.totalDuration || 0) >= milestone.hours).length;
+
+                const dropoffRate = usersReached / (allUserStats.length || 1);
+
+                return `
+                    <tr>
+                        <td>${milestone.name}</td>
+                        <td>${usersReached.toLocaleString()}</td>
+                        <td>-</td>
+                        <td>${((1 - dropoffRate) * 100).toFixed(1)}%</td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = rows.join('');
+        }
+
+        // ========== UI UPDATES ==========
+
+        function updateOverviewCards() {
+            // Total Users
+            document.getElementById('totalUsers').textContent = allUserStats.length.toLocaleString();
+
+            // Active Today
+            const today = new Date().toISOString().split('T')[0];
+            const activeToday = new Set();
+            allSessions.forEach(session => {
+                const endDate = session.endTime?.toDate().toISOString().split('T')[0];
+                if (endDate === today) activeToday.add(session.userId);
+            });
+            document.getElementById('activeToday').textContent = activeToday.size.toLocaleString();
+
+            // Total Sessions
+            document.getElementById('totalSessions').textContent = allSessions.length.toLocaleString();
+
+            // Total Study Hours
+            const totalSeconds = allSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+            const totalHours = Math.floor(totalSeconds / 3600);
+            document.getElementById('totalHours').textContent = totalHours.toLocaleString();
+
+            // Simple change indicators (placeholder - would need historical data for real trends)
+            document.getElementById('totalUsersChange').innerHTML = '📈 All time';
+            document.getElementById('activeTodayChange').innerHTML = '📊 Today';
+            document.getElementById('totalSessionsChange').innerHTML = '📈 All time';
+            document.getElementById('totalHoursChange').innerHTML = '⏱️ All time';
+        }
+
+        function updateUsersTable() {
+            const tbody = document.getElementById('usersTableBody');
+
+            // Sort by XP descending
+            const sortedUsers = [...allUserStats]
+                .sort((a, b) => (b.xp || 0) - (a.xp || 0))
+                .slice(0, 50); // Top 50
+
+            tbody.innerHTML = sortedUsers.map((user, index) => {
+                const level = calculateLevel(user.xp || 0);
+                const hours = Math.floor((user.totalDuration || 0) / 60);
+                const lastActive = user.lastSessionAt?.toDate().toLocaleDateString() || 'Never';
+
+                let levelBadge = 'level-low';
+                if (level >= 75) levelBadge = 'level-max';
+                else if (level >= 50) levelBadge = 'level-high';
+                else if (level >= 20) levelBadge = 'level-mid';
+
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td><code>${user.userId}</code></td>
+                        <td><span class="badge ${levelBadge}">Lv ${level}</span></td>
+                        <td>${(user.xp || 0).toLocaleString()} XP</td>
+                        <td>${hours}h</td>
+                        <td>${user.totalSessions || 0}</td>
+                        <td>${user.currentStreak || 0} 🔥</td>
+                        <td>${lastActive}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateSessionsTable() {
+            const tbody = document.getElementById('sessionsTableBody');
+
+            const recentSessions = allSessions.slice(0, 50);
+
+            tbody.innerHTML = recentSessions.map(session => {
+                const duration = formatDuration(session.duration || 0);
+                const intensity = session.intensity || 'N/A';
+                const xp = session.xpGained || Math.floor((session.duration || 0) / 360); // 10 XP/hour
+                const date = session.endTime?.toDate().toLocaleString() || 'Unknown';
+
+                return `
+                    <tr>
+                        <td><code>${session.userId}</code></td>
+                        <td>${duration}</td>
+                        <td>${intensity === 'N/A' ? intensity : '⭐'.repeat(intensity)}</td>
+                        <td>${xp} XP</td>
+                        <td>${date}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateServersTable() {
+            const tbody = document.getElementById('serversTableBody');
+
+            const rows = Object.entries(serverStats).map(([serverId, stats]) => {
+                const avgDuration = stats.totalSessions > 0
+                    ? formatDuration(stats.totalDuration / stats.totalSessions)
+                    : '0m';
+
+                return `
+                    <tr>
+                        <td><code>${serverId}</code></td>
+                        <td>${stats.totalSessions.toLocaleString()}</td>
+                        <td>${stats.uniqueUsers.size}</td>
+                        <td>${avgDuration}</td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = rows.join('') || '<tr><td colspan="4">No server data</td></tr>';
+
+            // Populate server filter dropdown
+            const serverFilter = document.getElementById('serverFilter');
+            serverFilter.innerHTML = '<option value="all">All Servers</option>' +
+                Object.keys(serverStats).map(id => `<option value="${id}">${id}</option>`).join('');
+        }
+
+        function updateDashboard() {
+            updateOverviewCards();
+            renderDAUChart();
+            renderDailyHoursChart();
+            renderLevelChart();
+            renderDurationChart();
+            renderStreakChart();
+            renderAchievementsChart();
+            renderRetentionChart();
+            renderGrowthChart();
+            renderFeatureAdoptionChart();
+            renderPowerUserChart();
+            renderHeatmapChart();
+            renderDayOfWeekChart();
+            renderXPSourcesChart();
+            renderLevelProgressionChart();
+            renderSessionFunnelChart();
+            renderServerGrowthChart();
+            updateGrowthInsights();
+            updateMilestonesTable();
+            updateUsersTable();
+            updateSessionsTable();
+            updateServersTable();
+        }
+
+        // ========== HELPER FUNCTIONS ==========
+
+        function formatDuration(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            }
+            return `${minutes}m`;
+        }
+
+        function updateLastUpdated() {
+            const now = new Date().toLocaleString();
+            document.getElementById('lastUpdated').textContent = now;
+        }
+
+        function showError(message) {
+            const main = document.querySelector('main');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            main.insertBefore(errorDiv, main.firstChild);
+
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        // ========== EXPORT FUNCTIONS ==========
+
+        function exportToCSV(data, filename) {
+            const csv = data.map(row => row.join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportUsers() {
+            const headers = ['Rank', 'User ID', 'Level', 'XP', 'Study Hours', 'Sessions', 'Streak', 'Last Active'];
+            const rows = allUserStats
+                .sort((a, b) => (b.xp || 0) - (a.xp || 0))
+                .map((user, index) => [
+                    index + 1,
+                    user.userId,
+                    calculateLevel(user.xp || 0),
+                    user.xp || 0,
+                    Math.floor((user.totalDuration || 0) / 60),
+                    user.totalSessions || 0,
+                    user.currentStreak || 0,
+                    user.lastSessionAt?.toDate().toISOString() || 'Never'
+                ]);
+
+            exportToCSV([headers, ...rows], 'users.csv');
+        }
+
+        function exportSessions() {
+            const headers = ['User ID', 'Duration (seconds)', 'Intensity', 'XP', 'End Time'];
+            const rows = allSessions.map(session => [
+                session.userId,
+                session.duration || 0,
+                session.intensity || 'N/A',
+                session.xpGained || 0,
+                session.endTime?.toDate().toISOString() || 'Unknown'
+            ]);
+
+            exportToCSV([headers, ...rows], 'sessions.csv');
+        }
+
+        async function takeScreenshot() {
+            const btn = document.getElementById('screenshotBtn');
+            btn.textContent = '⏳ Capturing...';
+            btn.disabled = true;
+
+            try {
+                const canvas = await html2canvas(document.body);
+                const link = document.createElement('a');
+                link.download = `dashboard-${Date.now()}.png`;
+                link.href = canvas.toDataURL();
+                link.click();
+            } catch (error) {
+                console.error('Screenshot error:', error);
+                showError('Failed to capture screenshot');
+            } finally {
+                btn.textContent = '📸 Screenshot';
+                btn.disabled = false;
+            }
+        }
+
+        // ========== EVENT HANDLERS ==========
+
+        document.getElementById('refreshBtn').addEventListener('click', fetchAllData);
+        document.getElementById('exportBtn').addEventListener('click', exportUsers);
+        document.getElementById('exportUsersBtn').addEventListener('click', exportUsers);
+        document.getElementById('exportSessionsBtn').addEventListener('click', exportSessions);
+        document.getElementById('screenshotBtn').addEventListener('click', takeScreenshot);
+
+        document.getElementById('timeRange').addEventListener('change', fetchAllData);
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            document.body.classList.toggle('light-theme');
+            const btn = document.getElementById('themeToggle');
+            btn.textContent = document.body.classList.contains('light-theme') ? '☀️ Light Mode' : '🌙 Dark Mode';
+        });
+
+        document.getElementById('autoRefresh').addEventListener('change', (e) => {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+
+            const value = e.target.value;
+            if (value !== 'off') {
+                const seconds = parseInt(value);
+                autoRefreshInterval = setInterval(fetchAllData, seconds * 1000);
+                console.log(`✅ Auto-refresh enabled (every ${seconds}s)`);
+            }
+        });
+
+        document.getElementById('userSearch').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#usersTableBody tr');
+
+            rows.forEach(row => {
+                const userId = row.querySelector('code')?.textContent.toLowerCase() || '';
+                row.style.display = userId.includes(searchTerm) ? '' : 'none';
+            });
+        });
+
+        // Table sorting
+        let sortColumn = 'xp';
+        let sortAscending = false;
+
+        window.sortTable = function(column) {
+            if (sortColumn === column) {
+                sortAscending = !sortAscending;
+            } else {
+                sortColumn = column;
+                sortAscending = false;
+            }
+
+            allUserStats.sort((a, b) => {
+                let aVal = a[column] || 0;
+                let bVal = b[column] || 0;
+
+                if (column === 'level') {
+                    aVal = calculateLevel(a.xp || 0);
+                    bVal = calculateLevel(b.xp || 0);
+                }
+
+                if (sortAscending) {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            });
+
+            updateUsersTable();
+        };
+
+        // ========== INITIALIZATION ==========
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            console.log("🚀 Dashboard initializing...");
+
+            try {
+                await fetchAllData();
+                console.log("✅ Dashboard ready!");
+            } catch (error) {
+                console.error("❌ Initialization error:", error);
+                showError("Failed to initialize dashboard: " + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

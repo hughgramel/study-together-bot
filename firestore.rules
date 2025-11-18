@@ -1,6 +1,14 @@
 rules_version = "2";
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Discord bot data - allow public read for analytics dashboard
+    // Bot writes via service account (not affected by these rules)
+    match /discord-data/{document=**} {
+      allow read: if true;  // Analytics dashboard can read
+      allow write: if false; // Only bot service account can write
+    }
+
+    // Default: deny all other collections
     match /{document=**} {
       allow read, write: if false;
     }

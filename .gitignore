@@ -1,6 +1,7 @@
 node_modules/
 .env
 firebase-service-account.json
+firebase-config.js
 dist/
 *.log
 .DS_Store
