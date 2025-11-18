@@ -100,6 +100,13 @@ export interface UserStats {
   favoriteActivity?: string;           // Most common activity type
   peakLevel?: number;                  // Highest level ever reached
   firstAchievementUnlockedAt?: Timestamp; // When first achievement was unlocked
+
+  // Goals Channel Streak (Passive XP System)
+  goalsStreak?: {
+    current: number;                   // Current consecutive days posting goals
+    lastPostDate: Timestamp;           // Last date goals were posted (UTC)
+    longest: number;                   // Longest goals streak ever
+  };
 }
 
 /**
@@ -109,6 +116,7 @@ export interface ServerConfig {
   feedChannelId?: string;   // Discord channel ID for feed posts
   focusRoomIds?: string[];  // Voice channel IDs that auto-start sessions
   welcomeChannelId?: string; // Discord channel ID for welcome messages
+  goalsChannelId?: string;  // Discord channel ID for passive goals channel
   setupAt: Timestamp;       // When configuration was last updated
   setupBy: string;          // Discord user ID of admin who set it up
 }

@@ -670,4 +670,108 @@ export class StatsService {
 
     return users;
   }
+
+  /**
+   * Update user's goals streak when they post in the goals channel
+   * Awards +100 XP and maintains streak tracking
+   * Returns the updated streak and XP awarded
+   */
+  async updateGoalsStreak(userId: string, username: string): Promise<{
+    streak: number;
+    xpGained: number;
+    isNewStreak: boolean;
+  } | null> {
+    const statsRef = this.db
+      .collection('discord-data')
+      .doc('userStats')
+      .collection('stats')
+      .doc(userId);
+
+    const doc = await statsRef.get();
+    const now = Timestamp.now();
+    const todayKey = this.getDateKey(now);
+
+    if (!doc.exists) {
+      // Create new stats document with first goals streak
+      const newStats: Partial<UserStats> = {
+        username,
+        totalSessions: 0,
+        totalDuration: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        lastSessionAt: now,
+        firstSessionAt: now,
+        xp: 100, // Initial 100 XP
+        achievements: [],
+        achievementsUnlockedAt: {},
+        sessionsByDay: {},
+        activityTypes: [],
+        goalsStreak: {
+          current: 1,
+          lastPostDate: now,
+          longest: 1,
+        },
+      };
+
+      await statsRef.set(newStats);
+
+      return {
+        streak: 1,
+        xpGained: 100,
+        isNewStreak: true,
+      };
+    }
+
+    const stats = doc.data() as UserStats;
+    const goalsStreak = stats.goalsStreak || {
+      current: 0,
+      lastPostDate: Timestamp.fromMillis(0),
+      longest: 0,
+    };
+
+    // Check if user already posted today
+    const lastPostKey = this.getDateKey(goalsStreak.lastPostDate);
+    if (lastPostKey === todayKey) {
+      // Already posted today - ignore
+      return null;
+    }
+
+    // Calculate new streak
+    let newStreak: number;
+    const yesterdayKey = this.getDateKey(
+      Timestamp.fromMillis(now.toMillis() - 24 * 60 * 60 * 1000)
+    );
+
+    if (lastPostKey === yesterdayKey) {
+      // Posted yesterday - increment streak
+      newStreak = goalsStreak.current + 1;
+    } else {
+      // Missed days - reset to 1
+      newStreak = 1;
+    }
+
+    // Update longest streak if needed
+    const newLongest = Math.max(newStreak, goalsStreak.longest);
+
+    // Award 100 XP
+    await this.xpService.awardXP(userId, 100, 'Goals channel post');
+
+    // Update stats
+    const updates: Partial<UserStats> = {
+      username,
+      goalsStreak: {
+        current: newStreak,
+        lastPostDate: now,
+        longest: newLongest,
+      },
+    };
+
+    await statsRef.update(updates);
+
+    return {
+      streak: newStreak,
+      xpGained: 100,
+      isNewStreak: newStreak === 1 && goalsStreak.current > 1,
+    };
+  }
 }

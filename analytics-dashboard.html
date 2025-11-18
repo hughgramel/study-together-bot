@@ -626,6 +626,13 @@
                     <canvas id="serverGrowthChart"></canvas>
                 </div>
             </div>
+
+            <div class="chart-card wide">
+                <h3>🔄 Session Retention Curve (% of Users by Session Count)</h3>
+                <div class="chart-container">
+                    <canvas id="sessionRetentionCurveChart"></canvas>
+                </div>
+            </div>
         </div>
 
         <!-- Growth Insights Cards -->
@@ -1363,6 +1370,38 @@ const firebaseConfig = {
             };
         }
 
+        function calculateSessionRetentionCurve() {
+            // Count how many sessions each user has
+            const sessionCounts = {};
+            allUserStats.forEach(user => {
+                const count = user.totalSessions || 0;
+                if (count > 0) {
+                    sessionCounts[user.userId] = count;
+                }
+            });
+
+            // Get all unique session counts and sort them
+            const counts = Object.values(sessionCounts);
+            const maxSessions = Math.max(...counts, 0);
+            const totalUsersWithAtLeastOne = counts.length;
+
+            // Calculate percentage of users who have at least N sessions
+            const retentionData = [];
+            for (let n = 1; n <= Math.min(maxSessions, 50); n++) { // Cap at 50 for readability
+                const usersWithAtLeastN = counts.filter(c => c >= n).length;
+                const percentage = totalUsersWithAtLeastOne > 0
+                    ? (usersWithAtLeastN / totalUsersWithAtLeastOne) * 100
+                    : 0;
+                retentionData.push({
+                    sessionCount: n,
+                    percentage: percentage,
+                    userCount: usersWithAtLeastN
+                });
+            }
+
+            return retentionData;
+        }
+
         // ========== CHART RENDERING ==========
 
         function renderDAUChart() {
@@ -2043,6 +2082,74 @@ const firebaseConfig = {
             tbody.innerHTML = rows.join('');
         }
 
+        function renderSessionRetentionCurveChart() {
+            const data = calculateSessionRetentionCurve();
+            const ctx = document.getElementById('sessionRetentionCurveChart').getContext('2d');
+
+            if (charts.sessionRetentionCurve) charts.sessionRetentionCurve.destroy();
+
+            charts.sessionRetentionCurve = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.sessionCount),
+                    datasets: [{
+                        label: '% of Users',
+                        data: data.map(d => d.percentage),
+                        borderColor: '#00ff80',
+                        backgroundColor: 'rgba(0, 255, 128, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const dataPoint = data[context.dataIndex];
+                                    return [
+                                        `${context.parsed.y.toFixed(1)}% of users`,
+                                        `${dataPoint.userCount.toLocaleString()} users with ${dataPoint.sessionCount}+ sessions`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                color: '#a0a0c0',
+                                callback: (value) => value + '%'
+                            },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Number of Sessions',
+                                color: '#a0a0c0'
+                            },
+                            ticks: {
+                                color: '#a0a0c0',
+                                callback: function(value, index) {
+                                    // Show every 5th label for readability
+                                    return index % 5 === 0 ? data[index]?.sessionCount : '';
+                                }
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
         // ========== UI UPDATES ==========
 
         function updateOverviewCards() {
@@ -2173,6 +2280,7 @@ const firebaseConfig = {
             renderLevelProgressionChart();
             renderSessionFunnelChart();
             renderServerGrowthChart();
+            renderSessionRetentionCurveChart();
             updateGrowthInsights();
             updateMilestonesTable();
             updateUsersTable();

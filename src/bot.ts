@@ -92,6 +92,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildMembers,
   ],
   partials: [
     Partials.Message,
@@ -224,22 +225,24 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName('setup-goal-channel')
+    .setDescription('Configure the goals channel for passive XP rewards (Admin only)')
+    .addChannelOption((option) =>
+      option
+        .setName('channel')
+        .setDescription('The channel where users post daily goals')
+        .setRequired(true)
+        .addChannelTypes(ChannelType.GuildText)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName('manual')
     .setDescription('Log a manual session with custom duration'),
 
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('View all available commands and how to use them'),
-
-  new SlashCommandBuilder()
-    .setName('daily-goal')
-    .setDescription('Set your daily goal and build a streak!')
-    .addStringOption((option) =>
-      option
-        .setName('goal')
-        .setDescription('Your goal for today (e.g., "Finish chapter 3 of calculus")')
-        .setRequired(true)
-    ),
 
   new SlashCommandBuilder()
     .setName('goal')
@@ -1872,8 +1875,7 @@ client.on('interactionCreate', async (interaction) => {
               '`/resume` - Resume your paused session\n' +
               '`/end` - Complete and share your session\n' +
               '`/cancel` - Cancel session without saving\n' +
-              '`/manual` - Log a past session manually\n' +
-              '`/daily-goal {goal}` - Set your daily goal and build a streak!',
+              '`/manual` - Log a past session manually',
             inline: false
           },
           {
@@ -1896,13 +1898,15 @@ client.on('interactionCreate', async (interaction) => {
             value:
               '`/setup-feed {channel}` - Set feed channel for session posts\n' +
               '`/setup-focus-room {voice-channel}` - Enable auto-tracking in voice channel\n' +
-              '`/set-welcome-channel {channel}` - Set welcome channel for new members',
+              '`/set-welcome-channel {channel}` - Set welcome channel for new members\n' +
+              '`/setup-goal-channel {channel}` - Set goals channel for passive XP rewards',
             inline: false
           },
           {
             name: '💡 Tips',
             value:
               '• Earn XP and level up by completing sessions (10 XP/hour + bonuses)\n' +
+              '• Post daily in the goals channel for +100 XP and streak rewards\n' +
               '• Unlock 20 achievements by hitting milestones\n' +
               '• React to others\' session posts to unlock social achievements\n' +
               '• Voice channel sessions auto-track when you join a focus room\n' +
@@ -1917,66 +1921,6 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: true,
       });
       return;
-    }
-
-    // /daily-goal command
-    if (commandName === 'daily-goal') {
-      const goal = interaction.options.getString('goal', true);
-
-      // Defer reply to give time for Firebase operations
-      await interaction.deferReply({ ephemeral: false });
-
-      try {
-        // Set the daily goal
-        const dailyGoal = await dailyGoalService.setDailyGoal(
-          user.id,
-          user.username,
-          goal
-        );
-
-        // Award 100 XP for setting a daily goal
-        let xpResult;
-        try {
-          xpResult = await xpService.awardXP(user.id, 100, 'Daily goal set');
-        } catch (error) {
-          // If user doesn't have stats yet (no sessions), we'll create them
-          console.log('User has no stats yet, skipping XP award for daily goal');
-        }
-
-        // Get current streak from StatsService (considers both sessions and goals)
-        const { currentStreak } = await statsService.getCurrentStreak(user.id);
-
-        // Create streak display with fire emoji
-        const fireEmoji = '🔥';
-
-        // Get user's avatar
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Build XP text
-        const xpText = xpResult && xpResult.leveledUp
-          ? `+100 XP • 🎉 Level ${xpResult.newLevel}!`
-          : '+100 XP';
-
-        // Build the minimalist embed
-        const embed = new EmbedBuilder()
-          .setColor(0x00FF00) // Green for success
-          .setAuthor({
-            name: `${user.username}`,
-            iconURL: avatarUrl
-          })
-          .setTitle(`🎯 Daily Goal Set! • ${currentStreak} ${fireEmoji} • ✨ ${xpText}`)
-          .setDescription(`**Today's Goal:**\n${goal}`);
-
-        await interaction.editReply({ embeds: [embed] });
-
-        return;
-      } catch (error) {
-        console.error('Error setting daily goal:', error);
-        await interaction.editReply({
-          content: 'An error occurred while setting your daily goal. Please try again.',
-        });
-        return;
-      }
     }
 
     // /goal command
@@ -3307,6 +3251,46 @@ client.on('interactionCreate', async (interaction) => {
       });
       return;
     }
+
+    // /setup-goal-channel command
+    if (commandName === 'setup-goal-channel') {
+      const channel = interaction.options.getChannel('channel', true);
+
+      // Check if user has admin permission
+      if (
+        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      ) {
+        await interaction.reply({
+          content: 'Only server administrators can configure the goals channel.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Get existing config
+      const existingConfig = await getServerConfig(guildId!);
+
+      // Update config
+      const config: ServerConfig = {
+        ...existingConfig,
+        goalsChannelId: channel.id,
+        setupAt: Timestamp.now(),
+        setupBy: user.id,
+      };
+
+      await db
+        .collection('discord-data')
+        .doc('serverConfig')
+        .collection('configs')
+        .doc(guildId!)
+        .set(config);
+
+      await interaction.reply({
+        content: `✅ Goals channel set to <#${channel.id}>\n\nUsers will now earn +100 XP and build streaks by posting once per day in this channel!`,
+        ephemeral: true,
+      });
+      return;
+    }
   } catch (error) {
     console.error(`Error handling command ${commandName}:`, error);
 
@@ -3625,6 +3609,58 @@ client.once('clientReady', () => {
 });
 
 // Handle new member joins
+// Goals channel message listener - passive XP system
+client.on('messageCreate', async (message) => {
+  try {
+    // Ignore bot messages
+    if (message.author.bot) {
+      return;
+    }
+
+    // Only process messages in guilds
+    if (!message.guildId) {
+      return;
+    }
+
+    // Get server config
+    const config = await getServerConfig(message.guildId);
+
+    if (!config || !config.goalsChannelId) {
+      // No goals channel configured - skip
+      return;
+    }
+
+    // Check if message is in the goals channel
+    if (message.channelId !== config.goalsChannelId) {
+      return;
+    }
+
+    // Update goals streak and award XP
+    const result = await statsService.updateGoalsStreak(
+      message.author.id,
+      message.author.username
+    );
+
+    if (!result) {
+      // User already posted today - ignore
+      return;
+    }
+
+    // Send ephemeral-style DM with streak info
+    try {
+      const streakEmoji = '🔥'.repeat(Math.min(result.streak, 5));
+      await message.author.send(
+        `${streakEmoji} ${result.streak} day streak setting goals! +${result.xpGained} XP. Come back tomorrow to keep it going!`
+      );
+    } catch (dmError) {
+      // User has DMs disabled - that's okay, just continue
+      console.log(`Could not send DM to ${message.author.username}:`, dmError);
+    }
+  } catch (error) {
+    console.error('Error processing goals channel message:', error);
+  }
+});
+
 client.on('guildMemberAdd', async (member) => {
   try {
     const config = await getServerConfig(member.guild.id);
