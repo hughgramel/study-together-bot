@@ -109,6 +109,7 @@ export interface ServerConfig {
   feedChannelId?: string;   // Discord channel ID for feed posts
   focusRoomIds?: string[];  // Voice channel IDs that auto-start sessions
   welcomeChannelId?: string; // Discord channel ID for welcome messages
+  eventsChannelId?: string; // Discord channel ID for study events
   setupAt: Timestamp;       // When configuration was last updated
   setupBy: string;          // Discord user ID of admin who set it up
 }
@@ -202,4 +203,42 @@ export interface DailyGoal {
   goalsByDay?: {            // Map of date (YYYY-MM-DD) -> goal text (legacy)
     [date: string]: string;
   };
+}
+
+/**
+ * Study event - scheduled group study sessions
+ */
+export interface StudyEvent {
+  eventId: string;          // Unique event ID (UUID)
+  serverId: string;         // Discord server ID
+  creatorId: string;        // User ID of event creator
+  creatorUsername: string;  // Username of creator
+
+  // Event details
+  title: string;            // Event title/name
+  description?: string;     // Optional description
+  location: string;         // Exact location (e.g., "Library - 3rd floor, table near windows")
+
+  // Scheduling
+  startTime: Timestamp;     // When event starts
+  duration?: number;        // Duration in minutes (optional, undefined = no limit)
+
+  // Settings
+  maxAttendees?: number;    // Maximum number of attendees (undefined = unlimited)
+  studyType: 'silent' | 'conversation' | 'pomodoro' | 'custom'; // Type of study session
+  customType?: string;      // Custom type description if studyType is 'custom'
+
+  // RSVP tracking
+  attendees: Array<{        // Users who have RSVP'd
+    userId: string;
+    username: string;
+    joinedAt: Timestamp;
+  }>;
+
+  // Metadata
+  createdAt: Timestamp;     // When event was created
+  messageId?: string;       // Discord message ID if posted to feed
+  channelId?: string;       // Discord channel ID where posted
+  isCancelled?: boolean;    // Whether event has been cancelled
+  cancelledAt?: Timestamp;  // When event was cancelled
 }

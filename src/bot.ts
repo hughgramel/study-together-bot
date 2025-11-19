@@ -17,6 +17,9 @@ import {
   ActionRowBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
+  ButtonBuilder,
+  ButtonStyle,
+  ButtonInteraction,
 } from 'discord.js';
 import * as admin from 'firebase-admin';
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
@@ -29,6 +32,7 @@ import { AchievementService } from './services/achievements';
 import { PostService } from './services/posts';
 import { DailyGoalService } from './services/dailyGoal';
 import { XPService } from './services/xp';
+import { EventService } from './services/events';
 import { getAchievement, getAllAchievements } from './data/achievements';
 import { ServerConfig } from './types';
 import {
@@ -83,6 +87,7 @@ const achievementService = new AchievementService(db);
 const postService = new PostService(db);
 const dailyGoalService = new DailyGoalService(db);
 const xpService = new XPService(db);
+const eventService = new EventService(db);
 
 // Create Discord client
 const client = new Client({
@@ -103,6 +108,20 @@ const client = new Client({
 
 // Store auto-end timers for paused sessions (userId -> NodeJS.Timeout)
 const autoEndTimers = new Map<string, NodeJS.Timeout>();
+
+// Store event builder state (builderId -> event data)
+interface EventBuilderState {
+  userId: string;
+  title?: string;
+  location?: string;
+  startTime?: Date;
+  duration?: number;
+  studyType?: 'silent' | 'conversation' | 'pomodoro' | 'custom';
+  customType?: string;
+  maxAttendees?: number;
+  description?: string;
+}
+const eventBuilders = new Map<string, EventBuilderState>();
 
 // Define slash commands
 const commands = [
@@ -225,6 +244,18 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName('setup-events-channel')
+    .setDescription('Configure the events channel for study events (Admin only)')
+    .addChannelOption((option) =>
+      option
+        .setName('channel')
+        .setDescription('The channel to post study events')
+        .setRequired(true)
+        .addChannelTypes(ChannelType.GuildText)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName('manual')
     .setDescription('Log a manual session with custom duration'),
 
@@ -266,6 +297,28 @@ const commands = [
       subcommand
         .setName('list')
         .setDescription('View all your goals')
+    ),
+
+  new SlashCommandBuilder()
+    .setName('createevent')
+    .setDescription('Create a new study event'),
+
+  new SlashCommandBuilder()
+    .setName('events')
+    .setDescription('View all upcoming study events'),
+
+  new SlashCommandBuilder()
+    .setName('myevents')
+    .setDescription('View events you have RSVP\'d to'),
+
+  new SlashCommandBuilder()
+    .setName('cancelevent')
+    .setDescription('Cancel one of your events')
+    .addStringOption(option =>
+      option
+        .setName('event')
+        .setDescription('The event to cancel')
+        .setRequired(true)
     ),
 ].map((command) => command.toJSON());
 
@@ -1492,12 +1545,760 @@ client.on('interactionCreate', async (interaction) => {
           console.error('Could not send error message to user:', replyError);
         }
       }
+    } else if (interaction.customId.includes('event_builder:') && interaction.customId.includes(':modal_')) {
+      // Event builder field modal submissions
+      const parts = interaction.customId.split(':');
+      const builderId = `${parts[0]}:${parts[1]}:${parts[2]}`;
+      const modalType = parts[3].replace('modal_', '');
+
+      const builderState = eventBuilders.get(builderId);
+
+      if (!builderState || builderState.userId !== interaction.user.id) {
+        await interaction.reply({
+          content: '❌ This event builder has expired or does not belong to you.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      try {
+        await interaction.deferUpdate();
+
+        // Update helper function
+        const updateBuilderEmbed = (state: EventBuilderState): EmbedBuilder => {
+          const embed = new EmbedBuilder()
+            .setColor(0x0080FF)
+            .setTitle('📅 Create Study Event')
+            .setDescription('Use the buttons and dropdown below to configure your event.')
+            .addFields(
+              { name: '📝 Title', value: state.title || '*Not set*', inline: false },
+              { name: '📍 Location', value: state.location || '*Not set*', inline: false },
+              {
+                name: '⏰ Start Time',
+                value: state.startTime ? `<t:${Math.floor(state.startTime.getTime() / 1000)}:F>` : '*Not set*',
+                inline: true
+              },
+              { name: '⏱️ Duration', value: state.duration ? `${state.duration} minutes` : 'No limit', inline: true },
+              {
+                name: '🎯 Study Type',
+                value: state.studyType
+                  ? (state.studyType === 'custom' && state.customType
+                    ? `Custom: ${state.customType}`
+                    : state.studyType === 'silent' ? 'Silent Study'
+                    : state.studyType === 'conversation' ? 'Conversation Allowed'
+                    : state.studyType === 'pomodoro' ? 'Pomodoro Session'
+                    : state.studyType)
+                  : '*Not set*',
+                inline: false
+              },
+              { name: '👥 Max Attendees', value: state.maxAttendees ? state.maxAttendees.toString() : 'Unlimited', inline: true },
+              { name: '📝 More Info', value: state.description || '*None*', inline: false }
+            )
+            .setFooter({ text: 'Configure all required fields (*) then click Create Event' });
+
+          return embed;
+        };
+
+        // Process different modal types
+        if (modalType === 'title') {
+          builderState.title = interaction.fields.getTextInputValue('title');
+        } else if (modalType === 'location') {
+          builderState.location = interaction.fields.getTextInputValue('location');
+        } else if (modalType === 'time') {
+          const dateTimeStr = interaction.fields.getTextInputValue('time');
+
+          // Parse date/time (simple parser for common formats)
+          const parseDateTime = (input: string): Date | null => {
+            const now = new Date();
+            const trimmed = input.trim().toLowerCase();
+
+            // Try ISO format first (YYYY-MM-DD HH:MM)
+            const isoMatch = trimmed.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})/);
+            if (isoMatch) {
+              const [, year, month, day, hour, minute] = isoMatch;
+              const date = new Date(
+                parseInt(year),
+                parseInt(month) - 1,
+                parseInt(day),
+                parseInt(hour),
+                parseInt(minute)
+              );
+              return date;
+            }
+
+            // Try "tomorrow HH:MM" or "tomorrow H pm/am"
+            if (trimmed.includes('tomorrow')) {
+              const timeMatch = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+              if (timeMatch) {
+                const [, hourStr, minuteStr, meridiem] = timeMatch;
+                let hour = parseInt(hourStr);
+                const minute = minuteStr ? parseInt(minuteStr) : 0;
+
+                if (meridiem === 'pm' && hour !== 12) hour += 12;
+                if (meridiem === 'am' && hour === 12) hour = 0;
+
+                const tomorrow = new Date(now);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(hour, minute, 0, 0);
+                return tomorrow;
+              }
+            }
+
+            // Try "today HH:MM" or "today H pm/am"
+            if (trimmed.includes('today')) {
+              const timeMatch = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+              if (timeMatch) {
+                const [, hourStr, minuteStr, meridiem] = timeMatch;
+                let hour = parseInt(hourStr);
+                const minute = minuteStr ? parseInt(minuteStr) : 0;
+
+                if (meridiem === 'pm' && hour !== 12) hour += 12;
+                if (meridiem === 'am' && hour === 12) hour = 0;
+
+                const today = new Date(now);
+                today.setHours(hour, minute, 0, 0);
+                return today;
+              }
+            }
+
+            return null;
+        };
+
+
+          const startTime = parseDateTime(dateTimeStr);
+          if (!startTime) {
+            await interaction.followUp({
+              content: '❌ Invalid date/time format. Please use formats like:\n- `2025-01-20 18:00`\n- `tomorrow 6pm`\n- `today 14:30`',
+              ephemeral: true
+            });
+            return;
+          }
+
+          if (startTime.getTime() < Date.now()) {
+            await interaction.followUp({
+              content: '❌ Event start time must be in the future.',
+              ephemeral: true
+            });
+            return;
+          }
+
+          builderState.startTime = startTime;
+        } else if (modalType === 'duration') {
+          const durationStr = interaction.fields.getTextInputValue('duration');
+          const duration = parseInt(durationStr, 10);
+
+          if (isNaN(duration) || duration <= 0) {
+            await interaction.followUp({
+              content: '❌ Invalid duration. Please enter a positive number (in minutes).',
+              ephemeral: true
+            });
+            return;
+          }
+
+          builderState.duration = duration;
+        } else if (modalType === 'max') {
+          const maxStr = interaction.fields.getTextInputValue('max').trim();
+
+          if (maxStr) {
+            const max = parseInt(maxStr, 10);
+            if (isNaN(max) || max <= 0) {
+              await interaction.followUp({
+                content: '❌ Invalid max attendees. Please enter a positive number or leave blank for unlimited.',
+                ephemeral: true
+              });
+              return;
+            }
+            builderState.maxAttendees = max;
+          } else {
+            builderState.maxAttendees = undefined;
+          }
+        } else if (modalType === 'description') {
+          const desc = interaction.fields.getTextInputValue('description').trim();
+          builderState.description = desc || undefined;
+        } else if (modalType === 'custom_type') {
+          const customType = interaction.fields.getTextInputValue('custom_type').trim();
+          builderState.customType = customType;
+          builderState.studyType = 'custom';
+        }
+
+        // Update the builder embed
+        const updatedEmbed = updateBuilderEmbed(builderState);
+
+        // Recreate components
+        const studyTypeSelect = new StringSelectMenuBuilder()
+          .setCustomId(`${builderId}:study_type`)
+          .setPlaceholder('Select study type')
+          .addOptions([
+            { label: 'Silent Study', description: 'Quiet, focused work session', value: 'silent', emoji: '🤫' },
+            { label: 'Conversation Allowed', description: 'Talking and discussion permitted', value: 'conversation', emoji: '💬' },
+            { label: 'Pomodoro Session', description: 'Structured breaks (25min work, 5min break)', value: 'pomodoro', emoji: '🍅' },
+            { label: 'Custom', description: 'Define your own study style', value: 'custom', emoji: '✨' }
+          ]);
+
+        const setTitleBtn = new ButtonBuilder().setCustomId(`${builderId}:set_title`).setLabel('Set Title').setStyle(ButtonStyle.Secondary).setEmoji('📝');
+        const setLocationBtn = new ButtonBuilder().setCustomId(`${builderId}:set_location`).setLabel('Set Location').setStyle(ButtonStyle.Secondary).setEmoji('📍');
+        const setTimeBtn = new ButtonBuilder().setCustomId(`${builderId}:set_time`).setLabel('Set Time').setStyle(ButtonStyle.Secondary).setEmoji('⏰');
+        const setDurationBtn = new ButtonBuilder().setCustomId(`${builderId}:set_duration`).setLabel('Set Duration').setStyle(ButtonStyle.Secondary).setEmoji('⏱️');
+        const setMaxBtn = new ButtonBuilder().setCustomId(`${builderId}:set_max`).setLabel('Set Max').setStyle(ButtonStyle.Secondary).setEmoji('👥');
+        const setDescBtn = new ButtonBuilder().setCustomId(`${builderId}:set_description`).setLabel('Set Description').setStyle(ButtonStyle.Secondary).setEmoji('📄');
+        const createBtn = new ButtonBuilder().setCustomId(`${builderId}:create`).setLabel('Create Event').setStyle(ButtonStyle.Success).setEmoji('✅');
+        const cancelBtn = new ButtonBuilder().setCustomId(`${builderId}:cancel`).setLabel('Cancel').setStyle(ButtonStyle.Danger).setEmoji('❌');
+
+        const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(studyTypeSelect);
+        const buttonRow1 = new ActionRowBuilder<ButtonBuilder>().addComponents(setTitleBtn, setLocationBtn, setTimeBtn, setDurationBtn);
+        const buttonRow2 = new ActionRowBuilder<ButtonBuilder>().addComponents(setMaxBtn, setDescBtn);
+        const buttonRow3 = new ActionRowBuilder<ButtonBuilder>().addComponents(createBtn, cancelBtn);
+
+        await interaction.editReply({
+          embeds: [updatedEmbed],
+          components: [selectRow, buttonRow1, buttonRow2, buttonRow3]
+        });
+      } catch (error) {
+        console.error('Error updating event builder:', error);
+        await interaction.followUp({
+          content: '❌ An error occurred. Please try again.',
+          ephemeral: true
+        });
+      }
     }
     return;
   }
 
+  // Handle button interactions
+  if (interaction.isButton()) {
+    const user = interaction.user;
+
+    // Event builder buttons
+    if (interaction.customId.includes('event_builder:')) {
+      const parts = interaction.customId.split(':');
+      const builderId = `${parts[0]}:${parts[1]}:${parts[2]}`;
+      const action = parts[3];
+
+      const builderState = eventBuilders.get(builderId);
+
+      if (!builderState || builderState.userId !== user.id) {
+        await interaction.reply({
+          content: '❌ This event builder has expired or does not belong to you.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Cancel button
+      if (action === 'cancel') {
+        eventBuilders.delete(builderId);
+        await interaction.update({
+          content: '❌ Event creation cancelled.',
+          embeds: [],
+          components: []
+        });
+        return;
+      }
+
+      // Create button
+      if (action === 'create') {
+        // Validate required fields
+        if (!builderState.title || !builderState.location || !builderState.startTime) {
+          await interaction.reply({
+            content: '❌ Please fill in all required fields (Title, Location, Time).',
+            ephemeral: true
+          });
+          return;
+        }
+
+        await interaction.deferUpdate();
+
+        try {
+          const guildId = interaction.guildId!;
+
+          // Create the event
+          const event = await eventService.createEvent(
+            guildId,
+            user.id,
+            user.username,
+            builderState.title,
+            builderState.location,
+            builderState.startTime,
+            builderState.duration,
+            builderState.studyType || 'conversation',
+            {
+              description: builderState.description,
+              maxAttendees: builderState.maxAttendees,
+              customType: builderState.customType,
+            }
+          );
+
+          // Post event to events channel
+          const config = await getServerConfig(guildId);
+          if (config && config.eventsChannelId) {
+            try {
+              const eventsChannel = (await client.channels.fetch(config.eventsChannelId)) as TextChannel;
+
+              const studyTypeEmoji = {
+                silent: '🤫',
+                conversation: '💬',
+                pomodoro: '🍅',
+                custom: '✨'
+              };
+
+              const studyTypeNames = {
+                silent: 'Silent Study',
+                conversation: 'Conversation Allowed',
+                pomodoro: 'Pomodoro Session',
+                custom: builderState.customType || 'Custom'
+              };
+
+              const studyType = builderState.studyType || 'conversation';
+
+              const eventEmbed = new EmbedBuilder()
+                .setColor(0x0080FF)
+                .setAuthor({
+                  name: user.username,
+                  iconURL: user.displayAvatarURL({ size: 128 }),
+                })
+                .setTitle(`${studyTypeEmoji[studyType]} ${builderState.title}`);
+
+              // Add fields
+              const fields = [
+                { name: '📍 Location', value: builderState.location, inline: false },
+                { name: '⏰ Start Time', value: `<t:${Math.floor(builderState.startTime.getTime() / 1000)}:F>\n<t:${Math.floor(builderState.startTime.getTime() / 1000)}:R>`, inline: true },
+                { name: '⏱️ Duration', value: builderState.duration ? `${builderState.duration} minutes` : 'No limit', inline: true },
+                { name: '🎯 Type', value: studyTypeNames[studyType], inline: true },
+                {
+                  name: '👥 Attendees',
+                  value: builderState.maxAttendees
+                    ? `<@${user.id}> (Host) (1/${builderState.maxAttendees} - ${builderState.maxAttendees - 1} spots left)`
+                    : `<@${user.id}> (Host)`,
+                  inline: false
+                }
+              ];
+
+              // Only add More Info if there's a description
+              if (builderState.description) {
+                fields.push({ name: '📝 More Info', value: builderState.description, inline: false });
+              }
+
+              fields.push({ name: '📞 Contact', value: `DM <@${user.id}> for more info!`, inline: false });
+
+              eventEmbed
+                .addFields(fields)
+                .setFooter({ text: `Event ID: ${event.eventId}` })
+                .setTimestamp();
+
+              const joinButton = new ButtonBuilder()
+                .setCustomId(`event_join:${event.eventId}`)
+                .setLabel('Join Event')
+                .setStyle(ButtonStyle.Success)
+                .setEmoji('✅');
+
+              const leaveButton = new ButtonBuilder()
+                .setCustomId(`event_leave:${event.eventId}`)
+                .setLabel('Leave Event')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji('❌');
+
+              const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(joinButton, leaveButton);
+
+              const message = await eventsChannel.send({
+                embeds: [eventEmbed],
+                components: [buttonRow],
+              });
+
+              await eventService.updateEventMessage(event.eventId, message.id, eventsChannel.id);
+            } catch (error) {
+              console.error('Error posting event to events channel:', error);
+            }
+          }
+
+          // Clean up builder state
+          eventBuilders.delete(builderId);
+
+          await interaction.editReply({
+            content: `✅ Event created successfully!\n\n**${builderState.title}**\n📍 ${builderState.location}\n⏰ <t:${Math.floor(builderState.startTime.getTime() / 1000)}:F>`,
+            embeds: [],
+            components: []
+          });
+        } catch (error) {
+          console.error('Error creating event:', error);
+          await interaction.followUp({
+            content: '❌ An error occurred while creating the event. Please try again.',
+            ephemeral: true
+          });
+        }
+        return;
+      }
+
+      // Set field buttons - show modals
+      if (action === 'set_title') {
+        const modal = new ModalBuilder()
+          .setCustomId(`${builderId}:modal_title`)
+          .setTitle('Set Event Title');
+
+        const titleInput = new TextInputBuilder()
+          .setCustomId('title')
+          .setLabel('Event Title')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g., Late Night Study Session')
+          .setRequired(true)
+          .setMaxLength(100);
+
+        if (builderState.title) {
+          titleInput.setValue(builderState.title);
+        }
+
+        const row = new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+        return;
+      }
+
+      if (action === 'set_location') {
+        const modal = new ModalBuilder()
+          .setCustomId(`${builderId}:modal_location`)
+          .setTitle('Set Event Location');
+
+        const locationInput = new TextInputBuilder()
+          .setCustomId('location')
+          .setLabel('Location')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g., Library - 3rd floor, table near windows')
+          .setRequired(true)
+          .setMaxLength(200);
+
+        if (builderState.location) {
+          locationInput.setValue(builderState.location);
+        }
+
+        const row = new ActionRowBuilder<TextInputBuilder>().addComponents(locationInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+        return;
+      }
+
+      if (action === 'set_time') {
+        const modal = new ModalBuilder()
+          .setCustomId(`${builderId}:modal_time`)
+          .setTitle('Set Event Time');
+
+        const timeInput = new TextInputBuilder()
+          .setCustomId('time')
+          .setLabel('Start Date & Time')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g., 2025-01-20 18:00 or tomorrow 6pm')
+          .setRequired(true);
+
+        const row = new ActionRowBuilder<TextInputBuilder>().addComponents(timeInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+        return;
+      }
+
+      if (action === 'set_duration') {
+        const modal = new ModalBuilder()
+          .setCustomId(`${builderId}:modal_duration`)
+          .setTitle('Set Event Duration');
+
+        const durationInput = new TextInputBuilder()
+          .setCustomId('duration')
+          .setLabel('Duration (in minutes)')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g., 120')
+          .setRequired(true);
+
+        if (builderState.duration) {
+          durationInput.setValue(builderState.duration.toString());
+        }
+
+        const row = new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+        return;
+      }
+
+      if (action === 'set_max') {
+        const modal = new ModalBuilder()
+          .setCustomId(`${builderId}:modal_max`)
+          .setTitle('Set Max Attendees');
+
+        const maxInput = new TextInputBuilder()
+          .setCustomId('max')
+          .setLabel('Max Attendees (leave blank for unlimited)')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g., 10')
+          .setRequired(false);
+
+        if (builderState.maxAttendees) {
+          maxInput.setValue(builderState.maxAttendees.toString());
+        }
+
+        const row = new ActionRowBuilder<TextInputBuilder>().addComponents(maxInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+        return;
+      }
+
+      if (action === 'set_description') {
+        const modal = new ModalBuilder()
+          .setCustomId(`${builderId}:modal_description`)
+          .setTitle('Set Event Description');
+
+        const descInput = new TextInputBuilder()
+          .setCustomId('description')
+          .setLabel('Description (optional)')
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('Add any additional details about the event...')
+          .setRequired(false)
+          .setMaxLength(500);
+
+        if (builderState.description) {
+          descInput.setValue(builderState.description);
+        }
+
+        const row = new ActionRowBuilder<TextInputBuilder>().addComponents(descInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+        return;
+      }
+    }
+
+    // Event join button
+    if (interaction.customId.startsWith('event_join:')) {
+      const eventId = interaction.customId.split(':')[1];
+
+      await interaction.deferReply({ ephemeral: true });
+
+      try {
+        const result = await eventService.joinEvent(eventId, user.id, user.username);
+
+        await interaction.editReply({
+          content: result.success ? `✅ ${result.message}` : `❌ ${result.message}`,
+        });
+
+        // Update the event embed if successful
+        if (result.success && interaction.message) {
+          const event = await eventService.getEvent(eventId);
+          if (event) {
+            const embed = interaction.message.embeds[0];
+            const newEmbed = EmbedBuilder.from(embed);
+
+            // Build attendees list with @ mentions, marking host
+            const attendeesList = event.attendees.map(a =>
+              a.userId === event.creatorId ? `<@${a.userId}> (Host)` : `<@${a.userId}>`
+            ).join(', ');
+            const spotsText = event.maxAttendees
+              ? `${attendeesList} (${event.attendees.length}/${event.maxAttendees} - ${event.maxAttendees - event.attendees.length} spots left)`
+              : attendeesList;
+
+            // Find and update the attendees field
+            const fields = newEmbed.data.fields || [];
+            const attendeesFieldIndex = fields.findIndex(f => f.name === '👥 Attendees');
+            if (attendeesFieldIndex !== -1) {
+              fields[attendeesFieldIndex].value = spotsText;
+              newEmbed.setFields(fields);
+            }
+
+            await interaction.message.edit({ embeds: [newEmbed] });
+          }
+        }
+      } catch (error) {
+        console.error('Error joining event:', error);
+        await interaction.editReply({
+          content: '❌ An error occurred while joining the event. Please try again.',
+        });
+      }
+      return;
+    }
+
+    // Event leave button
+    if (interaction.customId.startsWith('event_leave:')) {
+      const eventId = interaction.customId.split(':')[1];
+
+      await interaction.deferReply({ ephemeral: true });
+
+      try {
+        const result = await eventService.leaveEvent(eventId, user.id);
+
+        await interaction.editReply({
+          content: result.success ? `✅ ${result.message}` : `❌ ${result.message}`,
+        });
+
+        // Update the event embed if successful
+        if (result.success && interaction.message) {
+          const event = await eventService.getEvent(eventId);
+          if (event) {
+            const embed = interaction.message.embeds[0];
+            const newEmbed = EmbedBuilder.from(embed);
+
+            // Build attendees list with @ mentions, marking host
+            const attendeesList = event.attendees.map(a =>
+              a.userId === event.creatorId ? `<@${a.userId}> (Host)` : `<@${a.userId}>`
+            ).join(', ');
+            const spotsText = event.maxAttendees
+              ? `${attendeesList} (${event.attendees.length}/${event.maxAttendees} - ${event.maxAttendees - event.attendees.length} spots left)`
+              : attendeesList;
+
+            // Find and update the attendees field
+            const fields = newEmbed.data.fields || [];
+            const attendeesFieldIndex = fields.findIndex(f => f.name === '👥 Attendees');
+            if (attendeesFieldIndex !== -1) {
+              fields[attendeesFieldIndex].value = spotsText;
+              newEmbed.setFields(fields);
+            }
+
+            await interaction.message.edit({ embeds: [newEmbed] });
+          }
+        }
+      } catch (error) {
+        console.error('Error leaving event:', error);
+        await interaction.editReply({
+          content: '❌ An error occurred while leaving the event. Please try again.',
+        });
+      }
+      return;
+    }
+
+    // Event join from list button
+    if (interaction.customId === 'event_list_join') {
+      await interaction.reply({
+        content: 'Please copy the **Event ID** from the event list above and use this command:\n`/events` then click the Join button on the specific event, or join via the event post in the feed channel.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // Event leave from list button
+    if (interaction.customId === 'event_list_leave') {
+      await interaction.reply({
+        content: 'Please copy the **Event ID** from the event list above and use the Leave button on the specific event post in the feed channel, or use `/cancelevent <event-id>` if you created it.',
+        ephemeral: true,
+      });
+      return;
+    }
+  }
+
   // Handle select menu interactions
   if (interaction.isStringSelectMenu()) {
+    // Event builder study type selection
+    if (interaction.customId.includes('event_builder:') && interaction.customId.includes(':study_type')) {
+      const parts = interaction.customId.split(':');
+      const builderId = `${parts[0]}:${parts[1]}:${parts[2]}`;
+      const selectedType = interaction.values[0] as 'silent' | 'conversation' | 'pomodoro' | 'custom';
+
+      const builderState = eventBuilders.get(builderId);
+
+      if (!builderState || builderState.userId !== interaction.user.id) {
+        await interaction.reply({
+          content: '❌ This event builder has expired or does not belong to you.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // If custom type, show a modal to get custom description
+      if (selectedType === 'custom') {
+        const modal = new ModalBuilder()
+          .setCustomId(`${builderId}:modal_custom_type`)
+          .setTitle('Custom Study Type');
+
+        const customTypeInput = new TextInputBuilder()
+          .setCustomId('custom_type')
+          .setLabel('Describe your study type')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g., Group Project Work, Code Review Session')
+          .setRequired(true)
+          .setMaxLength(100);
+
+        const row = new ActionRowBuilder<TextInputBuilder>().addComponents(customTypeInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+
+        // Store that we selected custom (will be updated when modal submitted)
+        builderState.studyType = 'custom';
+        return;
+      }
+
+      // Update state
+      builderState.studyType = selectedType;
+      builderState.customType = undefined; // Clear custom type if switching away from custom
+
+      await interaction.deferUpdate();
+
+      // Update embed helper
+      const updateBuilderEmbed = (state: EventBuilderState): EmbedBuilder => {
+        const embed = new EmbedBuilder()
+          .setColor(0x0080FF)
+          .setTitle('📅 Create Study Event')
+          .setDescription('Use the buttons and dropdown below to configure your event.')
+          .addFields(
+            { name: '📝 Title', value: state.title || '*Not set*', inline: false },
+            { name: '📍 Location', value: state.location || '*Not set*', inline: false },
+            {
+              name: '⏰ Start Time',
+              value: state.startTime ? `<t:${Math.floor(state.startTime.getTime() / 1000)}:F>` : '*Not set*',
+              inline: true
+            },
+            { name: '⏱️ Duration', value: state.duration ? `${state.duration} minutes` : 'No limit', inline: true },
+            {
+              name: '🎯 Study Type',
+              value: state.studyType
+                ? (state.studyType === 'custom' && state.customType
+                  ? `Custom: ${state.customType}`
+                  : state.studyType === 'silent' ? 'Silent Study'
+                  : state.studyType === 'conversation' ? 'Conversation Allowed'
+                  : state.studyType === 'pomodoro' ? 'Pomodoro Session'
+                  : state.studyType)
+                : '*Not set*',
+              inline: false
+            },
+            { name: '👥 Max Attendees', value: state.maxAttendees ? state.maxAttendees.toString() : 'Unlimited', inline: true },
+            { name: '📝 More Info', value: state.description || '*None*', inline: false }
+          )
+          .setFooter({ text: 'Configure all required fields (*) then click Create Event' });
+
+        return embed;
+      };
+
+      const updatedEmbed = updateBuilderEmbed(builderState);
+
+      // Recreate components
+      const studyTypeSelect = new StringSelectMenuBuilder()
+        .setCustomId(`${builderId}:study_type`)
+        .setPlaceholder('Select study type')
+        .addOptions([
+          { label: 'Silent Study', description: 'Quiet, focused work session', value: 'silent', emoji: '🤫' },
+          { label: 'Conversation Allowed', description: 'Talking and discussion permitted', value: 'conversation', emoji: '💬' },
+          { label: 'Pomodoro Session', description: 'Structured breaks (25min work, 5min break)', value: 'pomodoro', emoji: '🍅' },
+          { label: 'Custom', description: 'Define your own study style', value: 'custom', emoji: '✨' }
+        ]);
+
+      const setTitleBtn = new ButtonBuilder().setCustomId(`${builderId}:set_title`).setLabel('Set Title').setStyle(ButtonStyle.Secondary).setEmoji('📝');
+      const setLocationBtn = new ButtonBuilder().setCustomId(`${builderId}:set_location`).setLabel('Set Location').setStyle(ButtonStyle.Secondary).setEmoji('📍');
+      const setTimeBtn = new ButtonBuilder().setCustomId(`${builderId}:set_time`).setLabel('Set Time').setStyle(ButtonStyle.Secondary).setEmoji('⏰');
+      const setDurationBtn = new ButtonBuilder().setCustomId(`${builderId}:set_duration`).setLabel('Set Duration').setStyle(ButtonStyle.Secondary).setEmoji('⏱️');
+      const setMaxBtn = new ButtonBuilder().setCustomId(`${builderId}:set_max`).setLabel('Set Max').setStyle(ButtonStyle.Secondary).setEmoji('👥');
+      const setDescBtn = new ButtonBuilder().setCustomId(`${builderId}:set_description`).setLabel('Set Description').setStyle(ButtonStyle.Secondary).setEmoji('📄');
+      const createBtn = new ButtonBuilder().setCustomId(`${builderId}:create`).setLabel('Create Event').setStyle(ButtonStyle.Success).setEmoji('✅');
+      const cancelBtn = new ButtonBuilder().setCustomId(`${builderId}:cancel`).setLabel('Cancel').setStyle(ButtonStyle.Danger).setEmoji('❌');
+
+      const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(studyTypeSelect);
+      const buttonRow1 = new ActionRowBuilder<ButtonBuilder>().addComponents(setTitleBtn, setLocationBtn, setTimeBtn, setDurationBtn);
+      const buttonRow2 = new ActionRowBuilder<ButtonBuilder>().addComponents(setMaxBtn, setDescBtn);
+      const buttonRow3 = new ActionRowBuilder<ButtonBuilder>().addComponents(createBtn, cancelBtn);
+
+      await interaction.editReply({
+        embeds: [updatedEmbed],
+        components: [selectRow, buttonRow1, buttonRow2, buttonRow3]
+      });
+      return;
+    }
+
     if (interaction.customId === 'leaderboard_timeframe') {
       const selectedValue = interaction.values[0];
       const user = interaction.user;
@@ -2045,6 +2846,316 @@ client.on('interactionCreate', async (interaction) => {
           });
           return;
         }
+      }
+    }
+
+    // /createevent command
+    if (commandName === 'createevent') {
+      await interaction.deferReply({ ephemeral: true });
+
+      // Create initial event builder embed
+      const builderId = `event_builder:${user.id}:${Date.now()}`;
+
+      // Initialize builder state
+      eventBuilders.set(builderId, {
+        userId: user.id,
+        studyType: 'conversation'
+      });
+
+      const builderEmbed = new EmbedBuilder()
+        .setColor(0x0080FF)
+        .setTitle('📅 Create Study Event')
+        .setDescription('Use the buttons and dropdown below to configure your event.')
+        .addFields(
+          { name: '📝 Title', value: '*Not set*', inline: false },
+          { name: '📍 Location', value: '*Not set*', inline: false },
+          { name: '⏰ Start Time', value: '*Not set*', inline: true },
+          { name: '⏱️ Duration', value: 'No limit', inline: true },
+          { name: '🎯 Study Type', value: 'Conversation Allowed', inline: false },
+          { name: '👥 Max Attendees', value: 'Unlimited', inline: true },
+          { name: '📝 More Info', value: '*None*', inline: false }
+        )
+        .setFooter({ text: 'Configure all required fields (*) then click Create Event' });
+
+      // Study type dropdown
+      const studyTypeSelect = new StringSelectMenuBuilder()
+        .setCustomId(`${builderId}:study_type`)
+        .setPlaceholder('Select study type')
+        .addOptions([
+          {
+            label: 'Silent Study',
+            description: 'Quiet, focused work session',
+            value: 'silent',
+            emoji: '🤫'
+          },
+          {
+            label: 'Conversation Allowed',
+            description: 'Talking and discussion permitted',
+            value: 'conversation',
+            emoji: '💬'
+          },
+          {
+            label: 'Pomodoro Session',
+            description: 'Structured breaks (25min work, 5min break)',
+            value: 'pomodoro',
+            emoji: '🍅'
+          },
+          {
+            label: 'Custom',
+            description: 'Define your own study style',
+            value: 'custom',
+            emoji: '✨'
+          }
+        ]);
+
+      // Action buttons
+      const setTitleBtn = new ButtonBuilder()
+        .setCustomId(`${builderId}:set_title`)
+        .setLabel('Set Title')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('📝');
+
+      const setLocationBtn = new ButtonBuilder()
+        .setCustomId(`${builderId}:set_location`)
+        .setLabel('Set Location')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('📍');
+
+      const setTimeBtn = new ButtonBuilder()
+        .setCustomId(`${builderId}:set_time`)
+        .setLabel('Set Time')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('⏰');
+
+      const setDurationBtn = new ButtonBuilder()
+        .setCustomId(`${builderId}:set_duration`)
+        .setLabel('Set Duration')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('⏱️');
+
+      const setMaxBtn = new ButtonBuilder()
+        .setCustomId(`${builderId}:set_max`)
+        .setLabel('Set Max')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('👥');
+
+      const setDescBtn = new ButtonBuilder()
+        .setCustomId(`${builderId}:set_description`)
+        .setLabel('Set Description')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('📄');
+
+      const createBtn = new ButtonBuilder()
+        .setCustomId(`${builderId}:create`)
+        .setLabel('Create Event')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅');
+
+      const cancelBtn = new ButtonBuilder()
+        .setCustomId(`${builderId}:cancel`)
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('❌');
+
+      const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(studyTypeSelect);
+      const buttonRow1 = new ActionRowBuilder<ButtonBuilder>().addComponents(setTitleBtn, setLocationBtn, setTimeBtn, setDurationBtn);
+      const buttonRow2 = new ActionRowBuilder<ButtonBuilder>().addComponents(setMaxBtn, setDescBtn);
+      const buttonRow3 = new ActionRowBuilder<ButtonBuilder>().addComponents(createBtn, cancelBtn);
+
+      await interaction.editReply({
+        embeds: [builderEmbed],
+        components: [selectRow, buttonRow1, buttonRow2, buttonRow3]
+      });
+      return;
+    }
+
+    // /events command
+    if (commandName === 'events') {
+      await interaction.deferReply({ ephemeral: false });
+
+      try {
+        const events = await eventService.getUpcomingEvents(guildId!);
+
+        if (events.length === 0) {
+          await interaction.editReply({
+            content: 'No upcoming events! Use `/createevent` to create one.',
+          });
+          return;
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0x0080FF)
+          .setTitle('📅 Upcoming Study Events')
+          .setDescription(`${events.length} event${events.length === 1 ? '' : 's'} scheduled`)
+          .setTimestamp();
+
+        // Add each event as a field
+        for (const event of events.slice(0, 10)) {
+          const startTime = event.startTime.toDate();
+          const discordTimestamp = `<t:${Math.floor(startTime.getTime() / 1000)}:F>`;
+          const relativeTime = `<t:${Math.floor(startTime.getTime() / 1000)}:R>`;
+
+          const studyTypeEmoji = {
+            silent: '🤫',
+            conversation: '💬',
+            pomodoro: '🍅',
+            custom: '✨'
+          };
+
+          const spotsText = event.maxAttendees
+            ? `${event.attendees.length}/${event.maxAttendees} spots filled`
+            : `${event.attendees.length} attending`;
+
+          embed.addFields({
+            name: `${studyTypeEmoji[event.studyType]} ${event.title}`,
+            value: [
+              `📍 **Location:** ${event.location}`,
+              `⏰ **When:** ${discordTimestamp} (${relativeTime})`,
+              `⏱️ **Duration:** ${event.duration} minutes`,
+              `👥 **Attendees:** ${spotsText}`,
+              `🎯 **Type:** ${event.studyType === 'custom' ? event.customType : event.studyType}`,
+              event.description ? `📝 ${event.description}` : '',
+              `**Event ID:** \`${event.eventId}\``
+            ].filter(Boolean).join('\n'),
+            inline: false
+          });
+        }
+
+        if (events.length > 10) {
+          embed.setFooter({ text: `Showing first 10 of ${events.length} events` });
+        }
+
+        // Add buttons for joining/leaving events
+        const joinButton = new ButtonBuilder()
+          .setCustomId('event_list_join')
+          .setLabel('Join Event')
+          .setStyle(ButtonStyle.Success)
+          .setEmoji('✅');
+
+        const leaveButton = new ButtonBuilder()
+          .setCustomId('event_list_leave')
+          .setLabel('Leave Event')
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji('❌');
+
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(joinButton, leaveButton);
+
+        await interaction.editReply({ embeds: [embed], components: [buttonRow] });
+        return;
+      } catch (error) {
+        console.error('Error fetching events:', error);
+        await interaction.editReply({
+          content: 'An error occurred while fetching events. Please try again.',
+        });
+        return;
+      }
+    }
+
+    // /myevents command
+    if (commandName === 'myevents') {
+      await interaction.deferReply({ ephemeral: true });
+
+      try {
+        const events = await eventService.getUserEvents(user.id, guildId!);
+
+        if (events.length === 0) {
+          await interaction.editReply({
+            content: 'You haven\'t RSVP\'d to any events yet! Use `/events` to see upcoming events.',
+          });
+          return;
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0xFFD700)
+          .setTitle('📅 Your Events')
+          .setDescription(`You're attending ${events.length} event${events.length === 1 ? '' : 's'}`)
+          .setTimestamp();
+
+        // Add each event as a field
+        for (const event of events) {
+          const startTime = event.startTime.toDate();
+          const discordTimestamp = `<t:${Math.floor(startTime.getTime() / 1000)}:F>`;
+          const relativeTime = `<t:${Math.floor(startTime.getTime() / 1000)}:R>`;
+
+          const isCreator = event.creatorId === user.id;
+
+          embed.addFields({
+            name: `${isCreator ? '👑 ' : ''}${event.title}`,
+            value: [
+              `📍 **Location:** ${event.location}`,
+              `⏰ **When:** ${discordTimestamp} (${relativeTime})`,
+              `⏱️ **Duration:** ${event.duration} minutes`,
+              isCreator ? '👑 You created this event' : '',
+              `**Event ID:** \`${event.eventId}\``
+            ].filter(Boolean).join('\n'),
+            inline: false
+          });
+        }
+
+        await interaction.editReply({ embeds: [embed] });
+        return;
+      } catch (error) {
+        console.error('Error fetching user events:', error);
+        await interaction.editReply({
+          content: 'An error occurred while fetching your events. Please try again.',
+        });
+        return;
+      }
+    }
+
+    // /cancelevent command
+    if (commandName === 'cancelevent') {
+      const eventId = interaction.options.getString('event', true);
+
+      await interaction.deferReply({ ephemeral: true });
+
+      try {
+        const result = await eventService.cancelEvent(eventId, user.id);
+
+        if (!result.success) {
+          await interaction.editReply({
+            content: result.message,
+          });
+          return;
+        }
+
+        // Get the event to notify attendees
+        const event = await eventService.getEvent(eventId);
+        if (event && event.messageId && event.channelId) {
+          try {
+            const channel = await client.channels.fetch(event.channelId) as TextChannel;
+            if (channel) {
+              const message = await channel.messages.fetch(event.messageId);
+              if (message) {
+                // Update the message to show it's cancelled
+                const cancelledEmbed = new EmbedBuilder()
+                  .setColor(0xFF0000)
+                  .setTitle(`❌ CANCELLED: ${event.title}`)
+                  .setDescription(`This event has been cancelled by the organizer.`)
+                  .addFields(
+                    { name: '📍 Location', value: event.location, inline: true },
+                    { name: '⏰ Was scheduled for', value: `<t:${Math.floor(event.startTime.toDate().getTime() / 1000)}:F>`, inline: true }
+                  )
+                  .setTimestamp();
+
+                await message.edit({ embeds: [cancelledEmbed], components: [] });
+              }
+            }
+          } catch (error) {
+            console.error('Error updating event message:', error);
+          }
+        }
+
+        await interaction.editReply({
+          content: '✅ Event cancelled successfully.',
+        });
+        return;
+      } catch (error) {
+        console.error('Error cancelling event:', error);
+        await interaction.editReply({
+          content: 'An error occurred while cancelling the event. Please try again.',
+        });
+        return;
       }
     }
 
@@ -3233,6 +4344,46 @@ client.on('interactionCreate', async (interaction) => {
 
       await interaction.reply({
         content: `✅ Welcome channel set to <#${channel.id}>\n\nNew members will receive a welcome message in this channel when they join!`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    // /setup-events-channel command
+    if (commandName === 'setup-events-channel') {
+      const channel = interaction.options.getChannel('channel', true);
+
+      // Check if user has admin permission
+      if (
+        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      ) {
+        await interaction.reply({
+          content: 'Only server administrators can set the events channel.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Get existing config
+      const existingConfig = await getServerConfig(guildId!);
+
+      // Update config
+      const config: ServerConfig = {
+        ...existingConfig,
+        eventsChannelId: channel.id,
+        setupAt: Timestamp.now(),
+        setupBy: user.id,
+      };
+
+      await db
+        .collection('discord-data')
+        .doc('serverConfig')
+        .collection('configs')
+        .doc(guildId!)
+        .set(config);
+
+      await interaction.reply({
+        content: `✅ Events channel set to <#${channel.id}>\n\nAll new study events will be posted in this channel!`,
         ephemeral: true,
       });
       return;
