@@ -39,7 +39,7 @@ export class StatsService {
   }
 
   /**
-   * Check if user had activity (session OR goal OR goals channel post) on a specific date
+   * Check if user had activity (session OR goal) on a specific date
    */
   private async hasActivityForDate(userId: string, timestamp: Timestamp): Promise<boolean> {
     // Check sessions
@@ -47,38 +47,10 @@ export class StatsService {
     const stats = await this.getUserStats(userId);
     const hasSession = stats?.sessionsByDay?.[dateKey] !== undefined && stats.sessionsByDay[dateKey] > 0;
 
-    // Check goals (goal add command)
+    // Check goals
     const hasGoal = await this.hasGoalForDate(userId, timestamp);
 
-    // Check goals channel posts
-    const hasGoalsChannelPost = await this.hasGoalsChannelPostForDate(userId, timestamp);
-
-    return hasSession || hasGoal || hasGoalsChannelPost;
-  }
-
-  /**
-   * Check if user posted in goals channel on a specific date
-   */
-  private async hasGoalsChannelPostForDate(userId: string, timestamp: Timestamp): Promise<boolean> {
-    try {
-      const goalsPostRef = this.db
-        .collection('discord-data')
-        .doc('goalsChannelPosts')
-        .collection('posts')
-        .doc(userId);
-
-      const doc = await goalsPostRef.get();
-      if (!doc.exists) {
-        return false;
-      }
-
-      const data = doc.data();
-      const dateKey = getDateKey(timestamp);
-      return data?.postsByDay?.[dateKey] === true;
-    } catch (error) {
-      console.error('Error checking goals channel post for date:', error);
-      return false;
-    }
+    return hasSession || hasGoal;
   }
 
   /**
@@ -697,97 +669,5 @@ export class StatsService {
       .slice(0, limit);
 
     return users;
-  }
-
-  /**
-   * Record a goals channel post and award XP
-   * Integrates with unified activity tracking for streak calculation
-   * Returns the user's current unified streak and XP awarded
-   */
-  async recordGoalsChannelPost(userId: string, username: string): Promise<{
-    currentStreak: number;
-    longestStreak: number;
-    xpGained: number;
-  } | null> {
-    const statsRef = this.db
-      .collection('discord-data')
-      .doc('userStats')
-      .collection('stats')
-      .doc(userId);
-
-    const doc = await statsRef.get();
-    const now = Timestamp.now();
-    const todayKey = this.getDateKey(now);
-
-    // Check if user already posted in goals channel today
-    const goalsPostRef = this.db
-      .collection('discord-data')
-      .doc('goalsChannelPosts')
-      .collection('posts')
-      .doc(userId);
-
-    const goalsPostDoc = await goalsPostRef.get();
-
-    if (goalsPostDoc.exists) {
-      const lastPostDate = goalsPostDoc.data()?.lastPostDate;
-      if (lastPostDate) {
-        const lastPostKey = this.getDateKey(lastPostDate);
-        if (lastPostKey === todayKey) {
-          // Already posted today - ignore
-          return null;
-        }
-      }
-    }
-
-    // Record today's post
-    await goalsPostRef.set({
-      userId,
-      username,
-      lastPostDate: now,
-      postsByDay: {
-        [todayKey]: true,
-      },
-    }, { merge: true });
-
-    if (!doc.exists) {
-      // Create new stats document
-      const newStats: Partial<UserStats> = {
-        username,
-        totalSessions: 0,
-        totalDuration: 0,
-        currentStreak: 1,
-        longestStreak: 1,
-        lastSessionAt: now,
-        firstSessionAt: now,
-        xp: 100, // Initial 100 XP
-        achievements: [],
-        achievementsUnlockedAt: {},
-        sessionsByDay: {},
-        activityTypes: [],
-      };
-
-      await statsRef.set(newStats);
-
-      // Award XP
-      await this.xpService.awardXP(userId, 100, 'Goals channel post');
-
-      return {
-        currentStreak: 1,
-        longestStreak: 1,
-        xpGained: 100,
-      };
-    }
-
-    // Award 100 XP
-    await this.xpService.awardXP(userId, 100, 'Goals channel post');
-
-    // Get current unified streak (considers sessions, goals, and goals channel posts)
-    const { currentStreak, longestStreak } = await this.getCurrentStreak(userId);
-
-    return {
-      currentStreak,
-      longestStreak,
-      xpGained: 100,
-    };
   }
 }

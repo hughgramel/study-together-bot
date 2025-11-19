@@ -225,18 +225,6 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
-    .setName('setup-goal-channel')
-    .setDescription('Configure the goals channel for passive XP rewards (Admin only)')
-    .addChannelOption((option) =>
-      option
-        .setName('channel')
-        .setDescription('The channel where users post daily goals')
-        .setRequired(true)
-        .addChannelTypes(ChannelType.GuildText)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
     .setName('manual')
     .setDescription('Log a manual session with custom duration'),
 
@@ -1898,15 +1886,13 @@ client.on('interactionCreate', async (interaction) => {
             value:
               '`/setup-feed {channel}` - Set feed channel for session posts\n' +
               '`/setup-focus-room {voice-channel}` - Enable auto-tracking in voice channel\n' +
-              '`/set-welcome-channel {channel}` - Set welcome channel for new members\n' +
-              '`/setup-goal-channel {channel}` - Set goals channel for passive XP rewards',
+              '`/set-welcome-channel {channel}` - Set welcome channel for new members',
             inline: false
           },
           {
             name: '💡 Tips',
             value:
               '• Earn XP and level up by completing sessions (10 XP/hour + bonuses)\n' +
-              '• Post daily in the goals channel for +100 XP and streak rewards\n' +
               '• Unlock 20 achievements by hitting milestones\n' +
               '• React to others\' session posts to unlock social achievements\n' +
               '• Voice channel sessions auto-track when you join a focus room\n' +
@@ -3251,46 +3237,6 @@ client.on('interactionCreate', async (interaction) => {
       });
       return;
     }
-
-    // /setup-goal-channel command
-    if (commandName === 'setup-goal-channel') {
-      const channel = interaction.options.getChannel('channel', true);
-
-      // Check if user has admin permission
-      if (
-        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
-      ) {
-        await interaction.reply({
-          content: 'Only server administrators can configure the goals channel.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Get existing config
-      const existingConfig = await getServerConfig(guildId!);
-
-      // Update config
-      const config: ServerConfig = {
-        ...existingConfig,
-        goalsChannelId: channel.id,
-        setupAt: Timestamp.now(),
-        setupBy: user.id,
-      };
-
-      await db
-        .collection('discord-data')
-        .doc('serverConfig')
-        .collection('configs')
-        .doc(guildId!)
-        .set(config);
-
-      await interaction.reply({
-        content: `✅ Goals channel set to <#${channel.id}>\n\nUsers will now earn +100 XP and build streaks by posting once per day in this channel!`,
-        ephemeral: true,
-      });
-      return;
-    }
   } catch (error) {
     console.error(`Error handling command ${commandName}:`, error);
 
@@ -3609,68 +3555,6 @@ client.once('clientReady', () => {
 });
 
 // Handle new member joins
-// Goals channel message listener - passive XP system
-client.on('messageCreate', async (message) => {
-  try {
-    // Ignore bot messages
-    if (message.author.bot) {
-      return;
-    }
-
-    // Only process messages in guilds
-    if (!message.guildId) {
-      return;
-    }
-
-    // Get server config
-    const config = await getServerConfig(message.guildId);
-
-    if (!config || !config.goalsChannelId) {
-      // No goals channel configured - skip
-      return;
-    }
-
-    // Check if message is in the goals channel
-    if (message.channelId !== config.goalsChannelId) {
-      return;
-    }
-
-    // Record goals channel post and award XP
-    const result = await statsService.recordGoalsChannelPost(
-      message.author.id,
-      message.author.username
-    );
-
-    if (!result) {
-      // User already posted today - ignore
-      return;
-    }
-
-    // Send reply message with streak info (auto-deletes after 5 seconds)
-    try {
-      const streakEmoji = '🔥'.repeat(Math.min(result.currentStreak, 5));
-      const replyMessage = await message.reply(
-        `${streakEmoji} ${result.currentStreak} day streak! +${result.xpGained} XP. Come back tomorrow to keep it going!`
-      );
-
-      // Delete the reply after 5 seconds to keep channel clean
-      setTimeout(async () => {
-        try {
-          await replyMessage.delete();
-        } catch (deleteError) {
-          // Message might already be deleted or bot lacks permissions
-          console.log('Could not delete goals channel reply:', deleteError);
-        }
-      }, 5000);
-    } catch (replyError) {
-      // Could not send reply - that's okay, just continue
-      console.log(`Could not send reply to ${message.author.username}:`, replyError);
-    }
-  } catch (error) {
-    console.error('Error processing goals channel message:', error);
-  }
-});
-
 client.on('guildMemberAdd', async (member) => {
   try {
     const config = await getServerConfig(member.guild.id);

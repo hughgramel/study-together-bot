@@ -109,7 +109,6 @@ export interface ServerConfig {
   feedChannelId?: string;   // Discord channel ID for feed posts
   focusRoomIds?: string[];  // Voice channel IDs that auto-start sessions
   welcomeChannelId?: string; // Discord channel ID for welcome messages
-  goalsChannelId?: string;  // Discord channel ID for passive goals channel
   setupAt: Timestamp;       // When configuration was last updated
   setupBy: string;          // Discord user ID of admin who set it up
 }
