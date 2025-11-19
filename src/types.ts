@@ -105,6 +105,7 @@ export interface ServerConfig {
   feedChannelId?: string;   // Discord channel ID for feed posts
   welcomeChannelId?: string; // Discord channel ID for welcome messages
   eventsChannelId?: string; // Discord channel ID for study events
+  timezone?: string;        // IANA timezone (e.g., 'America/New_York', 'America/Los_Angeles')
   setupAt: Timestamp;       // When configuration was last updated
   setupBy: string;          // Discord user ID of admin who set it up
 }

@@ -95,7 +95,6 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildMembers,
   ],
@@ -120,6 +119,7 @@ interface EventBuilderState {
   customType?: string;
   maxAttendees?: number;
   description?: string;
+  timezone?: string; // Server timezone for date parsing
 }
 const eventBuilders = new Map<string, EventBuilderState>();
 
@@ -140,16 +140,16 @@ const commands = [
     ),
 
   new SlashCommandBuilder()
-    .setName('end')
-    .setDescription('End your session! Add a title, description of what you did, and post it to the feed'),
+    .setName('stop')
+    .setDescription('Stop your session! Add a title, description of what you did, and post it to the feed'),
 
   new SlashCommandBuilder()
     .setName('pause')
     .setDescription('Pause your active session'),
 
   new SlashCommandBuilder()
-    .setName('resume')
-    .setDescription('Resume your paused session'),
+    .setName('unpause')
+    .setDescription('Unpause your paused session'),
 
   new SlashCommandBuilder()
     .setName('time')
@@ -220,18 +220,6 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
-    .setName('setup-focus-room')
-    .setDescription('Configure voice channels for auto-tracking (Admin only)')
-    .addChannelOption((option) =>
-      option
-        .setName('channel')
-        .setDescription('The voice channel to enable auto-tracking')
-        .setRequired(true)
-        .addChannelTypes(ChannelType.GuildVoice)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
     .setName('set-welcome-channel')
     .setDescription('Configure the welcome channel for new members (Admin only)')
     .addChannelOption((option) =>
@@ -252,6 +240,17 @@ const commands = [
         .setDescription('The channel to post study events')
         .setRequired(true)
         .addChannelTypes(ChannelType.GuildText)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName('setup-timezone')
+    .setDescription('Configure the server timezone for events (Admin only)')
+    .addStringOption((option) =>
+      option
+        .setName('timezone')
+        .setDescription('IANA timezone (e.g., America/New_York, America/Los_Angeles, America/Chicago)')
+        .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
@@ -568,45 +567,6 @@ async function postSessionStartToFeed(
       console.error('Error posting session start to feed:', error);
     }
     // Don't throw - we don't want to fail the session start
-  }
-}
-
-// Helper function to post VC session start to feed channel
-async function postVCSessionStartToFeed(
-  guildId: string,
-  username: string,
-  userId: string,
-  avatarUrl: string,
-  vcChannelId: string
-) {
-  try {
-    const config = await getServerConfig(guildId);
-
-    if (!config || !config.feedChannelId) {
-      return;
-    }
-
-    const channel = await client.channels.fetch(config.feedChannelId);
-    if (!channel || !channel.isTextBased()) {
-      return;
-    }
-
-    const textChannel = channel as TextChannel;
-
-    // Create embed for VC session start with link
-    const embed = new EmbedBuilder()
-      .setColor(0x00FF00) // Green for "live"
-      .setAuthor({
-        name: `${username} 🟢`,
-        iconURL: avatarUrl
-      })
-      .setDescription(`🎧 **${username}** started studying in <#${vcChannelId}>`);
-
-    await textChannel.send({
-      embeds: [embed]
-    });
-  } catch (error) {
-    console.error('Error posting VC session start to feed:', error);
   }
 }
 
@@ -1022,175 +982,6 @@ async function postLevelUpBasic(
   }
 }
 
-// Helper function to post basic session completion to feed (for auto-posted VC sessions)
-async function postBasicSessionToFeed(
-  guildId: string,
-  username: string,
-  avatarUrl: string,
-  duration: number,
-  vcChannelId: string
-) {
-  try {
-    const config = await getServerConfig(guildId);
-
-    if (!config || !config.feedChannelId) {
-      return;
-    }
-
-    const channel = await client.channels.fetch(config.feedChannelId);
-    if (!channel || !channel.isTextBased()) {
-      return;
-    }
-
-    const textChannel = channel as TextChannel;
-    const durationStr = formatDuration(duration);
-
-    // Create basic completion embed
-    const embed = new EmbedBuilder()
-      .setColor(0x0080FF) // Electric blue
-      .setAuthor({
-        name: `${username} completed a session!`,
-        iconURL: avatarUrl
-      })
-      .setDescription(`Focused for **${durationStr}** in <#${vcChannelId}>`);
-
-    const message = await textChannel.send({
-      embeds: [embed]
-    });
-
-    // React with a heart
-    await message.react('❤️').catch(() => {});
-  } catch (error) {
-    console.error('Error posting basic session to feed:', error);
-  }
-}
-
-// Map to track auto-post timers
-const autoPostTimers = new Map<string, NodeJS.Timeout>();
-
-// Helper function to schedule auto-post after 1 hour
-function scheduleAutoPost(userId: string, guildId: string) {
-  // Clear existing timer if any
-  if (autoPostTimers.has(userId)) {
-    clearTimeout(autoPostTimers.get(userId)!);
-  }
-
-  // Schedule new timer for 10 minutes
-  const timer = setTimeout(async () => {
-    try {
-      const session = await sessionService.getActiveSession(userId);
-
-      if (!session || !session.pendingCompletion || !session.isVCSession) {
-        return;
-      }
-
-      // Calculate final duration
-      const duration = calculateDuration(
-        session.startTime,
-        session.pausedDuration,
-        session.isPaused ? session.pausedAt : undefined
-      );
-
-      const endTime = Timestamp.now();
-
-      // DELETE ACTIVE SESSION FIRST to prevent race condition/duplicate posts
-      await sessionService.deleteActiveSession(session.userId);
-
-      // Create completed session
-      const sessionId = await sessionService.createCompletedSession({
-        userId: session.userId,
-        username: session.username,
-        serverId: session.serverId,
-        activity: 'VC Session',
-        title: `Focus session in voice channel`,
-        description: `Completed ${formatDuration(duration)} of focused work`,
-        duration,
-        startTime: session.startTime,
-        endTime,
-      });
-
-      // Update stats and award XP
-      const statsUpdate = await statsService.updateUserStats(
-        session.userId,
-        session.username,
-        duration,
-        'VC Session'
-      );
-
-      // Update completed session with XP gained (for leaderboards)
-      await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
-
-      // Check for new achievements
-      const newAchievements = await achievementService.checkAndAwardAchievements(session.userId);
-
-      // Fetch user for avatar
-      const user = await client.users.fetch(userId);
-      const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-      // Send DM with XP and achievement info
-      try {
-        let xpMessage = '';
-        if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
-        } else {
-          xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned!`;
-        }
-
-        let achievementMessage = '';
-        if (newAchievements.length > 0) {
-          const achievementDetails = newAchievements.map(id => getAchievement(id)).filter(b => b);
-          const achievementList = achievementDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
-          achievementMessage = `\n🏆 **NEW ACHIEVEMENT${newAchievements.length > 1 ? 'S' : ''}!** ${achievementList}`;
-        }
-
-        await user.send(`⏰ Your VC session was automatically posted!\n\n**Duration:** ${formatDuration(duration)}${xpMessage}${achievementMessage}`);
-      } catch (dmError) {
-        console.log('Could not send auto-post DM to user');
-      }
-
-      // Post basic session to feed
-      await postBasicSessionToFeed(
-        guildId,
-        session.username,
-        avatarUrl,
-        duration,
-        session.vcChannelId!
-      );
-
-      // Post level-up celebration if applicable
-      if (statsUpdate.leveledUp && statsUpdate.newLevel) {
-        // Calculate old level from XP
-        const currentXP = statsUpdate.stats.xp || 0;
-        const oldXP = currentXP - statsUpdate.xpGained;
-        const oldLevel = calculateLevel(oldXP);
-
-        await postLevelUpBasic(
-          guildId,
-          session.username,
-          avatarUrl,
-          statsUpdate.newLevel,
-          oldLevel
-        );
-      }
-
-      // Clean up timer
-      autoPostTimers.delete(userId);
-    } catch (error) {
-      console.error('Error in auto-post timer:', error);
-    }
-  }, 10 * 60 * 1000); // 10 minutes
-
-  autoPostTimers.set(userId, timer);
-}
-
-// Helper function to cancel auto-post timer
-function cancelAutoPost(userId: string) {
-  if (autoPostTimers.has(userId)) {
-    clearTimeout(autoPostTimers.get(userId)!);
-    autoPostTimers.delete(userId);
-  }
-}
-
 // Handle interactions
 client.on('interactionCreate', async (interaction) => {
   // Handle modal submissions
@@ -1578,16 +1369,21 @@ client.on('interactionCreate', async (interaction) => {
                 value: state.startTime ? `<t:${Math.floor(state.startTime.getTime() / 1000)}:F>` : '*Not set*',
                 inline: true
               },
-              { name: '⏱️ Duration', value: state.duration ? `${state.duration} minutes` : '*Not set*', inline: true },
+              { name: '⏱️ Duration', value: state.duration ? `${state.duration} minutes` : 'No limit', inline: true },
               {
                 name: '🎯 Study Type',
                 value: state.studyType
-                  ? (state.studyType === 'custom' && state.customType ? `Custom: ${state.customType}` : state.studyType)
+                  ? (state.studyType === 'custom' && state.customType
+                    ? `Custom: ${state.customType}`
+                    : state.studyType === 'silent' ? 'Silent Study'
+                    : state.studyType === 'conversation' ? 'Conversation Allowed'
+                    : state.studyType === 'pomodoro' ? 'Pomodoro Session'
+                    : state.studyType)
                   : '*Not set*',
                 inline: false
               },
               { name: '👥 Max Attendees', value: state.maxAttendees ? state.maxAttendees.toString() : 'Unlimited', inline: true },
-              { name: '📝 Description', value: state.description || '*None*', inline: false }
+              { name: '📝 More Info', value: state.description || '*None*', inline: false }
             )
             .setFooter({ text: 'Configure all required fields (*) then click Create Event' });
 
@@ -1602,212 +1398,164 @@ client.on('interactionCreate', async (interaction) => {
         } else if (modalType === 'time') {
           const dateTimeStr = interaction.fields.getTextInputValue('time');
 
-          // Parse date/time (simple parser for common formats)
-          const parseDateTime = (input: string): Date | null => {
-          const now = new Date();
-          const trimmed = input.trim().toLowerCase();
+          // Parse date/time (timezone-aware parser)
+          const parseDateTime = (input: string, timezone: string): Date | null => {
+            const trimmed = input.trim().toLowerCase();
 
-          // Try ISO format first (YYYY-MM-DD HH:MM)
-          const isoMatch = trimmed.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})/);
-          if (isoMatch) {
-            const [, year, month, day, hour, minute] = isoMatch;
-            const date = new Date(
-              parseInt(year),
-              parseInt(month) - 1,
-              parseInt(day),
-              parseInt(hour),
-              parseInt(minute)
-            );
-            return date;
-          }
+            // Get current time in user's timezone
+            const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+            const year = nowInTz.getFullYear();
+            const month = nowInTz.getMonth();
+            const day = nowInTz.getDate();
 
-          // Try "tomorrow HH:MM" or "tomorrow H pm/am"
-          if (trimmed.includes('tomorrow')) {
-            const timeMatch = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
-            if (timeMatch) {
-              const [, hourStr, minuteStr, meridiem] = timeMatch;
-              let hour = parseInt(hourStr);
-              const minute = minuteStr ? parseInt(minuteStr) : 0;
-
-              if (meridiem === 'pm' && hour !== 12) hour += 12;
-              if (meridiem === 'am' && hour === 12) hour = 0;
-
-              const tomorrow = new Date(now);
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              tomorrow.setHours(hour, minute, 0, 0);
-              return tomorrow;
-            }
-          }
-
-          // Try "today HH:MM" or "today H pm/am"
-          if (trimmed.includes('today')) {
-            const timeMatch = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
-            if (timeMatch) {
-              const [, hourStr, minuteStr, meridiem] = timeMatch;
-              let hour = parseInt(hourStr);
-              const minute = minuteStr ? parseInt(minuteStr) : 0;
-
-              if (meridiem === 'pm' && hour !== 12) hour += 12;
-              if (meridiem === 'am' && hour === 12) hour = 0;
-
-              const today = new Date(now);
-              today.setHours(hour, minute, 0, 0);
-              return today;
-            }
-          }
-
-          return null;
-        };
-
-        const startTime = parseDateTime(dateTimeStr);
-        if (!startTime) {
-          await interaction.editReply({
-            content: '❌ Invalid date/time format. Please use formats like:\n- `2025-01-20 18:00`\n- `tomorrow 6pm`\n- `today 14:30`',
-          });
-          return;
-        }
-
-        // Check if event is in the past
-        if (startTime.getTime() < Date.now()) {
-          await interaction.editReply({
-            content: '❌ Event start time must be in the future.',
-          });
-          return;
-        }
-
-        // Parse details (optional: max attendees, study type, description)
-        let maxAttendees: number | undefined;
-        let studyType: 'silent' | 'conversation' | 'pomodoro' | 'custom' = 'conversation';
-        let customType: string | undefined;
-        let description: string | undefined;
-
-        if (details) {
-          // Look for "max: 10" or "max 10" or "limit: 10"
-          const maxMatch = details.match(/(?:max|limit):\s*(\d+)/i);
-          if (maxMatch) {
-            maxAttendees = parseInt(maxMatch[1], 10);
-          }
-
-          // Look for study type
-          if (/silent/i.test(details)) {
-            studyType = 'silent';
-          } else if (/conversation|talking|chat/i.test(details)) {
-            studyType = 'conversation';
-          } else if (/pomodoro|pomo/i.test(details)) {
-            studyType = 'pomodoro';
-          } else if (/custom/i.test(details)) {
-            studyType = 'custom';
-            // Extract custom type after "custom:"
-            const customMatch = details.match(/custom:\s*(.+)/i);
-            if (customMatch) {
-              customType = customMatch[1].trim();
-            }
-          }
-
-          // Rest is description (if not parsed as other fields)
-          description = details;
-        }
-
-        // Create the event
-        const event = await eventService.createEvent(
-          guildId!,
-          user.id,
-          user.username,
-          title,
-          location,
-          startTime,
-          duration,
-          studyType,
-          {
-            description,
-            maxAttendees,
-            customType,
-          }
-        );
-
-        // Post event to events channel
-        const config = await getServerConfig(guildId!);
-        if (config && config.eventsChannelId) {
-          try {
-            const eventsChannel = (await client.channels.fetch(config.eventsChannelId)) as TextChannel;
-
-            const studyTypeEmoji = {
-              silent: '🤫',
-              conversation: '💬',
-              pomodoro: '🍅',
-              custom: '✨'
+            // Helper to convert local time to UTC Date object
+            const createDateInTimezone = (yr: number, mo: number, dy: number, hr: number, min: number): Date => {
+              // Create a date string in the target timezone
+              const dateStr = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(dy).padStart(2, '0')}T${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`;
+              // Parse as if it's in the target timezone
+              const localDate = new Date(dateStr);
+              const utcDate = new Date(localDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+              const tzDate = new Date(localDate.toLocaleString('en-US', { timeZone: timezone }));
+              const offset = utcDate.getTime() - tzDate.getTime();
+              return new Date(localDate.getTime() + offset);
             };
 
-            const eventEmbed = new EmbedBuilder()
-              .setColor(0x0080FF)
-              .setAuthor({
-                name: user.username,
-                iconURL: user.displayAvatarURL({ size: 128 }),
-              })
-              .setTitle(`${studyTypeEmoji[studyType]} ${title}`)
-              .setDescription(description || 'Join this study session!')
-              .addFields(
-                { name: '📍 Location', value: location, inline: false },
-                { name: '⏰ Start Time', value: `<t:${Math.floor(startTime.getTime() / 1000)}:F>\n<t:${Math.floor(startTime.getTime() / 1000)}:R>`, inline: true },
-                { name: '⏱️ Duration', value: `${duration} minutes`, inline: true },
-                { name: '🎯 Type', value: studyType === 'custom' ? customType || studyType : studyType, inline: true },
-                {
-                  name: '👥 Attendees',
-                  value: maxAttendees
-                    ? `1/${maxAttendees} (${maxAttendees - 1} spots left)`
-                    : '1 person attending',
-                  inline: false
-                },
-                { name: '📞 Contact', value: `DM <@${user.id}> for more info`, inline: false }
-              )
-              .setFooter({ text: `Event ID: ${event.eventId}` })
-              .setTimestamp();
+            // Try ISO format first (YYYY-MM-DD HH:MM)
+            const isoMatch = trimmed.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})/);
+            if (isoMatch) {
+              const [, yr, mo, dy, hr, min] = isoMatch;
+              return createDateInTimezone(
+                parseInt(yr),
+                parseInt(mo) - 1,
+                parseInt(dy),
+                parseInt(hr),
+                parseInt(min)
+              );
+            }
 
-            // Add Join/Leave buttons
-            const joinButton = new ButtonBuilder()
-              .setCustomId(`event_join:${event.eventId}`)
-              .setLabel('Join Event')
-              .setStyle(ButtonStyle.Success)
-              .setEmoji('✅');
+            // Try "tomorrow HH:MM" or "tomorrow H pm/am"
+            if (trimmed.includes('tomorrow')) {
+              const timeMatch = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+              if (timeMatch) {
+                const [, hourStr, minuteStr, meridiem] = timeMatch;
+                let hour = parseInt(hourStr);
+                const minute = minuteStr ? parseInt(minuteStr) : 0;
 
-            const leaveButton = new ButtonBuilder()
-              .setCustomId(`event_leave:${event.eventId}`)
-              .setLabel('Leave Event')
-              .setStyle(ButtonStyle.Danger)
-              .setEmoji('❌');
+                if (meridiem === 'pm' && hour !== 12) hour += 12;
+                if (meridiem === 'am' && hour === 12) hour = 0;
 
-            const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(joinButton, leaveButton);
+                const tomorrow = new Date(nowInTz);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                return createDateInTimezone(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), hour, minute);
+              }
+            }
 
-            const message = await eventsChannel.send({
-              content: '📅 **New Study Event Created!**',
-              embeds: [eventEmbed],
-              components: [buttonRow],
+            // Try "today HH:MM" or "today H pm/am"
+            if (trimmed.includes('today')) {
+              const timeMatch = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+              if (timeMatch) {
+                const [, hourStr, minuteStr, meridiem] = timeMatch;
+                let hour = parseInt(hourStr);
+                const minute = minuteStr ? parseInt(minuteStr) : 0;
+
+                if (meridiem === 'pm' && hour !== 12) hour += 12;
+                if (meridiem === 'am' && hour === 12) hour = 0;
+
+                return createDateInTimezone(year, month, day, hour, minute);
+              }
+            }
+
+            return null;
+        };
+
+          const timezone = builderState.timezone || 'America/Los_Angeles';
+          const startTime = parseDateTime(dateTimeStr, timezone);
+          if (!startTime) {
+            await interaction.followUp({
+              content: '❌ Invalid date/time format. Please use formats like:\n- `2025-01-20 18:00`\n- `tomorrow 6pm`\n- `today 14:30`',
+              ephemeral: true
             });
-
-            // Update event with message ID
-            await eventService.updateEventMessage(event.eventId, message.id, eventsChannel.id);
-          } catch (error) {
-            console.error('Error posting event to events channel:', error);
+            return;
           }
+
+          // Allow past events - no validation check
+          builderState.startTime = startTime;
+        } else if (modalType === 'duration') {
+          const durationStr = interaction.fields.getTextInputValue('duration');
+          const duration = parseInt(durationStr, 10);
+
+          if (isNaN(duration) || duration <= 0) {
+            await interaction.followUp({
+              content: '❌ Invalid duration. Please enter a positive number (in minutes).',
+              ephemeral: true
+            });
+            return;
+          }
+
+          builderState.duration = duration;
+        } else if (modalType === 'max') {
+          const maxStr = interaction.fields.getTextInputValue('max').trim();
+
+          if (maxStr) {
+            const max = parseInt(maxStr, 10);
+            if (isNaN(max) || max <= 0) {
+              await interaction.followUp({
+                content: '❌ Invalid max attendees. Please enter a positive number or leave blank for unlimited.',
+                ephemeral: true
+              });
+              return;
+            }
+            builderState.maxAttendees = max;
+          } else {
+            builderState.maxAttendees = undefined;
+          }
+        } else if (modalType === 'description') {
+          const desc = interaction.fields.getTextInputValue('description').trim();
+          builderState.description = desc || undefined;
+        } else if (modalType === 'custom_type') {
+          const customType = interaction.fields.getTextInputValue('custom_type').trim();
+          builderState.customType = customType;
+          builderState.studyType = 'custom';
         }
+
+        // Update the builder embed
+        const updatedEmbed = updateBuilderEmbed(builderState);
+
+        // Recreate components
+        const studyTypeSelect = new StringSelectMenuBuilder()
+          .setCustomId(`${builderId}:study_type`)
+          .setPlaceholder('Select study type')
+          .addOptions([
+            { label: 'Silent Study', description: 'Quiet, focused work session', value: 'silent', emoji: '🤫' },
+            { label: 'Conversation Allowed', description: 'Talking and discussion permitted', value: 'conversation', emoji: '💬' },
+            { label: 'Pomodoro Session', description: 'Structured breaks (25min work, 5min break)', value: 'pomodoro', emoji: '🍅' },
+            { label: 'Custom', description: 'Define your own study style', value: 'custom', emoji: '✨' }
+          ]);
+
+        const setTitleBtn = new ButtonBuilder().setCustomId(`${builderId}:set_title`).setLabel('Set Title').setStyle(ButtonStyle.Secondary).setEmoji('📝');
+        const setLocationBtn = new ButtonBuilder().setCustomId(`${builderId}:set_location`).setLabel('Set Location').setStyle(ButtonStyle.Secondary).setEmoji('📍');
+        const setTimeBtn = new ButtonBuilder().setCustomId(`${builderId}:set_time`).setLabel('Set Time').setStyle(ButtonStyle.Secondary).setEmoji('⏰');
+        const setDurationBtn = new ButtonBuilder().setCustomId(`${builderId}:set_duration`).setLabel('Set Duration').setStyle(ButtonStyle.Secondary).setEmoji('⏱️');
+        const setMaxBtn = new ButtonBuilder().setCustomId(`${builderId}:set_max`).setLabel('Set Max').setStyle(ButtonStyle.Secondary).setEmoji('👥');
+        const setDescBtn = new ButtonBuilder().setCustomId(`${builderId}:set_description`).setLabel('Set Description').setStyle(ButtonStyle.Secondary).setEmoji('📄');
+        const createBtn = new ButtonBuilder().setCustomId(`${builderId}:create`).setLabel('Create Event').setStyle(ButtonStyle.Success).setEmoji('✅');
+        const cancelBtn = new ButtonBuilder().setCustomId(`${builderId}:cancel`).setLabel('Cancel').setStyle(ButtonStyle.Danger).setEmoji('❌');
+
+        const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(studyTypeSelect);
+        const buttonRow1 = new ActionRowBuilder<ButtonBuilder>().addComponents(setTitleBtn, setLocationBtn, setTimeBtn, setDurationBtn);
+        const buttonRow2 = new ActionRowBuilder<ButtonBuilder>().addComponents(setMaxBtn, setDescBtn);
+        const buttonRow3 = new ActionRowBuilder<ButtonBuilder>().addComponents(createBtn, cancelBtn);
 
         await interaction.editReply({
-          content: `✅ Event created successfully!\n\n**${title}**\n📍 ${location}\n⏰ <t:${Math.floor(startTime.getTime() / 1000)}:F>`,
+          embeds: [updatedEmbed],
+          components: [selectRow, buttonRow1, buttonRow2, buttonRow3]
         });
       } catch (error) {
-        console.error('Error creating event:', error);
-
-        const errorMessage = 'An error occurred while creating the event. Please try again.';
-
-        try {
-          if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ content: errorMessage, ephemeral: true });
-          } else {
-            await interaction.reply({ content: errorMessage, ephemeral: true });
-          }
-        } catch (replyError) {
-          console.error('Could not send error message to user:', replyError);
-        }
+        console.error('Error updating event builder:', error);
+        await interaction.followUp({
+          content: '❌ An error occurred. Please try again.',
+          ephemeral: true
+        });
       }
     }
     return;
@@ -1847,9 +1595,9 @@ client.on('interactionCreate', async (interaction) => {
       // Create button
       if (action === 'create') {
         // Validate required fields
-        if (!builderState.title || !builderState.location || !builderState.startTime || !builderState.duration || !builderState.studyType) {
+        if (!builderState.title || !builderState.location || !builderState.startTime) {
           await interaction.reply({
-            content: '❌ Please fill in all required fields (Title, Location, Time, Duration, Study Type).',
+            content: '❌ Please fill in all required fields (Title, Location, Time).',
             ephemeral: true
           });
           return;
@@ -1869,7 +1617,7 @@ client.on('interactionCreate', async (interaction) => {
             builderState.location,
             builderState.startTime,
             builderState.duration,
-            builderState.studyType,
+            builderState.studyType || 'conversation',
             {
               description: builderState.description,
               maxAttendees: builderState.maxAttendees,
@@ -1890,28 +1638,47 @@ client.on('interactionCreate', async (interaction) => {
                 custom: '✨'
               };
 
+              const studyTypeNames = {
+                silent: 'Silent Study',
+                conversation: 'Conversation Allowed',
+                pomodoro: 'Pomodoro Session',
+                custom: builderState.customType || 'Custom'
+              };
+
+              const studyType = builderState.studyType || 'conversation';
+
               const eventEmbed = new EmbedBuilder()
                 .setColor(0x0080FF)
                 .setAuthor({
                   name: user.username,
                   iconURL: user.displayAvatarURL({ size: 128 }),
                 })
-                .setTitle(`${studyTypeEmoji[builderState.studyType]} ${builderState.title}`)
-                .setDescription(builderState.description || 'Join this study session!')
-                .addFields(
-                  { name: '📍 Location', value: builderState.location, inline: false },
-                  { name: '⏰ Start Time', value: `<t:${Math.floor(builderState.startTime.getTime() / 1000)}:F>\n<t:${Math.floor(builderState.startTime.getTime() / 1000)}:R>`, inline: true },
-                  { name: '⏱️ Duration', value: `${builderState.duration} minutes`, inline: true },
-                  { name: '🎯 Type', value: builderState.studyType === 'custom' ? builderState.customType || builderState.studyType : builderState.studyType, inline: true },
-                  {
-                    name: '👥 Attendees',
-                    value: builderState.maxAttendees
-                      ? `1/${builderState.maxAttendees} (${builderState.maxAttendees - 1} spots left)`
-                      : '1 person attending',
-                    inline: false
-                  },
-                  { name: '📞 Contact', value: `DM <@${user.id}> for more info`, inline: false }
-                )
+                .setTitle(`${studyTypeEmoji[studyType]} ${builderState.title}`);
+
+              // Add fields
+              const fields = [
+                { name: '📍 Location', value: builderState.location, inline: false },
+                { name: '⏰ Start Time', value: `<t:${Math.floor(builderState.startTime.getTime() / 1000)}:F>\n<t:${Math.floor(builderState.startTime.getTime() / 1000)}:R>`, inline: true },
+                { name: '⏱️ Duration', value: builderState.duration ? `${builderState.duration} minutes` : 'No limit', inline: true },
+                { name: '🎯 Type', value: studyTypeNames[studyType], inline: true },
+                {
+                  name: '👥 Attendees',
+                  value: builderState.maxAttendees
+                    ? `<@${user.id}> (Host) (1/${builderState.maxAttendees} - ${builderState.maxAttendees - 1} spots left)`
+                    : `<@${user.id}> (Host)`,
+                  inline: false
+                }
+              ];
+
+              // Only add More Info if there's a description
+              if (builderState.description) {
+                fields.push({ name: '📝 More Info', value: builderState.description, inline: false });
+              }
+
+              fields.push({ name: '📞 Contact', value: `DM <@${user.id}> for more info!`, inline: false });
+
+              eventEmbed
+                .addFields(fields)
                 .setFooter({ text: `Event ID: ${event.eventId}` })
                 .setTimestamp();
 
@@ -1930,7 +1697,6 @@ client.on('interactionCreate', async (interaction) => {
               const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(joinButton, leaveButton);
 
               const message = await eventsChannel.send({
-                content: '📅 **New Study Event Created!**',
                 embeds: [eventEmbed],
                 components: [buttonRow],
               });
@@ -2118,10 +1884,13 @@ client.on('interactionCreate', async (interaction) => {
             const embed = interaction.message.embeds[0];
             const newEmbed = EmbedBuilder.from(embed);
 
-            // Update attendees field
+            // Build attendees list with @ mentions, marking host
+            const attendeesList = event.attendees.map(a =>
+              a.userId === event.creatorId ? `<@${a.userId}> (Host)` : `<@${a.userId}>`
+            ).join(', ');
             const spotsText = event.maxAttendees
-              ? `${event.attendees.length}/${event.maxAttendees} (${event.maxAttendees - event.attendees.length} spots left)`
-              : `${event.attendees.length} ${event.attendees.length === 1 ? 'person' : 'people'} attending`;
+              ? `${attendeesList} (${event.attendees.length}/${event.maxAttendees} - ${event.maxAttendees - event.attendees.length} spots left)`
+              : attendeesList;
 
             // Find and update the attendees field
             const fields = newEmbed.data.fields || [];
@@ -2163,10 +1932,13 @@ client.on('interactionCreate', async (interaction) => {
             const embed = interaction.message.embeds[0];
             const newEmbed = EmbedBuilder.from(embed);
 
-            // Update attendees field
+            // Build attendees list with @ mentions, marking host
+            const attendeesList = event.attendees.map(a =>
+              a.userId === event.creatorId ? `<@${a.userId}> (Host)` : `<@${a.userId}>`
+            ).join(', ');
             const spotsText = event.maxAttendees
-              ? `${event.attendees.length}/${event.maxAttendees} (${event.maxAttendees - event.attendees.length} spots left)`
-              : `${event.attendees.length} ${event.attendees.length === 1 ? 'person' : 'people'} attending`;
+              ? `${attendeesList} (${event.attendees.length}/${event.maxAttendees} - ${event.maxAttendees - event.attendees.length} spots left)`
+              : attendeesList;
 
             // Find and update the attendees field
             const fields = newEmbed.data.fields || [];
@@ -2209,6 +1981,121 @@ client.on('interactionCreate', async (interaction) => {
 
   // Handle select menu interactions
   if (interaction.isStringSelectMenu()) {
+    // Event builder study type selection
+    if (interaction.customId.includes('event_builder:') && interaction.customId.includes(':study_type')) {
+      const parts = interaction.customId.split(':');
+      const builderId = `${parts[0]}:${parts[1]}:${parts[2]}`;
+      const selectedType = interaction.values[0] as 'silent' | 'conversation' | 'pomodoro' | 'custom';
+
+      const builderState = eventBuilders.get(builderId);
+
+      if (!builderState || builderState.userId !== interaction.user.id) {
+        await interaction.reply({
+          content: '❌ This event builder has expired or does not belong to you.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // If custom type, show a modal to get custom description
+      if (selectedType === 'custom') {
+        const modal = new ModalBuilder()
+          .setCustomId(`${builderId}:modal_custom_type`)
+          .setTitle('Custom Study Type');
+
+        const customTypeInput = new TextInputBuilder()
+          .setCustomId('custom_type')
+          .setLabel('Describe your study type')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g., Group Project Work, Code Review Session')
+          .setRequired(true)
+          .setMaxLength(100);
+
+        const row = new ActionRowBuilder<TextInputBuilder>().addComponents(customTypeInput);
+        modal.addComponents(row);
+
+        await interaction.showModal(modal);
+
+        // Store that we selected custom (will be updated when modal submitted)
+        builderState.studyType = 'custom';
+        return;
+      }
+
+      // Update state
+      builderState.studyType = selectedType;
+      builderState.customType = undefined; // Clear custom type if switching away from custom
+
+      await interaction.deferUpdate();
+
+      // Update embed helper
+      const updateBuilderEmbed = (state: EventBuilderState): EmbedBuilder => {
+        const embed = new EmbedBuilder()
+          .setColor(0x0080FF)
+          .setTitle('📅 Create Study Event')
+          .setDescription('Use the buttons and dropdown below to configure your event.')
+          .addFields(
+            { name: '📝 Title', value: state.title || '*Not set*', inline: false },
+            { name: '📍 Location', value: state.location || '*Not set*', inline: false },
+            {
+              name: '⏰ Start Time',
+              value: state.startTime ? `<t:${Math.floor(state.startTime.getTime() / 1000)}:F>` : '*Not set*',
+              inline: true
+            },
+            { name: '⏱️ Duration', value: state.duration ? `${state.duration} minutes` : 'No limit', inline: true },
+            {
+              name: '🎯 Study Type',
+              value: state.studyType
+                ? (state.studyType === 'custom' && state.customType
+                  ? `Custom: ${state.customType}`
+                  : state.studyType === 'silent' ? 'Silent Study'
+                  : state.studyType === 'conversation' ? 'Conversation Allowed'
+                  : state.studyType === 'pomodoro' ? 'Pomodoro Session'
+                  : state.studyType)
+                : '*Not set*',
+              inline: false
+            },
+            { name: '👥 Max Attendees', value: state.maxAttendees ? state.maxAttendees.toString() : 'Unlimited', inline: true },
+            { name: '📝 More Info', value: state.description || '*None*', inline: false }
+          )
+          .setFooter({ text: 'Configure all required fields (*) then click Create Event' });
+
+        return embed;
+      };
+
+      const updatedEmbed = updateBuilderEmbed(builderState);
+
+      // Recreate components
+      const studyTypeSelect = new StringSelectMenuBuilder()
+        .setCustomId(`${builderId}:study_type`)
+        .setPlaceholder('Select study type')
+        .addOptions([
+          { label: 'Silent Study', description: 'Quiet, focused work session', value: 'silent', emoji: '🤫' },
+          { label: 'Conversation Allowed', description: 'Talking and discussion permitted', value: 'conversation', emoji: '💬' },
+          { label: 'Pomodoro Session', description: 'Structured breaks (25min work, 5min break)', value: 'pomodoro', emoji: '🍅' },
+          { label: 'Custom', description: 'Define your own study style', value: 'custom', emoji: '✨' }
+        ]);
+
+      const setTitleBtn = new ButtonBuilder().setCustomId(`${builderId}:set_title`).setLabel('Set Title').setStyle(ButtonStyle.Secondary).setEmoji('📝');
+      const setLocationBtn = new ButtonBuilder().setCustomId(`${builderId}:set_location`).setLabel('Set Location').setStyle(ButtonStyle.Secondary).setEmoji('📍');
+      const setTimeBtn = new ButtonBuilder().setCustomId(`${builderId}:set_time`).setLabel('Set Time').setStyle(ButtonStyle.Secondary).setEmoji('⏰');
+      const setDurationBtn = new ButtonBuilder().setCustomId(`${builderId}:set_duration`).setLabel('Set Duration').setStyle(ButtonStyle.Secondary).setEmoji('⏱️');
+      const setMaxBtn = new ButtonBuilder().setCustomId(`${builderId}:set_max`).setLabel('Set Max').setStyle(ButtonStyle.Secondary).setEmoji('👥');
+      const setDescBtn = new ButtonBuilder().setCustomId(`${builderId}:set_description`).setLabel('Set Description').setStyle(ButtonStyle.Secondary).setEmoji('📄');
+      const createBtn = new ButtonBuilder().setCustomId(`${builderId}:create`).setLabel('Create Event').setStyle(ButtonStyle.Success).setEmoji('✅');
+      const cancelBtn = new ButtonBuilder().setCustomId(`${builderId}:cancel`).setLabel('Cancel').setStyle(ButtonStyle.Danger).setEmoji('❌');
+
+      const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(studyTypeSelect);
+      const buttonRow1 = new ActionRowBuilder<ButtonBuilder>().addComponents(setTitleBtn, setLocationBtn, setTimeBtn, setDurationBtn);
+      const buttonRow2 = new ActionRowBuilder<ButtonBuilder>().addComponents(setMaxBtn, setDescBtn);
+      const buttonRow3 = new ActionRowBuilder<ButtonBuilder>().addComponents(createBtn, cancelBtn);
+
+      await interaction.editReply({
+        embeds: [updatedEmbed],
+        components: [selectRow, buttonRow1, buttonRow2, buttonRow3]
+      });
+      return;
+    }
+
     if (interaction.customId === 'leaderboard_timeframe') {
       const selectedValue = interaction.values[0];
       const user = interaction.user;
@@ -2571,8 +2458,8 @@ client.on('interactionCreate', async (interaction) => {
               '`/start {activity}` - Start a new session\n' +
               '`/time` - Check your current session status\n' +
               '`/pause` - Pause your active session\n' +
-              '`/resume` - Resume your paused session\n' +
-              '`/end` - Complete and share your session\n' +
+              '`/unpause` - Unpause your paused session\n' +
+              '`/stop` - Complete and share your session\n' +
               '`/cancel` - Cancel session without saving\n' +
               '`/manual` - Log a past session manually',
             inline: false
@@ -2596,8 +2483,8 @@ client.on('interactionCreate', async (interaction) => {
             name: '⚙️ Server Setup (Admin Only)',
             value:
               '`/setup-feed {channel}` - Set feed channel for session posts\n' +
-              '`/setup-focus-room {voice-channel}` - Enable auto-tracking in voice channel\n' +
-              '`/set-welcome-channel {channel}` - Set welcome channel for new members',
+              '`/set-welcome-channel {channel}` - Set welcome channel for new members\n' +
+              '`/setup-events-channel {channel}` - Set events channel for study events',
             inline: false
           },
           {
@@ -2606,7 +2493,6 @@ client.on('interactionCreate', async (interaction) => {
               '• Earn XP and level up by completing sessions (10 XP/hour + bonuses)\n' +
               '• Unlock 20 achievements by hitting milestones\n' +
               '• React to others\' session posts to unlock social achievements\n' +
-              '• Voice channel sessions auto-track when you join a focus room\n' +
               '• Build streaks by completing sessions daily',
             inline: false
           }
@@ -2763,12 +2649,18 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'createevent') {
       await interaction.deferReply({ ephemeral: true });
 
+      // Get server config for timezone
+      const config = await getServerConfig(interaction.guildId!);
+      const timezone = config?.timezone || 'America/Los_Angeles'; // Default to PT if not set
+
       // Create initial event builder embed
       const builderId = `event_builder:${user.id}:${Date.now()}`;
 
       // Initialize builder state
       eventBuilders.set(builderId, {
-        userId: user.id
+        userId: user.id,
+        studyType: 'conversation',
+        timezone
       });
 
       const builderEmbed = new EmbedBuilder()
@@ -2779,10 +2671,10 @@ client.on('interactionCreate', async (interaction) => {
           { name: '📝 Title', value: '*Not set*', inline: false },
           { name: '📍 Location', value: '*Not set*', inline: false },
           { name: '⏰ Start Time', value: '*Not set*', inline: true },
-          { name: '⏱️ Duration', value: '*Not set*', inline: true },
-          { name: '🎯 Study Type', value: '*Not set*', inline: false },
+          { name: '⏱️ Duration', value: 'No limit', inline: true },
+          { name: '🎯 Study Type', value: 'Conversation Allowed', inline: false },
           { name: '👥 Max Attendees', value: 'Unlimited', inline: true },
-          { name: '📝 Description', value: '*None*', inline: false }
+          { name: '📝 More Info', value: '*None*', inline: false }
         )
         .setFooter({ text: 'Configure all required fields (*) then click Create Event' });
 
@@ -3078,7 +2970,7 @@ client.on('interactionCreate', async (interaction) => {
       if (existingSession) {
         await interaction.reply({
           content:
-            'You already have an active session! Use /end to complete it first.',
+            'You already have an active session! Use /stop to complete it first.',
           ephemeral: true,
         });
         return;
@@ -3169,19 +3061,19 @@ client.on('interactionCreate', async (interaction) => {
       });
 
       await interaction.reply({
-        content: '⏸️ Session paused. Use /resume when ready to continue.',
+        content: '⏸️ Session paused. Use /unpause when ready to continue.',
         ephemeral: false,
       });
       return;
     }
 
-    // /resume command
-    if (commandName === 'resume') {
+    // /unpause command
+    if (commandName === 'unpause') {
       const session = await sessionService.getActiveSession(user.id);
 
       if (!session) {
         await interaction.reply({
-          content: 'No active session to resume.',
+          content: 'No active session to unpause.',
           ephemeral: false,
         });
         return;
@@ -3214,7 +3106,7 @@ client.on('interactionCreate', async (interaction) => {
       const elapsedStr = formatDuration(elapsed);
 
       await interaction.reply({
-        content: `▶️ Session resumed!\n\n**Elapsed Time:** ${elapsedStr}`,
+        content: `▶️ Session unpaused!\n\n**Elapsed Time:** ${elapsedStr}`,
         ephemeral: false,
       });
       return;
@@ -3232,11 +3124,6 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      // Cancel auto-post timer if it's a VC session
-      if (session.isVCSession && session.pendingCompletion) {
-        cancelAutoPost(user.id);
-      }
-
       await sessionService.deleteActiveSession(user.id);
 
       await interaction.reply({
@@ -3247,12 +3134,12 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // /end command
-    if (commandName === 'end') {
+    // /stop command
+    if (commandName === 'stop') {
       // Check if command is used in a server (not DMs)
       if (!guildId) {
         await interaction.reply({
-          content: '❌ Please use `/end` in your server to post your session to the feed!',
+          content: '❌ Please use `/stop` in your server to post your session to the feed!',
           ephemeral: true,
         });
         return;
@@ -3266,11 +3153,6 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: false,
         });
         return;
-      }
-
-      // If this is a VC session with pending completion, cancel auto-post timer
-      if (session.isVCSession && session.pendingCompletion) {
-        cancelAutoPost(user.id);
       }
 
       // Calculate duration to show in modal
@@ -3332,7 +3214,7 @@ client.on('interactionCreate', async (interaction) => {
       if (!stats) {
         await interaction.reply({
           content:
-            'No stats yet! Complete your first session with /start and /end.',
+            'No stats yet! Complete your first session with /start and /stop.',
           ephemeral: true,
         });
         return;
@@ -3788,7 +3670,7 @@ client.on('interactionCreate', async (interaction) => {
 
       if (!yourStats) {
         await interaction.reply({
-          content: 'You haven\'t completed any sessions yet! Complete your first session with `/start` and `/end`.',
+          content: 'You haven\'t completed any sessions yet! Complete your first session with `/start` and `/stop`.',
           ephemeral: true,
         });
         return;
@@ -4166,58 +4048,6 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // /setup-focus-room command
-    if (commandName === 'setup-focus-room') {
-      const channel = interaction.options.getChannel('channel', true);
-
-      // Check if user has admin permission
-      if (
-        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
-      ) {
-        await interaction.reply({
-          content: 'Only server administrators can configure focus rooms.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Get existing config
-      const existingConfig = await getServerConfig(guildId!);
-      const currentFocusRooms = existingConfig?.focusRoomIds || [];
-
-      // Check if already configured
-      if (currentFocusRooms.includes(channel.id)) {
-        await interaction.reply({
-          content: `<#${channel.id}> is already configured as a focus room.`,
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Add to focus rooms
-      const updatedFocusRooms = [...currentFocusRooms, channel.id];
-
-      const config: ServerConfig = {
-        ...existingConfig,
-        focusRoomIds: updatedFocusRooms,
-        setupAt: Timestamp.now(),
-        setupBy: user.id,
-      };
-
-      await db
-        .collection('discord-data')
-        .doc('serverConfig')
-        .collection('configs')
-        .doc(guildId!)
-        .set(config);
-
-      await interaction.reply({
-        content: `✅ Focus room enabled: <#${channel.id}>\n\nJoining this voice channel will now automatically start tracking your session!`,
-        ephemeral: true,
-      });
-      return;
-    }
-
     // /set-welcome-channel command
     if (commandName === 'set-welcome-channel') {
       const channel = interaction.options.getChannel('channel', true);
@@ -4297,6 +4127,57 @@ client.on('interactionCreate', async (interaction) => {
       });
       return;
     }
+
+    // /setup-timezone command
+    if (commandName === 'setup-timezone') {
+      const timezone = interaction.options.getString('timezone', true);
+
+      // Check if user has admin permission
+      if (
+        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      ) {
+        await interaction.reply({
+          content: 'Only server administrators can set the timezone.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Validate timezone by trying to use it
+      try {
+        new Date().toLocaleString('en-US', { timeZone: timezone });
+      } catch (error) {
+        await interaction.reply({
+          content: `❌ Invalid timezone: \`${timezone}\`\n\nPlease use a valid IANA timezone like:\n- \`America/New_York\` (Eastern)\n- \`America/Chicago\` (Central)\n- \`America/Denver\` (Mountain)\n- \`America/Los_Angeles\` (Pacific)\n\nSee full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones`,
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Get existing config
+      const existingConfig = await getServerConfig(guildId!);
+
+      // Update config
+      const config: ServerConfig = {
+        ...existingConfig,
+        timezone: timezone,
+        setupAt: Timestamp.now(),
+        setupBy: user.id,
+      };
+
+      await db
+        .collection('discord-data')
+        .doc('serverConfig')
+        .collection('configs')
+        .doc(guildId!)
+        .set(config);
+
+      await interaction.reply({
+        content: `✅ Server timezone set to \`${timezone}\`\n\nAll event times will now be interpreted in this timezone!`,
+        ephemeral: true,
+      });
+      return;
+    }
   } catch (error) {
     console.error(`Error handling command ${commandName}:`, error);
 
@@ -4313,300 +4194,6 @@ client.on('interactionCreate', async (interaction) => {
       // Interaction may have expired - just log the error and continue
       console.error('Could not send error message to user:', replyError);
     }
-  }
-});
-
-// Handle voice state updates (VC joins/leaves)
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  try {
-    const userId = newState.member?.user.id;
-    const guildId = newState.guild.id;
-
-    console.log(`[VOICE STATE] User: ${newState.member?.user.username}, Old: ${oldState.channelId}, New: ${newState.channelId}`);
-
-    if (!userId || !guildId) {
-      console.log('[VOICE STATE] Missing userId or guildId');
-      return;
-    }
-
-    // Get server config to check if this is a focus room
-    const config = await getServerConfig(guildId);
-    console.log(`[VOICE STATE] Config:`, config);
-
-    if (!config || !config.focusRoomIds || config.focusRoomIds.length === 0) {
-      console.log('[VOICE STATE] No focus rooms configured');
-      return;
-    }
-
-    const oldChannelId = oldState.channelId;
-    const newChannelId = newState.channelId;
-
-    // User joined a VC
-    console.log(`[VOICE STATE] Checking join: oldChannelId=${oldChannelId}, newChannelId=${newChannelId}, isFocusRoom=${config.focusRoomIds.includes(newChannelId || '')}`);
-
-    if (!oldChannelId && newChannelId && config.focusRoomIds.includes(newChannelId)) {
-      console.log('[VOICE STATE] User joined a focus room!');
-
-      // Check if user has a pending session (left VC but hasn't ended)
-      const existingSession = await sessionService.getActiveSession(userId);
-      console.log('[VOICE STATE] Existing session:', existingSession);
-
-      if (existingSession && existingSession.isVCSession && existingSession.pendingCompletion) {
-        console.log('[VOICE STATE] Resuming existing session');
-        // Resume existing session
-        await sessionService.updateActiveSession(userId, {
-          pendingCompletion: false,
-          leftVCAt: null as any,
-        });
-
-        // Cancel auto-post timer
-        cancelAutoPost(userId);
-
-        console.log(`${newState.member?.user.username} resumed VC session`);
-      } else if (!existingSession) {
-        console.log('[VOICE STATE] Creating new VC session');
-        // Create new VC session
-        const username = newState.member?.user.username || 'Unknown';
-        const avatarUrl = newState.member?.user.displayAvatarURL({ size: 128 }) || '';
-
-        await sessionService.createActiveSession(
-          userId,
-          username,
-          guildId,
-          'VC Session'
-        );
-
-        // Mark as VC session
-        await sessionService.updateActiveSession(userId, {
-          isVCSession: true,
-          vcChannelId: newChannelId,
-        });
-
-        // Post to feed
-        console.log('[VOICE STATE] Posting to feed');
-        await postVCSessionStartToFeed(
-          guildId,
-          username,
-          userId,
-          avatarUrl,
-          newChannelId
-        );
-
-        console.log(`${username} started VC session in ${newChannelId}`);
-      } else {
-        console.log('[VOICE STATE] User already has a session (not VC or not pending)');
-      }
-    }
-
-    // User left a VC (or switched channels)
-    if (oldChannelId && config.focusRoomIds.includes(oldChannelId)) {
-      const session = await sessionService.getActiveSession(userId);
-
-      if (session && session.isVCSession && !session.pendingCompletion) {
-        // If user switched to another focus room, don't mark as pending
-        if (newChannelId && config.focusRoomIds.includes(newChannelId)) {
-          // Update the VC channel ID
-          await sessionService.updateActiveSession(userId, {
-            vcChannelId: newChannelId,
-          });
-          return;
-        }
-
-        // Calculate current duration
-        const duration = calculateDuration(
-          session.startTime,
-          session.pausedDuration,
-          session.isPaused ? session.pausedAt : undefined
-        );
-        const durationStr = formatDuration(duration);
-
-        // Mark as pending completion
-        await sessionService.updateActiveSession(userId, {
-          pendingCompletion: true,
-          leftVCAt: Timestamp.now(),
-        });
-
-        // Schedule auto-post after 1 hour
-        scheduleAutoPost(userId, guildId);
-
-        // DM the user about leaving VC
-        try {
-          const user = await client.users.fetch(userId);
-          await user.send(
-            `You just focused in VC for **${durationStr}**. Type \`/end\` to post your session, or rejoin VC to continue!\n\n*Auto-posts in 10 minutes*`
-          );
-        } catch (error) {
-          console.error('Error sending DM to user:', error);
-          // Fallback: post in feed channel if DM fails (user has DMs disabled)
-          if (config.feedChannelId) {
-            try {
-              const feedChannel = await client.channels.fetch(config.feedChannelId);
-              if (feedChannel && feedChannel.isTextBased()) {
-                const textChannel = feedChannel as TextChannel;
-                await textChannel.send(
-                  `<@${userId}> You just focused in VC for **${durationStr}**. Type \`/end\` to post your session, or rejoin VC to continue!\n\n*Auto-posts in 10 minutes*`
-                );
-              }
-            } catch (fallbackError) {
-              console.error('Error posting VC leave ping to feed:', fallbackError);
-            }
-          }
-        }
-
-        console.log(`${session.username} left VC, session pending completion`);
-      }
-    }
-  } catch (error) {
-    console.error('Error handling voice state update:', error);
-  }
-});
-
-// Bot ready event
-// Handle voice state updates (join/leave voice channels)
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  const userId = newState.member?.user.id;
-  if (!userId) return;
-
-  const username = newState.member?.user.username || 'Unknown';
-  const guildId = newState.guild.id;
-
-  // User left a voice channel
-  const leftChannel = oldState.channelId && !newState.channelId;
-
-  // User joined a voice channel
-  const joinedChannel = !oldState.channelId && newState.channelId;
-
-  try {
-    if (leftChannel) {
-      console.log(`[VOICE] ${username} (${userId}) left voice channel in guild ${guildId}`);
-
-      // Check if user has an active session
-      const session = await sessionService.getActiveSession(userId);
-
-      if (session && !session.isPaused) {
-        console.log(`[VOICE] Auto-pausing session for ${username}`);
-
-        // Pause the session
-        await sessionService.updateActiveSession(userId, {
-          isPaused: true,
-          pausedAt: Timestamp.now(),
-        });
-
-        // Set 10-minute timer to auto-end the session
-        const timer = setTimeout(async () => {
-          console.log(`[VOICE] 10-minute timer expired for ${username}, auto-ending session`);
-
-          try {
-            // Check if session still exists and is paused
-            const currentSession = await sessionService.getActiveSession(userId);
-
-            if (currentSession && currentSession.isPaused) {
-              // Calculate final duration
-              const duration = calculateDuration(
-                currentSession.startTime,
-                currentSession.pausedDuration,
-                currentSession.pausedAt
-              );
-
-              const endTime = Timestamp.now();
-
-              // Delete active session
-              await sessionService.deleteActiveSession(userId);
-
-              // Create completed session with auto-generated title
-              await sessionService.createCompletedSession({
-                userId,
-                username,
-                serverId: currentSession.serverId,
-                activity: currentSession.activity,
-                title: `${currentSession.activity} session`,
-                description: 'Auto-ended after 10 minutes of inactivity',
-                duration,
-                startTime: currentSession.startTime,
-                endTime,
-              });
-
-              // Update stats and award XP
-              const statsUpdate = await statsService.updateUserStats(
-                userId,
-                username,
-                duration,
-                currentSession.activity
-              );
-
-              // Check for new achievements
-              const newAchievements = await achievementService.checkAndAwardAchievements(userId);
-
-              console.log(`[VOICE] Auto-ended session for ${username} (${formatDuration(duration)})`);
-
-              // Try to send DM to user with XP and achievement info
-              try {
-                const user = await client.users.fetch(userId);
-                let xpMessage = '';
-                if (statsUpdate.leveledUp) {
-                  xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
-                } else {
-                  xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned!`;
-                }
-
-                let achievementMessage = '';
-                if (newAchievements.length > 0) {
-                  const achievementDetails = newAchievements.map(id => getAchievement(id)).filter(b => b);
-                  const achievementList = achievementDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
-                  achievementMessage = `\n🏆 **NEW ACHIEVEMENT${newAchievements.length > 1 ? 'S' : ''}!** ${achievementList}`;
-                }
-
-                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}${xpMessage}${achievementMessage}\n\nYour session has been saved!`);
-              } catch (dmError) {
-                console.log(`[VOICE] Could not send DM to ${username}`);
-              }
-            }
-          } catch (error) {
-            console.error(`[VOICE] Error auto-ending session for ${username}:`, error);
-          } finally {
-            // Clean up timer from map
-            autoEndTimers.delete(userId);
-          }
-        }, 10 * 60 * 1000); // 10 minutes
-
-        // Store timer reference
-        autoEndTimers.set(userId, timer);
-        console.log(`[VOICE] Set 10-minute auto-end timer for ${username}`);
-      }
-    } else if (joinedChannel) {
-      console.log(`[VOICE] ${username} (${userId}) joined voice channel in guild ${guildId}`);
-
-      // Check if user has a paused session
-      const session = await sessionService.getActiveSession(userId);
-
-      if (session && session.isPaused) {
-        console.log(`[VOICE] Auto-resuming session for ${username}`);
-
-        // Clear auto-end timer if it exists
-        const timer = autoEndTimers.get(userId);
-        if (timer) {
-          clearTimeout(timer);
-          autoEndTimers.delete(userId);
-          console.log(`[VOICE] Cancelled auto-end timer for ${username}`);
-        }
-
-        // Calculate time spent paused
-        const pausedDuration = session.pausedAt
-          ? session.pausedDuration + (Timestamp.now().toMillis() - session.pausedAt.toMillis())
-          : session.pausedDuration;
-
-        // Resume the session
-        await sessionService.updateActiveSession(userId, {
-          isPaused: false,
-          pausedAt: undefined,
-          pausedDuration,
-        });
-
-        console.log(`[VOICE] Resumed session for ${username}`);
-      }
-    }
-  } catch (error) {
-    console.error(`[VOICE] Error handling voice state update for ${username}:`, error);
   }
 });
 
@@ -4631,7 +4218,7 @@ client.on('guildMemberAdd', async (member) => {
         `This server wants to make productivity social. Start tracking your study sessions with \`/start {activity}\` and see your progress on the leaderboard!\n\n` +
         `**Quick commands:**\n` +
         `• \`/start {activity}\` - Begin a session\n` +
-        `• \`/end\` - Finish your session\n` +
+        `• \`/stop\` - Finish your session\n` +
         `• \`/stats\` - View your statistics\n` +
         `• \`/help\` - See all commands`
       );
@@ -4647,7 +4234,7 @@ client.on('guildMemberAdd', async (member) => {
             `This server wants to make productivity social. Start tracking your study sessions with \`/start {activity}\` and see your progress on the leaderboard!\n\n` +
             `**Quick commands:**\n` +
             `• \`/start {activity}\` - Begin a session\n` +
-            `• \`/end\` - Finish your session\n` +
+            `• \`/stop\` - Finish your session\n` +
             `• \`/stats\` - View your statistics\n` +
             `• \`/help\` - See all commands`
           );

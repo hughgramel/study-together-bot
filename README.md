@@ -4,7 +4,7 @@ A Discord bot for collaborative productivity tracking with Strava-style social f
 
 ## Features
 
-- **Session Tracking**: Start, pause, resume, and complete productivity sessions with live status updates
+- **Session Tracking**: Start, pause, unpause, and complete productivity sessions with live status updates
 - **Personal Stats Dashboard**: View your daily, weekly, monthly, and all-time statistics with streak tracking
 - **Competitive Leaderboards**: See how you rank against others with daily, weekly, and monthly leaderboards
 - **Social Feed**: Completed sessions post as Strava-style embeds with reactions and comment threads
@@ -17,8 +17,8 @@ A Discord bot for collaborative productivity tracking with Strava-style social f
 - `/start {activity}` - Start a new productivity session
 - `/time` - Check your current session status and elapsed time
 - `/pause` - Take a break without ending your session
-- `/resume` - Continue your paused session
-- `/end {title} {description}` - Complete and share your session
+- `/unpause` - Continue your paused session
+- `/stop {title} {description}` - Complete and share your session
 - `/cancel` - Discard your active session without saving
 
 ### Statistics & Leaderboards
@@ -168,12 +168,12 @@ All data is stored in Firebase Firestore under the `discord-data/` collection:
 
 4. Resume working:
 ```
-/resume
+/unpause
 ```
 
 5. Complete the session:
 ```
-/end title: Discord Bot Project description: Built a complete Discord bot with Firebase integration and leaderboards
+/stop title: Discord Bot Project description: Built a complete Discord bot with Firebase integration and leaderboards
 ```
 
 6. View your stats:

@@ -27,7 +27,7 @@ src/
 
 ## Key Features
 
-1. **Session Management**: `/start`, `/pause`, `/resume`, `/end`, `/cancel`
+1. **Session Management**: `/start`, `/pause`, `/unpause`, `/stop`, `/cancel`
 2. **Status Checking**: `/time` (shows elapsed time, pause status)
 3. **Personal Stats**: `/mystats` (daily, weekly, monthly, all-time with streaks)
 4. **Leaderboards**:

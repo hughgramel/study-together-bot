@@ -119,6 +119,7 @@ interface EventBuilderState {
   customType?: string;
   maxAttendees?: number;
   description?: string;
+  timezone?: string; // Server timezone for date parsing
 }
 const eventBuilders = new Map<string, EventBuilderState>();
 
@@ -139,16 +140,16 @@ const commands = [
     ),
 
   new SlashCommandBuilder()
-    .setName('end')
-    .setDescription('End your session! Add a title, description of what you did, and post it to the feed'),
+    .setName('stop')
+    .setDescription('Stop your session! Add a title, description of what you did, and post it to the feed'),
 
   new SlashCommandBuilder()
     .setName('pause')
     .setDescription('Pause your active session'),
 
   new SlashCommandBuilder()
-    .setName('resume')
-    .setDescription('Resume your paused session'),
+    .setName('unpause')
+    .setDescription('Unpause your paused session'),
 
   new SlashCommandBuilder()
     .setName('time')
@@ -239,6 +240,17 @@ const commands = [
         .setDescription('The channel to post study events')
         .setRequired(true)
         .addChannelTypes(ChannelType.GuildText)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName('setup-timezone')
+    .setDescription('Configure the server timezone for events (Admin only)')
+    .addStringOption((option) =>
+      option
+        .setName('timezone')
+        .setDescription('IANA timezone (e.g., America/New_York, America/Los_Angeles, America/Chicago)')
+        .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
@@ -1386,23 +1398,39 @@ client.on('interactionCreate', async (interaction) => {
         } else if (modalType === 'time') {
           const dateTimeStr = interaction.fields.getTextInputValue('time');
 
-          // Parse date/time (simple parser for common formats)
-          const parseDateTime = (input: string): Date | null => {
-            const now = new Date();
+          // Parse date/time (timezone-aware parser)
+          const parseDateTime = (input: string, timezone: string): Date | null => {
             const trimmed = input.trim().toLowerCase();
+
+            // Get current time in user's timezone
+            const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+            const year = nowInTz.getFullYear();
+            const month = nowInTz.getMonth();
+            const day = nowInTz.getDate();
+
+            // Helper to convert local time to UTC Date object
+            const createDateInTimezone = (yr: number, mo: number, dy: number, hr: number, min: number): Date => {
+              // Create a date string in the target timezone
+              const dateStr = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(dy).padStart(2, '0')}T${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`;
+              // Parse as if it's in the target timezone
+              const localDate = new Date(dateStr);
+              const utcDate = new Date(localDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+              const tzDate = new Date(localDate.toLocaleString('en-US', { timeZone: timezone }));
+              const offset = utcDate.getTime() - tzDate.getTime();
+              return new Date(localDate.getTime() + offset);
+            };
 
             // Try ISO format first (YYYY-MM-DD HH:MM)
             const isoMatch = trimmed.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})/);
             if (isoMatch) {
-              const [, year, month, day, hour, minute] = isoMatch;
-              const date = new Date(
-                parseInt(year),
-                parseInt(month) - 1,
-                parseInt(day),
-                parseInt(hour),
-                parseInt(minute)
+              const [, yr, mo, dy, hr, min] = isoMatch;
+              return createDateInTimezone(
+                parseInt(yr),
+                parseInt(mo) - 1,
+                parseInt(dy),
+                parseInt(hr),
+                parseInt(min)
               );
-              return date;
             }
 
             // Try "tomorrow HH:MM" or "tomorrow H pm/am"
@@ -1416,10 +1444,9 @@ client.on('interactionCreate', async (interaction) => {
                 if (meridiem === 'pm' && hour !== 12) hour += 12;
                 if (meridiem === 'am' && hour === 12) hour = 0;
 
-                const tomorrow = new Date(now);
+                const tomorrow = new Date(nowInTz);
                 tomorrow.setDate(tomorrow.getDate() + 1);
-                tomorrow.setHours(hour, minute, 0, 0);
-                return tomorrow;
+                return createDateInTimezone(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), hour, minute);
               }
             }
 
@@ -1434,17 +1461,15 @@ client.on('interactionCreate', async (interaction) => {
                 if (meridiem === 'pm' && hour !== 12) hour += 12;
                 if (meridiem === 'am' && hour === 12) hour = 0;
 
-                const today = new Date(now);
-                today.setHours(hour, minute, 0, 0);
-                return today;
+                return createDateInTimezone(year, month, day, hour, minute);
               }
             }
 
             return null;
         };
 
-
-          const startTime = parseDateTime(dateTimeStr);
+          const timezone = builderState.timezone || 'America/Los_Angeles';
+          const startTime = parseDateTime(dateTimeStr, timezone);
           if (!startTime) {
             await interaction.followUp({
               content: '❌ Invalid date/time format. Please use formats like:\n- `2025-01-20 18:00`\n- `tomorrow 6pm`\n- `today 14:30`',
@@ -1453,14 +1478,7 @@ client.on('interactionCreate', async (interaction) => {
             return;
           }
 
-          if (startTime.getTime() < Date.now()) {
-            await interaction.followUp({
-              content: '❌ Event start time must be in the future.',
-              ephemeral: true
-            });
-            return;
-          }
-
+          // Allow past events - no validation check
           builderState.startTime = startTime;
         } else if (modalType === 'duration') {
           const durationStr = interaction.fields.getTextInputValue('duration');
@@ -2440,8 +2458,8 @@ client.on('interactionCreate', async (interaction) => {
               '`/start {activity}` - Start a new session\n' +
               '`/time` - Check your current session status\n' +
               '`/pause` - Pause your active session\n' +
-              '`/resume` - Resume your paused session\n' +
-              '`/end` - Complete and share your session\n' +
+              '`/unpause` - Unpause your paused session\n' +
+              '`/stop` - Complete and share your session\n' +
               '`/cancel` - Cancel session without saving\n' +
               '`/manual` - Log a past session manually',
             inline: false
@@ -2631,13 +2649,18 @@ client.on('interactionCreate', async (interaction) => {
     if (commandName === 'createevent') {
       await interaction.deferReply({ ephemeral: true });
 
+      // Get server config for timezone
+      const config = await getServerConfig(interaction.guildId!);
+      const timezone = config?.timezone || 'America/Los_Angeles'; // Default to PT if not set
+
       // Create initial event builder embed
       const builderId = `event_builder:${user.id}:${Date.now()}`;
 
       // Initialize builder state
       eventBuilders.set(builderId, {
         userId: user.id,
-        studyType: 'conversation'
+        studyType: 'conversation',
+        timezone
       });
 
       const builderEmbed = new EmbedBuilder()
@@ -2947,7 +2970,7 @@ client.on('interactionCreate', async (interaction) => {
       if (existingSession) {
         await interaction.reply({
           content:
-            'You already have an active session! Use /end to complete it first.',
+            'You already have an active session! Use /stop to complete it first.',
           ephemeral: true,
         });
         return;
@@ -3038,19 +3061,19 @@ client.on('interactionCreate', async (interaction) => {
       });
 
       await interaction.reply({
-        content: '⏸️ Session paused. Use /resume when ready to continue.',
+        content: '⏸️ Session paused. Use /unpause when ready to continue.',
         ephemeral: false,
       });
       return;
     }
 
-    // /resume command
-    if (commandName === 'resume') {
+    // /unpause command
+    if (commandName === 'unpause') {
       const session = await sessionService.getActiveSession(user.id);
 
       if (!session) {
         await interaction.reply({
-          content: 'No active session to resume.',
+          content: 'No active session to unpause.',
           ephemeral: false,
         });
         return;
@@ -3083,7 +3106,7 @@ client.on('interactionCreate', async (interaction) => {
       const elapsedStr = formatDuration(elapsed);
 
       await interaction.reply({
-        content: `▶️ Session resumed!\n\n**Elapsed Time:** ${elapsedStr}`,
+        content: `▶️ Session unpaused!\n\n**Elapsed Time:** ${elapsedStr}`,
         ephemeral: false,
       });
       return;
@@ -3111,12 +3134,12 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // /end command
-    if (commandName === 'end') {
+    // /stop command
+    if (commandName === 'stop') {
       // Check if command is used in a server (not DMs)
       if (!guildId) {
         await interaction.reply({
-          content: '❌ Please use `/end` in your server to post your session to the feed!',
+          content: '❌ Please use `/stop` in your server to post your session to the feed!',
           ephemeral: true,
         });
         return;
@@ -3191,7 +3214,7 @@ client.on('interactionCreate', async (interaction) => {
       if (!stats) {
         await interaction.reply({
           content:
-            'No stats yet! Complete your first session with /start and /end.',
+            'No stats yet! Complete your first session with /start and /stop.',
           ephemeral: true,
         });
         return;
@@ -3647,7 +3670,7 @@ client.on('interactionCreate', async (interaction) => {
 
       if (!yourStats) {
         await interaction.reply({
-          content: 'You haven\'t completed any sessions yet! Complete your first session with `/start` and `/end`.',
+          content: 'You haven\'t completed any sessions yet! Complete your first session with `/start` and `/stop`.',
           ephemeral: true,
         });
         return;
@@ -4104,6 +4127,57 @@ client.on('interactionCreate', async (interaction) => {
       });
       return;
     }
+
+    // /setup-timezone command
+    if (commandName === 'setup-timezone') {
+      const timezone = interaction.options.getString('timezone', true);
+
+      // Check if user has admin permission
+      if (
+        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      ) {
+        await interaction.reply({
+          content: 'Only server administrators can set the timezone.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Validate timezone by trying to use it
+      try {
+        new Date().toLocaleString('en-US', { timeZone: timezone });
+      } catch (error) {
+        await interaction.reply({
+          content: `❌ Invalid timezone: \`${timezone}\`\n\nPlease use a valid IANA timezone like:\n- \`America/New_York\` (Eastern)\n- \`America/Chicago\` (Central)\n- \`America/Denver\` (Mountain)\n- \`America/Los_Angeles\` (Pacific)\n\nSee full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones`,
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // Get existing config
+      const existingConfig = await getServerConfig(guildId!);
+
+      // Update config
+      const config: ServerConfig = {
+        ...existingConfig,
+        timezone: timezone,
+        setupAt: Timestamp.now(),
+        setupBy: user.id,
+      };
+
+      await db
+        .collection('discord-data')
+        .doc('serverConfig')
+        .collection('configs')
+        .doc(guildId!)
+        .set(config);
+
+      await interaction.reply({
+        content: `✅ Server timezone set to \`${timezone}\`\n\nAll event times will now be interpreted in this timezone!`,
+        ephemeral: true,
+      });
+      return;
+    }
   } catch (error) {
     console.error(`Error handling command ${commandName}:`, error);
 
@@ -4144,7 +4218,7 @@ client.on('guildMemberAdd', async (member) => {
         `This server wants to make productivity social. Start tracking your study sessions with \`/start {activity}\` and see your progress on the leaderboard!\n\n` +
         `**Quick commands:**\n` +
         `• \`/start {activity}\` - Begin a session\n` +
-        `• \`/end\` - Finish your session\n` +
+        `• \`/stop\` - Finish your session\n` +
         `• \`/stats\` - View your statistics\n` +
         `• \`/help\` - See all commands`
       );
@@ -4160,7 +4234,7 @@ client.on('guildMemberAdd', async (member) => {
             `This server wants to make productivity social. Start tracking your study sessions with \`/start {activity}\` and see your progress on the leaderboard!\n\n` +
             `**Quick commands:**\n` +
             `• \`/start {activity}\` - Begin a session\n` +
-            `• \`/end\` - Finish your session\n` +
+            `• \`/stop\` - Finish your session\n` +
             `• \`/stats\` - View your statistics\n` +
             `• \`/help\` - See all commands`
           );
