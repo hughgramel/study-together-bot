@@ -2474,6 +2474,14 @@ client.on('interactionCreate', async (interaction) => {
             inline: false
           },
           {
+            name: '🎯 Goals',
+            value:
+              '`/goal add {goal} {difficulty}` - Add a new goal (Easy: 50 XP, Medium: 100 XP, Hard: 200 XP)\n' +
+              '`/goal complete` - Mark a goal as complete and earn XP\n' +
+              '`/goal list` - View all your active goals',
+            inline: false
+          },
+          {
             name: '👥 Social',
             value:
               '`/live` - See who\'s currently studying',
