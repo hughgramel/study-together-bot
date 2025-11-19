@@ -95,7 +95,6 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildMembers,
   ],
@@ -216,18 +215,6 @@ const commands = [
         .setDescription('The channel to post completed sessions')
         .setRequired(true)
         .addChannelTypes(ChannelType.GuildText)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
-    .setName('setup-focus-room')
-    .setDescription('Configure voice channels for auto-tracking (Admin only)')
-    .addChannelOption((option) =>
-      option
-        .setName('channel')
-        .setDescription('The voice channel to enable auto-tracking')
-        .setRequired(true)
-        .addChannelTypes(ChannelType.GuildVoice)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
@@ -568,45 +555,6 @@ async function postSessionStartToFeed(
       console.error('Error posting session start to feed:', error);
     }
     // Don't throw - we don't want to fail the session start
-  }
-}
-
-// Helper function to post VC session start to feed channel
-async function postVCSessionStartToFeed(
-  guildId: string,
-  username: string,
-  userId: string,
-  avatarUrl: string,
-  vcChannelId: string
-) {
-  try {
-    const config = await getServerConfig(guildId);
-
-    if (!config || !config.feedChannelId) {
-      return;
-    }
-
-    const channel = await client.channels.fetch(config.feedChannelId);
-    if (!channel || !channel.isTextBased()) {
-      return;
-    }
-
-    const textChannel = channel as TextChannel;
-
-    // Create embed for VC session start with link
-    const embed = new EmbedBuilder()
-      .setColor(0x00FF00) // Green for "live"
-      .setAuthor({
-        name: `${username} 🟢`,
-        iconURL: avatarUrl
-      })
-      .setDescription(`🎧 **${username}** started studying in <#${vcChannelId}>`);
-
-    await textChannel.send({
-      embeds: [embed]
-    });
-  } catch (error) {
-    console.error('Error posting VC session start to feed:', error);
   }
 }
 
@@ -1019,175 +967,6 @@ async function postLevelUpBasic(
     await levelUpMessage.react('✨').catch(() => {});
   } catch (error) {
     console.error('Error posting level-up:', error);
-  }
-}
-
-// Helper function to post basic session completion to feed (for auto-posted VC sessions)
-async function postBasicSessionToFeed(
-  guildId: string,
-  username: string,
-  avatarUrl: string,
-  duration: number,
-  vcChannelId: string
-) {
-  try {
-    const config = await getServerConfig(guildId);
-
-    if (!config || !config.feedChannelId) {
-      return;
-    }
-
-    const channel = await client.channels.fetch(config.feedChannelId);
-    if (!channel || !channel.isTextBased()) {
-      return;
-    }
-
-    const textChannel = channel as TextChannel;
-    const durationStr = formatDuration(duration);
-
-    // Create basic completion embed
-    const embed = new EmbedBuilder()
-      .setColor(0x0080FF) // Electric blue
-      .setAuthor({
-        name: `${username} completed a session!`,
-        iconURL: avatarUrl
-      })
-      .setDescription(`Focused for **${durationStr}** in <#${vcChannelId}>`);
-
-    const message = await textChannel.send({
-      embeds: [embed]
-    });
-
-    // React with a heart
-    await message.react('❤️').catch(() => {});
-  } catch (error) {
-    console.error('Error posting basic session to feed:', error);
-  }
-}
-
-// Map to track auto-post timers
-const autoPostTimers = new Map<string, NodeJS.Timeout>();
-
-// Helper function to schedule auto-post after 1 hour
-function scheduleAutoPost(userId: string, guildId: string) {
-  // Clear existing timer if any
-  if (autoPostTimers.has(userId)) {
-    clearTimeout(autoPostTimers.get(userId)!);
-  }
-
-  // Schedule new timer for 10 minutes
-  const timer = setTimeout(async () => {
-    try {
-      const session = await sessionService.getActiveSession(userId);
-
-      if (!session || !session.pendingCompletion || !session.isVCSession) {
-        return;
-      }
-
-      // Calculate final duration
-      const duration = calculateDuration(
-        session.startTime,
-        session.pausedDuration,
-        session.isPaused ? session.pausedAt : undefined
-      );
-
-      const endTime = Timestamp.now();
-
-      // DELETE ACTIVE SESSION FIRST to prevent race condition/duplicate posts
-      await sessionService.deleteActiveSession(session.userId);
-
-      // Create completed session
-      const sessionId = await sessionService.createCompletedSession({
-        userId: session.userId,
-        username: session.username,
-        serverId: session.serverId,
-        activity: 'VC Session',
-        title: `Focus session in voice channel`,
-        description: `Completed ${formatDuration(duration)} of focused work`,
-        duration,
-        startTime: session.startTime,
-        endTime,
-      });
-
-      // Update stats and award XP
-      const statsUpdate = await statsService.updateUserStats(
-        session.userId,
-        session.username,
-        duration,
-        'VC Session'
-      );
-
-      // Update completed session with XP gained (for leaderboards)
-      await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
-
-      // Check for new achievements
-      const newAchievements = await achievementService.checkAndAwardAchievements(session.userId);
-
-      // Fetch user for avatar
-      const user = await client.users.fetch(userId);
-      const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-      // Send DM with XP and achievement info
-      try {
-        let xpMessage = '';
-        if (statsUpdate.leveledUp) {
-          xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
-        } else {
-          xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned!`;
-        }
-
-        let achievementMessage = '';
-        if (newAchievements.length > 0) {
-          const achievementDetails = newAchievements.map(id => getAchievement(id)).filter(b => b);
-          const achievementList = achievementDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
-          achievementMessage = `\n🏆 **NEW ACHIEVEMENT${newAchievements.length > 1 ? 'S' : ''}!** ${achievementList}`;
-        }
-
-        await user.send(`⏰ Your VC session was automatically posted!\n\n**Duration:** ${formatDuration(duration)}${xpMessage}${achievementMessage}`);
-      } catch (dmError) {
-        console.log('Could not send auto-post DM to user');
-      }
-
-      // Post basic session to feed
-      await postBasicSessionToFeed(
-        guildId,
-        session.username,
-        avatarUrl,
-        duration,
-        session.vcChannelId!
-      );
-
-      // Post level-up celebration if applicable
-      if (statsUpdate.leveledUp && statsUpdate.newLevel) {
-        // Calculate old level from XP
-        const currentXP = statsUpdate.stats.xp || 0;
-        const oldXP = currentXP - statsUpdate.xpGained;
-        const oldLevel = calculateLevel(oldXP);
-
-        await postLevelUpBasic(
-          guildId,
-          session.username,
-          avatarUrl,
-          statsUpdate.newLevel,
-          oldLevel
-        );
-      }
-
-      // Clean up timer
-      autoPostTimers.delete(userId);
-    } catch (error) {
-      console.error('Error in auto-post timer:', error);
-    }
-  }, 10 * 60 * 1000); // 10 minutes
-
-  autoPostTimers.set(userId, timer);
-}
-
-// Helper function to cancel auto-post timer
-function cancelAutoPost(userId: string) {
-  if (autoPostTimers.has(userId)) {
-    clearTimeout(autoPostTimers.get(userId)!);
-    autoPostTimers.delete(userId);
   }
 }
 
@@ -2686,8 +2465,8 @@ client.on('interactionCreate', async (interaction) => {
             name: '⚙️ Server Setup (Admin Only)',
             value:
               '`/setup-feed {channel}` - Set feed channel for session posts\n' +
-              '`/setup-focus-room {voice-channel}` - Enable auto-tracking in voice channel\n' +
-              '`/set-welcome-channel {channel}` - Set welcome channel for new members',
+              '`/set-welcome-channel {channel}` - Set welcome channel for new members\n' +
+              '`/setup-events-channel {channel}` - Set events channel for study events',
             inline: false
           },
           {
@@ -2696,7 +2475,6 @@ client.on('interactionCreate', async (interaction) => {
               '• Earn XP and level up by completing sessions (10 XP/hour + bonuses)\n' +
               '• Unlock 20 achievements by hitting milestones\n' +
               '• React to others\' session posts to unlock social achievements\n' +
-              '• Voice channel sessions auto-track when you join a focus room\n' +
               '• Build streaks by completing sessions daily',
             inline: false
           }
@@ -3323,11 +3101,6 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      // Cancel auto-post timer if it's a VC session
-      if (session.isVCSession && session.pendingCompletion) {
-        cancelAutoPost(user.id);
-      }
-
       await sessionService.deleteActiveSession(user.id);
 
       await interaction.reply({
@@ -3357,11 +3130,6 @@ client.on('interactionCreate', async (interaction) => {
           ephemeral: false,
         });
         return;
-      }
-
-      // If this is a VC session with pending completion, cancel auto-post timer
-      if (session.isVCSession && session.pendingCompletion) {
-        cancelAutoPost(user.id);
       }
 
       // Calculate duration to show in modal
@@ -4257,58 +4025,6 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // /setup-focus-room command
-    if (commandName === 'setup-focus-room') {
-      const channel = interaction.options.getChannel('channel', true);
-
-      // Check if user has admin permission
-      if (
-        !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
-      ) {
-        await interaction.reply({
-          content: 'Only server administrators can configure focus rooms.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Get existing config
-      const existingConfig = await getServerConfig(guildId!);
-      const currentFocusRooms = existingConfig?.focusRoomIds || [];
-
-      // Check if already configured
-      if (currentFocusRooms.includes(channel.id)) {
-        await interaction.reply({
-          content: `<#${channel.id}> is already configured as a focus room.`,
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // Add to focus rooms
-      const updatedFocusRooms = [...currentFocusRooms, channel.id];
-
-      const config: ServerConfig = {
-        ...existingConfig,
-        focusRoomIds: updatedFocusRooms,
-        setupAt: Timestamp.now(),
-        setupBy: user.id,
-      };
-
-      await db
-        .collection('discord-data')
-        .doc('serverConfig')
-        .collection('configs')
-        .doc(guildId!)
-        .set(config);
-
-      await interaction.reply({
-        content: `✅ Focus room enabled: <#${channel.id}>\n\nJoining this voice channel will now automatically start tracking your session!`,
-        ephemeral: true,
-      });
-      return;
-    }
-
     // /set-welcome-channel command
     if (commandName === 'set-welcome-channel') {
       const channel = interaction.options.getChannel('channel', true);
@@ -4404,300 +4120,6 @@ client.on('interactionCreate', async (interaction) => {
       // Interaction may have expired - just log the error and continue
       console.error('Could not send error message to user:', replyError);
     }
-  }
-});
-
-// Handle voice state updates (VC joins/leaves)
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  try {
-    const userId = newState.member?.user.id;
-    const guildId = newState.guild.id;
-
-    console.log(`[VOICE STATE] User: ${newState.member?.user.username}, Old: ${oldState.channelId}, New: ${newState.channelId}`);
-
-    if (!userId || !guildId) {
-      console.log('[VOICE STATE] Missing userId or guildId');
-      return;
-    }
-
-    // Get server config to check if this is a focus room
-    const config = await getServerConfig(guildId);
-    console.log(`[VOICE STATE] Config:`, config);
-
-    if (!config || !config.focusRoomIds || config.focusRoomIds.length === 0) {
-      console.log('[VOICE STATE] No focus rooms configured');
-      return;
-    }
-
-    const oldChannelId = oldState.channelId;
-    const newChannelId = newState.channelId;
-
-    // User joined a VC
-    console.log(`[VOICE STATE] Checking join: oldChannelId=${oldChannelId}, newChannelId=${newChannelId}, isFocusRoom=${config.focusRoomIds.includes(newChannelId || '')}`);
-
-    if (!oldChannelId && newChannelId && config.focusRoomIds.includes(newChannelId)) {
-      console.log('[VOICE STATE] User joined a focus room!');
-
-      // Check if user has a pending session (left VC but hasn't ended)
-      const existingSession = await sessionService.getActiveSession(userId);
-      console.log('[VOICE STATE] Existing session:', existingSession);
-
-      if (existingSession && existingSession.isVCSession && existingSession.pendingCompletion) {
-        console.log('[VOICE STATE] Resuming existing session');
-        // Resume existing session
-        await sessionService.updateActiveSession(userId, {
-          pendingCompletion: false,
-          leftVCAt: null as any,
-        });
-
-        // Cancel auto-post timer
-        cancelAutoPost(userId);
-
-        console.log(`${newState.member?.user.username} resumed VC session`);
-      } else if (!existingSession) {
-        console.log('[VOICE STATE] Creating new VC session');
-        // Create new VC session
-        const username = newState.member?.user.username || 'Unknown';
-        const avatarUrl = newState.member?.user.displayAvatarURL({ size: 128 }) || '';
-
-        await sessionService.createActiveSession(
-          userId,
-          username,
-          guildId,
-          'VC Session'
-        );
-
-        // Mark as VC session
-        await sessionService.updateActiveSession(userId, {
-          isVCSession: true,
-          vcChannelId: newChannelId,
-        });
-
-        // Post to feed
-        console.log('[VOICE STATE] Posting to feed');
-        await postVCSessionStartToFeed(
-          guildId,
-          username,
-          userId,
-          avatarUrl,
-          newChannelId
-        );
-
-        console.log(`${username} started VC session in ${newChannelId}`);
-      } else {
-        console.log('[VOICE STATE] User already has a session (not VC or not pending)');
-      }
-    }
-
-    // User left a VC (or switched channels)
-    if (oldChannelId && config.focusRoomIds.includes(oldChannelId)) {
-      const session = await sessionService.getActiveSession(userId);
-
-      if (session && session.isVCSession && !session.pendingCompletion) {
-        // If user switched to another focus room, don't mark as pending
-        if (newChannelId && config.focusRoomIds.includes(newChannelId)) {
-          // Update the VC channel ID
-          await sessionService.updateActiveSession(userId, {
-            vcChannelId: newChannelId,
-          });
-          return;
-        }
-
-        // Calculate current duration
-        const duration = calculateDuration(
-          session.startTime,
-          session.pausedDuration,
-          session.isPaused ? session.pausedAt : undefined
-        );
-        const durationStr = formatDuration(duration);
-
-        // Mark as pending completion
-        await sessionService.updateActiveSession(userId, {
-          pendingCompletion: true,
-          leftVCAt: Timestamp.now(),
-        });
-
-        // Schedule auto-post after 1 hour
-        scheduleAutoPost(userId, guildId);
-
-        // DM the user about leaving VC
-        try {
-          const user = await client.users.fetch(userId);
-          await user.send(
-            `You just focused in VC for **${durationStr}**. Type \`/end\` to post your session, or rejoin VC to continue!\n\n*Auto-posts in 10 minutes*`
-          );
-        } catch (error) {
-          console.error('Error sending DM to user:', error);
-          // Fallback: post in feed channel if DM fails (user has DMs disabled)
-          if (config.feedChannelId) {
-            try {
-              const feedChannel = await client.channels.fetch(config.feedChannelId);
-              if (feedChannel && feedChannel.isTextBased()) {
-                const textChannel = feedChannel as TextChannel;
-                await textChannel.send(
-                  `<@${userId}> You just focused in VC for **${durationStr}**. Type \`/end\` to post your session, or rejoin VC to continue!\n\n*Auto-posts in 10 minutes*`
-                );
-              }
-            } catch (fallbackError) {
-              console.error('Error posting VC leave ping to feed:', fallbackError);
-            }
-          }
-        }
-
-        console.log(`${session.username} left VC, session pending completion`);
-      }
-    }
-  } catch (error) {
-    console.error('Error handling voice state update:', error);
-  }
-});
-
-// Bot ready event
-// Handle voice state updates (join/leave voice channels)
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  const userId = newState.member?.user.id;
-  if (!userId) return;
-
-  const username = newState.member?.user.username || 'Unknown';
-  const guildId = newState.guild.id;
-
-  // User left a voice channel
-  const leftChannel = oldState.channelId && !newState.channelId;
-
-  // User joined a voice channel
-  const joinedChannel = !oldState.channelId && newState.channelId;
-
-  try {
-    if (leftChannel) {
-      console.log(`[VOICE] ${username} (${userId}) left voice channel in guild ${guildId}`);
-
-      // Check if user has an active session
-      const session = await sessionService.getActiveSession(userId);
-
-      if (session && !session.isPaused) {
-        console.log(`[VOICE] Auto-pausing session for ${username}`);
-
-        // Pause the session
-        await sessionService.updateActiveSession(userId, {
-          isPaused: true,
-          pausedAt: Timestamp.now(),
-        });
-
-        // Set 10-minute timer to auto-end the session
-        const timer = setTimeout(async () => {
-          console.log(`[VOICE] 10-minute timer expired for ${username}, auto-ending session`);
-
-          try {
-            // Check if session still exists and is paused
-            const currentSession = await sessionService.getActiveSession(userId);
-
-            if (currentSession && currentSession.isPaused) {
-              // Calculate final duration
-              const duration = calculateDuration(
-                currentSession.startTime,
-                currentSession.pausedDuration,
-                currentSession.pausedAt
-              );
-
-              const endTime = Timestamp.now();
-
-              // Delete active session
-              await sessionService.deleteActiveSession(userId);
-
-              // Create completed session with auto-generated title
-              await sessionService.createCompletedSession({
-                userId,
-                username,
-                serverId: currentSession.serverId,
-                activity: currentSession.activity,
-                title: `${currentSession.activity} session`,
-                description: 'Auto-ended after 10 minutes of inactivity',
-                duration,
-                startTime: currentSession.startTime,
-                endTime,
-              });
-
-              // Update stats and award XP
-              const statsUpdate = await statsService.updateUserStats(
-                userId,
-                username,
-                duration,
-                currentSession.activity
-              );
-
-              // Check for new achievements
-              const newAchievements = await achievementService.checkAndAwardAchievements(userId);
-
-              console.log(`[VOICE] Auto-ended session for ${username} (${formatDuration(duration)})`);
-
-              // Try to send DM to user with XP and achievement info
-              try {
-                const user = await client.users.fetch(userId);
-                let xpMessage = '';
-                if (statsUpdate.leveledUp) {
-                  xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n✨ +${statsUpdate.xpGained} XP earned!`;
-                } else {
-                  xpMessage = `\n✨ +${statsUpdate.xpGained} XP earned!`;
-                }
-
-                let achievementMessage = '';
-                if (newAchievements.length > 0) {
-                  const achievementDetails = newAchievements.map(id => getAchievement(id)).filter(b => b);
-                  const achievementList = achievementDetails.map(b => `${b!.emoji} **${b!.name}**`).join(', ');
-                  achievementMessage = `\n🏆 **NEW ACHIEVEMENT${newAchievements.length > 1 ? 'S' : ''}!** ${achievementList}`;
-                }
-
-                await user.send(`⏰ Your session was automatically ended after 10 minutes of inactivity.\n\n**Activity:** ${currentSession.activity}\n**Duration:** ${formatDuration(duration)}${xpMessage}${achievementMessage}\n\nYour session has been saved!`);
-              } catch (dmError) {
-                console.log(`[VOICE] Could not send DM to ${username}`);
-              }
-            }
-          } catch (error) {
-            console.error(`[VOICE] Error auto-ending session for ${username}:`, error);
-          } finally {
-            // Clean up timer from map
-            autoEndTimers.delete(userId);
-          }
-        }, 10 * 60 * 1000); // 10 minutes
-
-        // Store timer reference
-        autoEndTimers.set(userId, timer);
-        console.log(`[VOICE] Set 10-minute auto-end timer for ${username}`);
-      }
-    } else if (joinedChannel) {
-      console.log(`[VOICE] ${username} (${userId}) joined voice channel in guild ${guildId}`);
-
-      // Check if user has a paused session
-      const session = await sessionService.getActiveSession(userId);
-
-      if (session && session.isPaused) {
-        console.log(`[VOICE] Auto-resuming session for ${username}`);
-
-        // Clear auto-end timer if it exists
-        const timer = autoEndTimers.get(userId);
-        if (timer) {
-          clearTimeout(timer);
-          autoEndTimers.delete(userId);
-          console.log(`[VOICE] Cancelled auto-end timer for ${username}`);
-        }
-
-        // Calculate time spent paused
-        const pausedDuration = session.pausedAt
-          ? session.pausedDuration + (Timestamp.now().toMillis() - session.pausedAt.toMillis())
-          : session.pausedDuration;
-
-        // Resume the session
-        await sessionService.updateActiveSession(userId, {
-          isPaused: false,
-          pausedAt: undefined,
-          pausedDuration,
-        });
-
-        console.log(`[VOICE] Resumed session for ${username}`);
-      }
-    }
-  } catch (error) {
-    console.error(`[VOICE] Error handling voice state update for ${username}:`, error);
   }
 });
 

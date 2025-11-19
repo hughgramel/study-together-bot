@@ -12,10 +12,6 @@ export interface ActiveSession {
   isPaused: boolean;        // Current pause state
   pausedAt?: Timestamp;     // Timestamp when last paused (if isPaused = true)
   pausedDuration: number;   // Total seconds spent paused
-  isVCSession?: boolean;    // Whether this session was started by joining VC
-  vcChannelId?: string;     // Voice channel ID if VC session
-  leftVCAt?: Timestamp;     // Timestamp when user left VC (for pending completion)
-  pendingCompletion?: boolean; // Whether waiting for /end or 1-hour auto-post
   intensity?: number;       // Session intensity (1-5 scale) - affects XP multiplier
 }
 
@@ -107,7 +103,6 @@ export interface UserStats {
  */
 export interface ServerConfig {
   feedChannelId?: string;   // Discord channel ID for feed posts
-  focusRoomIds?: string[];  // Voice channel IDs that auto-start sessions
   welcomeChannelId?: string; // Discord channel ID for welcome messages
   eventsChannelId?: string; // Discord channel ID for study events
   setupAt: Timestamp;       // When configuration was last updated
