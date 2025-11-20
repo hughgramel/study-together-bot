@@ -42,7 +42,7 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
     avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
     xp: 4200,
     totalDuration: 18000,
-    rank: 15,
+    rank: 11,  // 11th place - just outside top 10
   };
 
   // Use sample data if no real data provided (for testing)
@@ -50,7 +50,16 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
   // Only use sample current user if we're using sample data AND no real current user provided
   const currentUser = originalEntries.length > 0
     ? originalCurrentUser  // Real data: use only what's passed
-    : (originalCurrentUser || (sampleCurrentUser.rank > 10 ? sampleCurrentUser : undefined)); // Sample data: use sample if rank > 10
+    : (timeframe === 'daily' ? sampleCurrentUser : undefined); // Sample data: show current user only for daily
+
+  console.log('[LeaderboardCard] Rendering:', {
+    originalEntriesLength: originalEntries.length,
+    entriesLength: entries.length,
+    originalCurrentUser: !!originalCurrentUser,
+    currentUser: !!currentUser,
+    currentUserRank: currentUser?.rank,
+    timeframe
+  });
 
   const timeframeLabels = {
     daily: 'Daily Leaderboard',

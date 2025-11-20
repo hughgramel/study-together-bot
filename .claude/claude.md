@@ -29,12 +29,8 @@ src/
 
 1. **Session Management**: `/start`, `/pause`, `/unpause`, `/stop`, `/cancel`
 2. **Status Checking**: `/time` (shows elapsed time, pause status)
-3. **Personal Stats**: `/mystats` (daily, weekly, monthly, all-time with streaks)
-4. **Leaderboards**:
-   - `/leaderboard` - Quick overview (top 3 + your position)
-   - `/d` - Full daily leaderboard (top 10)
-   - `/w` - Full weekly leaderboard (top 10)
-   - `/m` - Full monthly leaderboard (top 10)
+3. **Personal Stats**: `/stats` (daily, weekly, monthly, all-time with streaks)
+4. **Leaderboards**: `/leaderboard` - Interactive leaderboard with daily/weekly/monthly/all-time selector
 5. **Social Feed**: Strava-style embeds with reactions and comment threads
 6. **Streak Tracking**: Current and longest streaks with fire emojis
 
@@ -56,7 +52,7 @@ Firebase Firestore structure:
 - Use ephemeral replies for user-only messages
 
 ### Command Design Principles
-- **Short commands**: Prefer `/time` over `/status`, `/d` over `/daily`
+- **Short commands**: Prefer `/time` over `/status`
 - **Ephemeral by default**: Most responses should be `ephemeral: true` (user-only)
 - **Immediate feedback**: Use `deferReply()` for operations > 3 seconds
 - **Graceful errors**: Always catch errors and provide user-friendly messages

@@ -143,35 +143,8 @@ export class ProfileImageService {
     const page = await browser.newPage();
 
     try {
-      // Calculate height based on actual number of entries
-      const entryCount = entries.length > 0 ? entries.length : 10; // Sample has 10 entries
-      const hasCurrentUserForCalc = !!currentUser; // Only add extra height if currentUser exists
-
-      // Base: header (60) + top padding (32) + bottom padding (24) = 116
-      const baseHeight = 150;
-      // Each entry: padding (12) + content (~50) + border (4) = ~66, round up to 70 for safety
-      const entryHeight = 70;
-      // Spacing between entries (space-y-2.5 = 10px)
-      const spacingHeight = entryCount > 0 ? (entryCount - 1) * 10 : 0;
-      // Current user: separator (30) + entry (70) = 100
-      const extraUserHeight = hasCurrentUserForCalc ? 100 : 0;
-
-      const totalHeight = baseHeight + (entryCount * entryHeight) + spacingHeight + extraUserHeight;
-
-      // Add small buffer to ensure nothing gets cut off
-      const finalHeight = Math.ceil(totalHeight * 1.05); // 5% buffer
-
-      console.log('[LeaderboardImage] Generating image:', {
-        entries: entries.length,
-        entryCount,
-        hasCurrentUser: !!currentUser,
-        hasCurrentUserForCalc,
-        totalHeight,
-        finalHeight
-      });
-
-      // Set viewport to match our card size (700px width like profile cards)
-      await page.setViewport({ width: 700, height: finalHeight });
+      // Set initial large viewport to render everything
+      await page.setViewport({ width: 700, height: 2000 });
 
       // Render React component to HTML
       const component = React.createElement(LeaderboardCard, {
@@ -199,9 +172,8 @@ export class ProfileImageService {
                 margin: 0;
                 padding: 0;
                 width: 700px;
-                height: ${finalHeight}px;
-                overflow: hidden;
                 font-family: var(--font-main);
+                background-color: #F7F7F7;
               }
               * {
                 font-family: var(--font-main);
@@ -217,13 +189,77 @@ export class ProfileImageService {
       // Load the HTML
       await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
 
-      // Wait a bit more for Tailwind to fully process
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for Tailwind to fully process and render
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Take screenshot
+      // Get the actual height of the rendered content - try multiple methods
+      const contentHeight = await page.evaluate(`
+        (() => {
+          const body = document.body;
+          const firstChild = body.firstElementChild;
+
+          if (firstChild) {
+            // Try multiple measurement methods
+            const rect = firstChild.getBoundingClientRect();
+            const offsetHeight = firstChild.offsetHeight || 0;
+            const scrollHeight = firstChild.scrollHeight || 0;
+
+            // Return the largest measurement (most accurate)
+            return Math.ceil(Math.max(rect.height, offsetHeight, scrollHeight));
+          }
+          return body.scrollHeight;
+        })()
+      `) as number;
+
+      // Use measured height if available and valid, otherwise calculate
+      let finalHeight = contentHeight;
+
+      // If we got a valid measurement, add a buffer to ensure nothing is cut off
+      if (finalHeight > 0 && contentHeight > 0) {
+        finalHeight = Math.ceil(contentHeight + 150); // Add 150px buffer to be safe
+      } else {
+        // Fallback to calculation
+        const entryCount = entries.length > 0 ? entries.length : 10;
+        const hasCurrentUserForCalc = entries.length > 0
+          ? !!currentUser
+          : (timeframe === 'daily');
+
+        // Precise height calculation based on actual Tailwind classes
+        // Header with padding: mb-6 = 24px margin
+        const headerHeight = 60 + 24;  // 84px
+
+        // Container padding: p-8 pb-6 = 32px top, 24px bottom
+        const containerPadding = 32 + 24;  // 56px
+
+        // Each entry: p-3 = 12px padding all sides, height ~52px content
+        const entryHeight = 68;  // 12 + 12 + ~44px content
+
+        // Spacing between entries: space-y-2.5 = 10px
+        const spacingHeight = entryCount > 0 ? (entryCount - 1) * 10 : 0;
+
+        // Current user section: py-1 separator + entry + spacing before it
+        // Being more generous here: separator (40px) + entry (80px) = 120px
+        const extraUserHeight = hasCurrentUserForCalc ? 120 : 0;
+
+        const calculatedHeight = headerHeight + containerPadding + (entryCount * entryHeight) + spacingHeight + extraUserHeight;
+
+        // Add extra buffer to calculated height to ensure nothing is cut off
+        finalHeight = calculatedHeight + 50;
+      }
+
+      console.log('[LeaderboardImage] Generating image:', {
+        entries: entries.length,
+        hasCurrentUser: !!currentUser,
+        contentHeight,
+        finalHeight,
+        timeframe
+      });
+
+      // Take screenshot with actual content height and white background
       const screenshot = await page.screenshot({
         type: 'png',
         clip: { x: 0, y: 0, width: 700, height: finalHeight },
+        omitBackground: false,
       });
 
       return screenshot as Buffer;

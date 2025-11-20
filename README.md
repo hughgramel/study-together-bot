@@ -22,11 +22,9 @@ A Discord bot for collaborative productivity tracking with Strava-style social f
 - `/cancel` - Discard your active session without saving
 
 ### Statistics & Leaderboards
-- `/mystats [timeframe]` - View your personal statistics (daily/weekly/monthly/all-time)
-- `/leaderboard` - See top 3 performers and your position across all timeframes
-- `/d` - View full daily leaderboard (top 10)
-- `/w` - View full weekly leaderboard (top 10)
-- `/m` - View full monthly leaderboard (top 10)
+- `/stats` - View your personal statistics with Duolingo-style images
+- `/me` - View your Duolingo-style profile overview
+- `/leaderboard [timeframe]` - Interactive leaderboard with daily/weekly/monthly/all-time selector
 
 ### Admin
 - `/setup-feed {#channel}` - Configure feed channel for completed sessions (Admin only)
@@ -178,13 +176,14 @@ All data is stored in Firebase Firestore under the `discord-data/` collection:
 
 6. View your stats:
 ```
-/mystats timeframe: week
+/stats      # View detailed statistics
+/me         # View your profile overview
 ```
 
 7. Check the leaderboards:
 ```
-/d          # Quick daily leaderboard
-/leaderboard  # Overview with your position
+/leaderboard timeframe: daily   # Daily leaderboard
+/leaderboard                    # Defaults to daily
 ```
 
 ## Development Commands

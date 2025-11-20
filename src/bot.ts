@@ -36,6 +36,7 @@ import { XPService } from './services/xp';
 import { EventService } from './services/events';
 import { ProfileImageService } from './services/profileImage';
 import { StatsImageService } from './services/statsImage';
+import { StatsOverviewImageService } from './services/statsOverviewImage';
 import { PostImageService } from './services/postImage';
 import { getAchievement, getAllAchievements } from './data/achievements';
 import { ServerConfig } from './types';
@@ -101,6 +102,7 @@ const xpService = new XPService(db);
 const eventService = new EventService(db);
 const profileImageService = new ProfileImageService();
 const statsImageService = new StatsImageService();
+const statsOverviewImageService = new StatsOverviewImageService();
 const postImageService = new PostImageService();
 
 // Create Discord client
@@ -2008,10 +2010,503 @@ client.on('interactionCreate', async (interaction) => {
       });
       return;
     }
+
+    // View Graph button (from /me or /stats)
+    if (interaction.customId.startsWith('view_graph_')) {
+      const targetUserId = interaction.customId.replace('view_graph_', '');
+
+      if (user.id !== targetUserId) {
+        await interaction.reply({
+          content: '❌ You can only view your own graphs.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.deferReply({ ephemeral: false });
+
+      try {
+        // Default: Hours over the past week
+        const defaultMetric = 'hours';
+        const defaultTimeframe = 'week';
+
+        // Get historical data
+        const chartData = await statsService.getHistoricalChartData(
+          user.id,
+          defaultMetric,
+          defaultTimeframe
+        );
+
+        // Get user avatar
+        const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
+
+        // Generate chart image
+        const imageBuffer = await statsImageService.generateStatsImage(
+          user.username,
+          defaultMetric,
+          defaultTimeframe,
+          chartData.data,
+          chartData.currentValue,
+          chartData.previousValue,
+          avatarUrl
+        );
+
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats-chart.png' });
+
+        // Create dropdown menus for switching metrics and timeframes
+        const metricSelect = new StringSelectMenuBuilder()
+          .setCustomId(`graph_metric_${user.id}`)
+          .setPlaceholder('Change metric')
+          .addOptions([
+            { label: '⏱️ Hours', value: 'hours', default: true },
+            { label: '📚 Sessions', value: 'sessions' },
+            { label: '⚡ XP Earned', value: 'xp' },
+          ]);
+
+        const timeframeSelect = new StringSelectMenuBuilder()
+          .setCustomId(`graph_timeframe_${user.id}`)
+          .setPlaceholder('Change timeframe')
+          .addOptions([
+            { label: '📆 Past Week', value: 'week', default: true },
+            { label: '📅 Past Month', value: 'month' },
+            { label: '📊 Past Year', value: 'year' },
+          ]);
+
+        const metricRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(metricSelect);
+        const timeframeRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(timeframeSelect);
+
+        await interaction.editReply({
+          files: [attachment],
+          components: [metricRow, timeframeRow],
+        });
+      } catch (error) {
+        console.error('Error generating graph:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate graph. Please try again later.',
+        });
+      }
+      return;
+    }
+
+    // View Statistics button (from /me)
+    if (interaction.customId.startsWith('view_stats_')) {
+      const targetUserId = interaction.customId.replace('view_stats_', '');
+
+      if (user.id !== targetUserId) {
+        await interaction.reply({
+          content: '❌ You can only view your own statistics.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.deferReply({ ephemeral: false });
+
+      try {
+        const stats = await statsService.getUserStats(user.id);
+
+        if (!stats) {
+          await interaction.editReply({
+            content: 'No stats yet! Complete your first session with /start and /stop.',
+          });
+          return;
+        }
+
+        // Default to weekly hours
+        const defaultMetric = 'hours';
+        const defaultTimeframe = 'week';
+
+        // Calculate stats
+        const today = getStartOfDayPacific();
+        const todaySessions = await sessionService.getCompletedSessions(
+          user.id,
+          Timestamp.fromDate(today)
+        );
+
+        const weekStart = getStartOfWeekPacific();
+        const weeklySessions = await sessionService.getCompletedSessions(
+          user.id,
+          Timestamp.fromDate(weekStart)
+        );
+
+        const twoWeeksAgo = new Date(weekStart);
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 7);
+        const allPreviousWeekSessions = await sessionService.getCompletedSessions(
+          user.id,
+          Timestamp.fromDate(twoWeeksAgo)
+        );
+        const previousWeekSessions = allPreviousWeekSessions.filter(s =>
+          s.endTime.toDate() < weekStart
+        );
+
+        const currentValue = Math.round(weeklySessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+        const previousValue = Math.round(previousWeekSessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+
+        // Calculate breakdown by day
+        const breakdown = [];
+        const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const dayStart = new Date(weekStart);
+
+        for (let i = 0; i < 7; i++) {
+          const dayEnd = new Date(dayStart);
+          dayEnd.setDate(dayEnd.getDate() + 1);
+
+          const daySessions = weeklySessions.filter(s => {
+            const sessionDate = s.endTime.toDate();
+            return sessionDate >= dayStart && sessionDate < dayEnd;
+          });
+
+          const dayHours = Math.round(daySessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+          breakdown.push({ label: daysOfWeek[i], value: dayHours });
+
+          dayStart.setDate(dayStart.getDate() + 1);
+        }
+
+        const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
+
+        const imageBuffer = await statsOverviewImageService.generateStatsOverviewImage(
+          user.username,
+          defaultMetric as 'hours' | 'sessions' | 'xp',
+          defaultTimeframe as 'today' | 'week' | 'month' | 'all-time',
+          currentValue,
+          previousValue,
+          breakdown,
+          avatarUrl
+        );
+
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'stats-overview.png',
+        });
+
+        // Create dropdown and button
+        const selectMenu = new StringSelectMenuBuilder()
+          .setCustomId(`stats_select_${user.id}`)
+          .setPlaceholder('Change metric or timeframe')
+          .addOptions([
+            { label: '⏱️ Hours - This Week', value: 'hours_week', default: true },
+            { label: '⏱️ Hours - Today', value: 'hours_today' },
+            { label: '⏱️ Hours - This Month', value: 'hours_month' },
+            { label: '⏱️ Hours - All Time', value: 'hours_all-time' },
+            { label: '📚 Sessions - This Week', value: 'sessions_week' },
+            { label: '📚 Sessions - Today', value: 'sessions_today' },
+            { label: '📚 Sessions - This Month', value: 'sessions_month' },
+            { label: '📚 Sessions - All Time', value: 'sessions_all-time' },
+            { label: '⚡ XP - This Week', value: 'xp_week' },
+            { label: '⚡ XP - Today', value: 'xp_today' },
+            { label: '⚡ XP - This Month', value: 'xp_month' },
+            { label: '⚡ XP - All Time', value: 'xp_all-time' },
+          ]);
+
+        const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+
+        const graphButton = new ButtonBuilder()
+          .setCustomId(`view_graph_${user.id}`)
+          .setLabel('View Graph')
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('📊');
+
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(graphButton);
+
+        await interaction.editReply({
+          files: [attachment],
+          components: [selectRow, buttonRow],
+        });
+      } catch (error) {
+        console.error('Error generating statistics:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate statistics. Please try again later.',
+        });
+      }
+      return;
+    }
   }
 
   // Handle select menu interactions
   if (interaction.isStringSelectMenu()) {
+    // Stats selector handler
+    if (interaction.customId.startsWith('stats_select_')) {
+      const targetUserId = interaction.customId.replace('stats_select_', '');
+      const user = interaction.user;
+
+      if (user.id !== targetUserId) {
+        await interaction.reply({
+          content: '❌ You can only change your own statistics view.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.deferUpdate();
+
+      try {
+        // Parse metric and timeframe from selected value
+        const [metric, timeframe] = interaction.values[0].split('_');
+
+        // Get data based on timeframe
+        let startTime: Date;
+        let previousStartTime: Date;
+        let previousEndTime: Date;
+        let breakdown: Array<{ label: string; value: number }> = [];
+        let breakdownLabels: string[];
+
+        const today = getStartOfDayPacific();
+        const monthStart = getStartOfMonthPacific();
+
+        // Use rolling 7-day window (same as /graph)
+        const now = new Date();
+        const weekStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+        weekStart.setHours(0, 0, 0, 0);
+
+        if (timeframe === 'today') {
+          startTime = today;
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          previousStartTime = yesterday;
+          previousEndTime = today;
+          breakdownLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+        } else if (timeframe === 'week') {
+          startTime = weekStart;
+          const twoWeeksAgo = new Date(now.getTime() - 13 * 24 * 60 * 60 * 1000);
+          twoWeeksAgo.setHours(0, 0, 0, 0);
+          previousStartTime = twoWeeksAgo;
+          previousEndTime = weekStart;
+          // Generate day names for rolling 7-day window
+          breakdownLabels = [];
+          const tempDate = new Date(weekStart);
+          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          for (let i = 0; i < 7; i++) {
+            breakdownLabels.push(dayNames[tempDate.getDay()]);
+            tempDate.setDate(tempDate.getDate() + 1);
+          }
+        } else if (timeframe === 'month') {
+          startTime = monthStart;
+          const lastMonthStart = new Date(monthStart);
+          lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+          previousStartTime = lastMonthStart;
+          previousEndTime = monthStart;
+          // Show 4 weeks for month
+          breakdownLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+        } else {
+          // all-time
+          startTime = new Date(0);
+          previousStartTime = new Date(0);
+          previousEndTime = new Date(0);
+          // Show Today, This Week, This Month, All Time
+          breakdownLabels = ['Today', 'This Week', 'This Month', 'All Time'];
+        }
+
+        // Fetch sessions
+        const currentSessions = await sessionService.getCompletedSessions(
+          user.id,
+          Timestamp.fromDate(startTime)
+        );
+
+        let previousSessions: any[] = [];
+        if (timeframe !== 'all-time') {
+          const allPreviousSessions = await sessionService.getCompletedSessions(
+            user.id,
+            Timestamp.fromDate(previousStartTime)
+          );
+          // Filter to only include sessions before the current period
+          previousSessions = allPreviousSessions.filter(s =>
+            s.endTime.toDate() < startTime
+          );
+        }
+
+        // Calculate values based on metric
+        let currentValue: number;
+        let previousValue: number;
+
+        if (metric === 'hours') {
+          currentValue = Math.round(currentSessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+          previousValue = Math.round(previousSessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+        } else if (metric === 'sessions') {
+          currentValue = currentSessions.length;
+          previousValue = previousSessions.length;
+        } else {
+          // xp
+          currentValue = Math.round(currentSessions.reduce((sum, s) => sum + (s.xpGained || 0), 0));
+          previousValue = Math.round(previousSessions.reduce((sum, s) => sum + (s.xpGained || 0), 0));
+        }
+
+        // Calculate breakdown and highlight index
+        let highlightIndex: number | undefined = undefined;
+        const currentDate = new Date();
+
+        if (timeframe === 'today') {
+          // Hourly breakdown for today
+          for (let hour = 0; hour < 24; hour++) {
+            const hourStart = new Date(startTime);
+            hourStart.setHours(hour, 0, 0, 0);
+            const hourEnd = new Date(hourStart);
+            hourEnd.setHours(hour + 1, 0, 0, 0);
+
+            const hourSessions = currentSessions.filter(s => {
+              const sessionDate = s.endTime.toDate();
+              return sessionDate >= hourStart && sessionDate < hourEnd;
+            });
+
+            let value = 0;
+            if (metric === 'hours') {
+              value = Math.round(hourSessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+            } else if (metric === 'sessions') {
+              value = hourSessions.length;
+            } else {
+              value = Math.round(hourSessions.reduce((sum, s) => sum + (s.xpGained || 0), 0));
+            }
+
+            breakdown.push({ label: breakdownLabels[hour], value });
+
+            // Highlight current hour
+            if (currentDate.getHours() === hour) {
+              highlightIndex = hour;
+            }
+          }
+        } else if (timeframe === 'week') {
+          // Daily breakdown for week
+          const dayStart = new Date(startTime);
+          for (let i = 0; i < 7; i++) {
+            const dayEnd = new Date(dayStart);
+            dayEnd.setDate(dayEnd.getDate() + 1);
+
+            const daySessions = currentSessions.filter(s => {
+              const sessionDate = s.endTime.toDate();
+              return sessionDate >= dayStart && sessionDate < dayEnd;
+            });
+
+            let value = 0;
+            if (metric === 'hours') {
+              value = Math.round(daySessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+            } else if (metric === 'sessions') {
+              value = daySessions.length;
+            } else {
+              value = Math.round(daySessions.reduce((sum, s) => sum + (s.xpGained || 0), 0));
+            }
+
+            breakdown.push({ label: breakdownLabels[i], value });
+
+            // Highlight today
+            if (dayStart.toDateString() === currentDate.toDateString()) {
+              highlightIndex = i;
+            }
+
+            dayStart.setDate(dayStart.getDate() + 1);
+          }
+        } else if (timeframe === 'month') {
+          // Weekly breakdown for month (4 weeks)
+          const weekStart = new Date(startTime);
+
+          for (let i = 0; i < 4; i++) {
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekEnd.getDate() + 7);
+
+            const weekSessions = currentSessions.filter(s => {
+              const sessionDate = s.endTime.toDate();
+              return sessionDate >= weekStart && sessionDate < weekEnd;
+            });
+
+            let value = 0;
+            if (metric === 'hours') {
+              value = Math.round(weekSessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+            } else if (metric === 'sessions') {
+              value = weekSessions.length;
+            } else {
+              value = Math.round(weekSessions.reduce((sum, s) => sum + (s.xpGained || 0), 0));
+            }
+
+            breakdown.push({ label: breakdownLabels[i], value });
+
+            // Highlight current week
+            if (currentDate >= weekStart && currentDate < weekEnd) {
+              highlightIndex = i;
+            }
+
+            weekStart.setDate(weekStart.getDate() + 7);
+          }
+        } else {
+          // all-time: show Today, This Week, This Month, All Time
+          const todayValue = await sessionService.getCompletedSessions(user.id, Timestamp.fromDate(today));
+          const weekValue = await sessionService.getCompletedSessions(user.id, Timestamp.fromDate(weekStart));
+          const monthValue = await sessionService.getCompletedSessions(user.id, Timestamp.fromDate(monthStart));
+
+          const calculateValue = (sessions: any[]) => {
+            if (metric === 'hours') {
+              return Math.round(sessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+            } else if (metric === 'sessions') {
+              return sessions.length;
+            } else {
+              return Math.round(sessions.reduce((sum, s) => sum + (s.xpGained || 0), 0));
+            }
+          };
+
+          breakdown = [
+            { label: 'Today', value: calculateValue(todayValue) },
+            { label: 'This Week', value: calculateValue(weekValue) },
+            { label: 'This Month', value: calculateValue(monthValue) },
+            { label: 'All Time', value: currentValue },
+          ];
+
+          // All-time: don't highlight anything (or optionally highlight "All Time" at index 3)
+          highlightIndex = undefined;
+        }
+
+        // Generate new stats image
+        const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
+        const imageBuffer = await statsOverviewImageService.generateStatsOverviewImage(
+          user.username,
+          metric as 'hours' | 'sessions' | 'xp',
+          timeframe as 'today' | 'week' | 'month' | 'all-time',
+          currentValue,
+          previousValue,
+          breakdown,
+          avatarUrl,
+          highlightIndex
+        );
+
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'stats-overview.png',
+        });
+
+        // Update select menu to reflect current selection
+        const selectMenu = new StringSelectMenuBuilder()
+          .setCustomId(`stats_select_${user.id}`)
+          .setPlaceholder('Change metric or timeframe')
+          .addOptions([
+            { label: '⏱️ Hours - This Week', value: 'hours_week', default: metric === 'hours' && timeframe === 'week' },
+            { label: '⏱️ Hours - This Month', value: 'hours_month', default: metric === 'hours' && timeframe === 'month' },
+            { label: '⏱️ Hours - All Time', value: 'hours_all-time', default: metric === 'hours' && timeframe === 'all-time' },
+            { label: '📚 Sessions - This Week', value: 'sessions_week', default: metric === 'sessions' && timeframe === 'week' },
+            { label: '📚 Sessions - This Month', value: 'sessions_month', default: metric === 'sessions' && timeframe === 'month' },
+            { label: '📚 Sessions - All Time', value: 'sessions_all-time', default: metric === 'sessions' && timeframe === 'all-time' },
+            { label: '⚡ XP - This Week', value: 'xp_week', default: metric === 'xp' && timeframe === 'week' },
+            { label: '⚡ XP - This Month', value: 'xp_month', default: metric === 'xp' && timeframe === 'month' },
+            { label: '⚡ XP - All Time', value: 'xp_all-time', default: metric === 'xp' && timeframe === 'all-time' },
+          ]);
+
+        const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+
+        const graphButton = new ButtonBuilder()
+          .setCustomId(`view_graph_${user.id}`)
+          .setLabel('View Graph')
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('📊');
+
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(graphButton);
+
+        await interaction.editReply({
+          files: [attachment],
+          components: [selectRow, buttonRow],
+        });
+      } catch (error) {
+        console.error('Error updating statistics:', error);
+        await interaction.followUp({
+          content: '❌ Failed to update statistics. Please try again later.',
+          ephemeral: true,
+        });
+      }
+      return;
+    }
+
     // Event builder study type selection
     if (interaction.customId.includes('event_builder:') && interaction.customId.includes(':study_type')) {
       const parts = interaction.customId.split(':');
@@ -2336,17 +2831,13 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.deferUpdate();
 
       try {
-        // Get data based on timeframe
+        // Get data based on timeframe - ALL timeframes filter by server
         let topUsers: Array<{ userId: string; username: string; totalDuration: number; xp?: number }> = [];
 
         if (selectedTimeframe === 'all-time') {
-          const allTimeUsers = await statsService.getTopUsersByXP(20);
-          topUsers = allTimeUsers.map(u => ({
-            userId: u.userId,
-            username: u.username,
-            totalDuration: 0,
-            xp: u.xp,
-          }));
+          // Get all-time top users by XP (from beginning of time) - filtered by server
+          const allTimeStart = Timestamp.fromDate(new Date(0)); // Unix epoch
+          topUsers = await sessionService.getTopUsers(allTimeStart, 20, guildId!);
         } else {
           let startTime: Date;
           if (selectedTimeframe === 'daily') {
@@ -2360,62 +2851,62 @@ client.on('interactionCreate', async (interaction) => {
           topUsers = await sessionService.getTopUsers(Timestamp.fromDate(startTime), 20, guildId!);
         }
 
-        // TEMPORARY: Skip empty check to always show sample data
-        // if (topUsers.length === 0) {
-        //   await interaction.editReply({
-        //     content: '📊 No one on the leaderboard yet! Be the first to start a session with `/start`.',
-        //     components: [],
-        //   });
-        //   return;
-        // }
-
-        // Get top 10
-        const top10 = topUsers.slice(0, 10);
-
-        // Check if current user is in top 10
-        const userPosition = topUsers.findIndex(u => u.userId === user.id);
-
-        // Prepare leaderboard entries with avatars
-        const entries = await Promise.all(
-          top10.map(async (u, index) => {
-            try {
-              const discordUser = await client.users.fetch(u.userId);
-              const stats = await statsService.getUserStats(u.userId);
-              const totalDuration = selectedTimeframe === 'all-time' ? (stats?.totalDuration || 0) : u.totalDuration;
-              return {
-                userId: u.userId,
-                username: u.username,
-                avatarUrl: discordUser.displayAvatarURL({ size: 128, extension: 'png' }),
-                xp: stats?.xp || 0,
-                totalDuration,
-                rank: index + 1,
-              };
-            } catch (error) {
-              console.error(`Failed to fetch user ${u.userId}:`, error);
-              return {
-                userId: u.userId,
-                username: u.username,
-                avatarUrl: '',
-                xp: 0,
-                totalDuration: u.totalDuration,
-                rank: index + 1,
-              };
-            }
-          })
-        );
-
-        // Prepare current user entry if they're not in top 10
+        // TEMPORARY: Use sample data if no real users (for testing)
+        let entries: Array<{ userId: string; username: string; avatarUrl: string; xp: number; totalDuration: number; rank: number }> = [];
         let currentUserEntry = undefined;
-        if (userPosition > 9) {
-          const userStats = await statsService.getUserStats(user.id);
-          currentUserEntry = {
-            userId: user.id,
-            username: user.username,
-            avatarUrl: user.displayAvatarURL({ size: 128, extension: 'png' }),
-            xp: userStats?.xp || 0,
-            totalDuration: topUsers[userPosition].totalDuration,
-            rank: userPosition + 1,
-          };
+
+        if (topUsers.length === 0) {
+          // No real data, pass empty arrays - component will use sample data
+          entries = [];
+          currentUserEntry = undefined;
+        } else {
+          // Get top 10
+          const top10 = topUsers.slice(0, 10);
+
+          // Check if current user is in top 10
+          const userPosition = topUsers.findIndex(u => u.userId === user.id);
+
+          // Prepare leaderboard entries with avatars
+          entries = await Promise.all(
+            top10.map(async (u, index) => {
+              try {
+                const discordUser = await client.users.fetch(u.userId);
+                const stats = await statsService.getUserStats(u.userId);
+                const totalDuration = selectedTimeframe === 'all-time' ? (stats?.totalDuration || 0) : u.totalDuration;
+                return {
+                  userId: u.userId,
+                  username: u.username,
+                  avatarUrl: discordUser.displayAvatarURL({ size: 128, extension: 'png' }),
+                  xp: stats?.xp || 0,
+                  totalDuration,
+                  rank: index + 1,
+                };
+              } catch (error) {
+                console.error(`Failed to fetch user ${u.userId}:`, error);
+                return {
+                  userId: u.userId,
+                  username: u.username,
+                  avatarUrl: '',
+                  xp: 0,
+                  totalDuration: u.totalDuration,
+                  rank: index + 1,
+                };
+              }
+            })
+          );
+
+          // Prepare current user entry if they're not in top 10
+          if (userPosition > 9) {
+            const userStats = await statsService.getUserStats(user.id);
+            currentUserEntry = {
+              userId: user.id,
+              username: user.username,
+              avatarUrl: user.displayAvatarURL({ size: 128, extension: 'png' }),
+              xp: userStats?.xp || 0,
+              totalDuration: topUsers[userPosition].totalDuration,
+              rank: userPosition + 1,
+            };
+          }
         }
 
         // Generate new leaderboard image
@@ -3525,7 +4016,7 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // /mystats command
+    // /stats command - Show detailed statistics with dropdown and graph button
     if (commandName === 'stats') {
       const stats = await statsService.getUserStats(user.id);
 
@@ -3538,16 +4029,23 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      const now = new Date();
+      await interaction.deferReply({ ephemeral: false });
 
-      // Calculate stats for each timeframe
+      // Default to weekly hours
+      const defaultMetric = 'hours';
+      const defaultTimeframe = 'week';
+
+      // Calculate stats for all timeframes
       const today = getStartOfDayPacific();
       const todaySessions = await sessionService.getCompletedSessions(
         user.id,
         Timestamp.fromDate(today)
       );
 
-      const weekStart = getStartOfWeekPacific();
+      // Use rolling 7-day window (same as /graph)
+      const now = new Date();
+      const weekStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+      weekStart.setHours(0, 0, 0, 0);
       const weeklySessions = await sessionService.getCompletedSessions(
         user.id,
         Timestamp.fromDate(weekStart)
@@ -3561,90 +4059,137 @@ client.on('interactionCreate', async (interaction) => {
 
       const allSessions = await sessionService.getCompletedSessions(user.id);
 
-      // Calculate durations in hours
-      const dailyHours = todaySessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
-      const weeklyHours = weeklySessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
-      const monthlyHours = monthlySessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
-      const allTimeHours = allSessions.reduce((sum, s) => sum + s.duration, 0) / 3600;
+      // Get previous week sessions for comparison (7-13 days ago)
+      const twoWeeksAgo = new Date(now.getTime() - 13 * 24 * 60 * 60 * 1000);
+      twoWeeksAgo.setHours(0, 0, 0, 0);
+      const allPreviousWeekSessions = await sessionService.getCompletedSessions(
+        user.id,
+        Timestamp.fromDate(twoWeeksAgo)
+      );
+      const previousWeekSessions = allPreviousWeekSessions.filter(s =>
+        s.endTime.toDate() < weekStart
+      );
 
-      // Calculate average per day for current month (using Pacific Time)
-      const pacificNow = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
-      const pacificDate = new Date(pacificNow);
-      const monthName = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'][pacificDate.getMonth()];
-      const currentDay = pacificDate.getDate();
-      const avgPerDay = currentDay > 0 ? (monthlyHours / currentDay) : 0;
+      // Calculate current and previous values for weekly hours
+      const currentValue = Math.round(weeklySessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+      const previousValue = Math.round(previousWeekSessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
 
-      // Format hours with 1 decimal place
-      const formatHours = (hours: number) => hours.toFixed(1) + 'h';
+      // Calculate breakdown by day (last 7 days)
+      const breakdown = [];
+      const dayStart = new Date(weekStart);
+      let highlightIndex = -1;
 
-      // Create fire emojis based on streak length
-      const getStreakEmojis = (streak: number): string => {
-        if (streak >= 30) return '🔥🔥🔥';
-        if (streak >= 7) return '🔥🔥';
-        if (streak >= 3) return '🔥';
-        return '';
-      };
+      for (let i = 0; i < 7; i++) {
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
 
-      const currentStreakEmojis = getStreakEmojis(stats.currentStreak);
-      const longestStreakEmojis = getStreakEmojis(stats.longestStreak);
-
-      // XP & Level info
-      const currentXp = stats.xp || 0;
-      const currentLevel = calculateLevel(currentXp);
-      const xpToNext = xpToNextLevel(currentXp);
-      const progress = levelProgress(currentXp);
-
-      // Create progress bar (20 characters wide)
-      const progressBarLength = 20;
-      const filledLength = Math.floor((progress / 100) * progressBarLength);
-      const progressBar = '█'.repeat(filledLength) + '░'.repeat(progressBarLength - filledLength);
-
-      // Get user achievements
-      const userAchievements = await achievementService.getUserAchievements(user.id);
-
-      // Achievement display (show first 10, or "X more" if > 10)
-      let achievementDisplay = '';
-      if (userAchievements.length > 0) {
-        const displayAchievements = userAchievements.slice(0, 10);
-        achievementDisplay = displayAchievements.map(b => b.emoji).join(' ');
-        if (userAchievements.length > 10) {
-          achievementDisplay += ` +${userAchievements.length - 10} more`;
-        }
-      } else {
-        achievementDisplay = '*No achievements yet - complete sessions to earn achievements!*';
-      }
-
-      // Create embed with separate fields for better formatting
-      const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-      const embed = new EmbedBuilder()
-        .setColor(0x1CB0F6) // Duolingo blue
-        .setTitle('📊 Personal Study Statistics')
-        .setDescription(
-          `**Level ${currentLevel}** ${progressBar} ${progress.toFixed(0)}%\n` +
-          `${currentXp.toLocaleString()} XP • ${xpToNext.toLocaleString()} XP to Level ${currentLevel + 1}`
-        )
-        .addFields(
-          { name: '📅 Timeframe', value: '**Daily**\n**Weekly**\n**Monthly**\n**All-time**', inline: true },
-          { name: '⏱️ Hours', value: `${formatHours(dailyHours)}\n${formatHours(weeklyHours)}\n${formatHours(monthlyHours)}\n${formatHours(allTimeHours)}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true },
-          { name: '📚 Total Sessions', value: `**${stats.totalSessions}**`, inline: true },
-          { name: '📈 Hours/day (' + monthName + ')', value: `**${avgPerDay.toFixed(1)} h**`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true },
-          { name: '🔥 Current Streak', value: `**${stats.currentStreak}** days ${currentStreakEmojis}`, inline: true },
-          { name: '💪 Longest Streak', value: `**${stats.longestStreak}** days ${longestStreakEmojis}`, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true },
-          { name: `🏆 Achievements (${userAchievements.length})`, value: achievementDisplay, inline: false }
-        )
-        .setFooter({
-          text: user.username,
-          iconURL: avatarUrl
+        const daySessions = weeklySessions.filter(s => {
+          const sessionDate = s.endTime.toDate();
+          return sessionDate >= dayStart && sessionDate < dayEnd;
         });
 
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: false,
+        const dayHours = Math.round(daySessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
+
+        // Get day name
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayName = days[dayStart.getDay()];
+
+        breakdown.push({ label: dayName, value: dayHours });
+
+        // Check if this is today
+        if (dayStart.toDateString() === now.toDateString()) {
+          highlightIndex = i;
+        }
+
+        dayStart.setDate(dayStart.getDate() + 1);
+      }
+
+      // Get user avatar
+      const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
+
+      // Generate stats image
+      const imageBuffer = await statsOverviewImageService.generateStatsOverviewImage(
+        user.username,
+        defaultMetric as 'hours' | 'sessions' | 'xp',
+        defaultTimeframe as 'today' | 'week' | 'month' | 'all-time',
+        currentValue,
+        previousValue,
+        breakdown,
+        avatarUrl,
+        highlightIndex
+      );
+
+      const attachment = new AttachmentBuilder(imageBuffer, {
+        name: 'stats-overview.png',
+      });
+
+      // Create dropdown menu for metric/timeframe selection
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`stats_select_${user.id}`)
+        .setPlaceholder('Change metric or timeframe')
+        .addOptions([
+          {
+            label: '⏱️ Hours - This Week',
+            description: 'View your total hours for this week',
+            value: 'hours_week',
+            default: true,
+          },
+          {
+            label: '⏱️ Hours - This Month',
+            description: 'View your total hours for this month',
+            value: 'hours_month',
+          },
+          {
+            label: '⏱️ Hours - All Time',
+            description: 'View your total hours all time',
+            value: 'hours_all-time',
+          },
+          {
+            label: '📚 Sessions - This Week',
+            description: 'View your total sessions for this week',
+            value: 'sessions_week',
+          },
+          {
+            label: '📚 Sessions - This Month',
+            description: 'View your total sessions for this month',
+            value: 'sessions_month',
+          },
+          {
+            label: '📚 Sessions - All Time',
+            description: 'View your total sessions all time',
+            value: 'sessions_all-time',
+          },
+          {
+            label: '⚡ XP - This Week',
+            description: 'View your total XP for this week',
+            value: 'xp_week',
+          },
+          {
+            label: '⚡ XP - This Month',
+            description: 'View your total XP for this month',
+            value: 'xp_month',
+          },
+          {
+            label: '⚡ XP - All Time',
+            description: 'View your total XP all time',
+            value: 'xp_all-time',
+          },
+        ]);
+
+      const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+
+      // Create "View Graph" button
+      const graphButton = new ButtonBuilder()
+        .setCustomId(`view_graph_${user.id}`)
+        .setLabel('View Graph')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('📊');
+
+      const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(graphButton);
+
+      await interaction.editReply({
+        files: [attachment],
+        components: [selectRow, buttonRow],
       });
       return;
     }
@@ -3935,9 +4480,25 @@ client.on('interactionCreate', async (interaction) => {
         // Create attachment
         const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile.png' });
 
-        // Send the image
+        // Create "View Graph" and "View Statistics" buttons
+        const graphButton = new ButtonBuilder()
+          .setCustomId(`view_graph_${user.id}`)
+          .setLabel('View Graph')
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('📊');
+
+        const statsButton = new ButtonBuilder()
+          .setCustomId(`view_stats_${user.id}`)
+          .setLabel('View Statistics')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('📈');
+
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(graphButton, statsButton);
+
+        // Send the image with buttons
         await interaction.editReply({
           files: [attachment],
+          components: [buttonRow],
         });
       } catch (error) {
         console.error('Error generating profile image:', error);
@@ -4240,19 +4801,13 @@ client.on('interactionCreate', async (interaction) => {
         // Get timeframe parameter (default to daily)
         const timeframe = (interaction.options.getString('timeframe') || 'daily') as 'daily' | 'weekly' | 'monthly' | 'all-time';
 
-        // Get data based on timeframe
+        // Get data based on timeframe - ALL timeframes filter by server
         let topUsers: Array<{ userId: string; username: string; totalDuration: number; xp?: number }> = [];
 
         if (timeframe === 'all-time') {
-          // Get all-time top users by XP
-          const allTimeUsers = await statsService.getTopUsersByXP(20);
-          // Convert to expected format
-          topUsers = allTimeUsers.map(u => ({
-            userId: u.userId,
-            username: u.username,
-            totalDuration: 0, // We'll fetch this from stats
-            xp: u.xp,
-          }));
+          // Get all-time top users by XP (from beginning of time) - filtered by server
+          const allTimeStart = Timestamp.fromDate(new Date(0)); // Unix epoch
+          topUsers = await sessionService.getTopUsers(allTimeStart, 20, guildId!);
         } else {
           // Get time-based leaderboard
           let startTime: Date;

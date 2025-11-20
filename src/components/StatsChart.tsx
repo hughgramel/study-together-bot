@@ -121,45 +121,62 @@ export const StatsChart: React.FC<StatsChartProps> = ({
       </div>
 
       {/* Bar Chart - takes up remaining space */}
-      <div className="flex-1 flex items-end gap-4 px-6 pb-12">
-        {data.map((point, index) => {
-          const heightPercent = (point.value / maxValue) * 100;
-          const isHighlighted = index === data.length - 1;
-
-          return (
-            <div key={index} className="flex-1 flex flex-col items-center gap-3 group">
-              {/* Value Label on Hover */}
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity h-6">
-                <span className="text-[#3C3C3C] text-lg font-bold">
-                  {formatValue(point.value)}
+      <div className="flex-1 flex items-end gap-4 pb-12">
+        {/* Y-axis labels */}
+        <div className="flex flex-col justify-between h-[420px] pr-4 mb-16" style={{ minWidth: '60px' }}>
+          {[4, 3, 2, 1, 0].map((i) => {
+            const value = (maxValue / 4) * i;
+            return (
+              <div key={i} className="flex items-center justify-end">
+                <span className="text-[#6B6B6B] text-base font-semibold">
+                  {formatValue(value)}{metricConfig.unit}
                 </span>
               </div>
+            );
+          })}
+        </div>
 
-              {/* Bar Container */}
-              <div className="w-full flex flex-col justify-end" style={{ height: '420px' }}>
-                <div
-                  className={`w-full rounded-t-2xl transition-all ${
-                    isHighlighted
-                      ? 'opacity-100'
-                      : 'opacity-50 group-hover:opacity-80'
-                  }`}
-                  style={{
-                    height: `${heightPercent}%`,
-                    background: `linear-gradient(180deg, ${metricConfig.gradient[0]}, ${metricConfig.gradient[1]})`,
-                    minHeight: point.value > 0 ? '12px' : '0px',
-                  }}
-                />
+        {/* Bars */}
+        <div className="flex-1 flex items-end gap-4 px-6">
+          {data.map((point, index) => {
+            const heightPercent = (point.value / maxValue) * 100;
+            const isHighlighted = index === data.length - 1;
+
+            return (
+              <div key={index} className="flex-1 flex flex-col items-center gap-3 group">
+                {/* Value Label on Hover */}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity h-6">
+                  <span className="text-[#3C3C3C] text-lg font-bold">
+                    {formatValue(point.value)}
+                  </span>
+                </div>
+
+                {/* Bar Container */}
+                <div className="w-full flex flex-col justify-end" style={{ height: '420px' }}>
+                  <div
+                    className={`w-full rounded-t-2xl transition-all ${
+                      isHighlighted
+                        ? 'opacity-100'
+                        : 'opacity-50 group-hover:opacity-80'
+                    }`}
+                    style={{
+                      height: `${heightPercent}%`,
+                      background: `linear-gradient(180deg, ${metricConfig.gradient[0]}, ${metricConfig.gradient[1]})`,
+                      minHeight: point.value > 0 ? '12px' : '0px',
+                    }}
+                  />
+                </div>
+
+                {/* Label - darker color, more space below */}
+                <span className={`text-xl font-bold mb-4 ${
+                  isHighlighted ? 'text-[#3C3C3C]' : 'text-[#6B6B6B]'
+                }`}>
+                  {point.label}
+                </span>
               </div>
-
-              {/* Label - darker color, more space below */}
-              <span className={`text-xl font-bold mb-4 ${
-                isHighlighted ? 'text-[#3C3C3C]' : 'text-[#6B6B6B]'
-              }`}>
-                {point.label}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

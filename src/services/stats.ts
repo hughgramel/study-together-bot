@@ -692,9 +692,11 @@ export class StatsService {
 
     // Determine timeframe and bucket configuration
     if (timeframe === 'week') {
-      // Week view: 7 days
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      previousStartDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      // Week view: 7 days ending today
+      startDate = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000); // 6 days ago so including today = 7 days
+      startDate.setHours(0, 0, 0, 0); // Set to start of day
+      previousStartDate = new Date(now.getTime() - 13 * 24 * 60 * 60 * 1000);
+      previousStartDate.setHours(0, 0, 0, 0);
       bucketCount = 7;
       labelFormat = (date) => {
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
