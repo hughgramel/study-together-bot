@@ -670,4 +670,182 @@ export class StatsService {
 
     return users;
   }
+
+  /**
+   * Get historical chart data for a user
+   * Returns time-series data for hours, XP, or sessions
+   */
+  async getHistoricalChartData(
+    userId: string,
+    metric: 'hours' | 'xp' | 'sessions' | 'totalHours',
+    timeframe: 'week' | 'month' | 'year'
+  ): Promise<{
+    data: Array<{ label: string; value: number }>;
+    currentValue: number;
+    previousValue: number;
+  }> {
+    const now = new Date();
+    let startDate: Date;
+    let previousStartDate: Date;
+    let bucketCount: number;
+    let labelFormat: (date: Date, index?: number) => string;
+
+    // Determine timeframe and bucket configuration
+    if (timeframe === 'week') {
+      // Week view: 7 days
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      previousStartDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      bucketCount = 7;
+      labelFormat = (date) => {
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        return days[date.getDay()];
+      };
+    } else if (timeframe === 'month') {
+      // Month view: 4 weeks
+      startDate = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+      previousStartDate = new Date(now.getTime() - 56 * 24 * 60 * 60 * 1000);
+      bucketCount = 4;
+      labelFormat = (date, weekNumber?) => {
+        return `Week ${(weekNumber || 0) + 1}`;
+      };
+    } else {
+      // Year view: 12 months
+      startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+      previousStartDate = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+      bucketCount = 12;
+      labelFormat = (date) => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return months[date.getMonth()];
+      };
+    }
+
+    // Fetch sessions from the database
+    const sessionsSnapshot = await this.db
+      .collection('discord-data')
+      .doc('sessions')
+      .collection('completed')
+      .where('userId', '==', userId)
+      .where('createdAt', '>=', Timestamp.fromDate(previousStartDate))
+      .get();
+
+    // Initialize buckets for current and previous periods
+    const currentBuckets: number[] = new Array(bucketCount).fill(0);
+    const previousBuckets: number[] = new Array(bucketCount).fill(0);
+    const labels: string[] = [];
+
+    // Generate labels
+    for (let i = 0; i < bucketCount; i++) {
+      let labelDate: Date;
+      if (timeframe === 'year') {
+        labelDate = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+        labels.push(labelFormat(labelDate));
+      } else if (timeframe === 'month') {
+        // For month view, use week number
+        labels.push(`Week ${i + 1}`);
+      } else {
+        labelDate = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+        labels.push(labelFormat(labelDate));
+      }
+    }
+
+    // Aggregate sessions into buckets
+    sessionsSnapshot.docs.forEach(doc => {
+      const session = doc.data();
+      const sessionDate = session.createdAt.toDate();
+      const duration = session.duration || 0;
+      const xpGained = session.xpGained || 0;
+
+      // Determine which bucket this session belongs to
+      let bucketIndex: number;
+      let isCurrentPeriod: boolean;
+
+      if (timeframe === 'year') {
+        // For year view, bucket by month
+        const monthsDiff = (sessionDate.getFullYear() - startDate.getFullYear()) * 12 +
+                          (sessionDate.getMonth() - startDate.getMonth());
+        bucketIndex = monthsDiff;
+        isCurrentPeriod = sessionDate >= startDate;
+      } else if (timeframe === 'month') {
+        // For month view, bucket by week (7-day periods)
+        const timeDiff = sessionDate.getTime() - startDate.getTime();
+        const daysDiff = Math.floor(timeDiff / (24 * 60 * 60 * 1000));
+        bucketIndex = Math.floor(daysDiff / 7); // Group into weeks
+        isCurrentPeriod = sessionDate >= startDate;
+      } else {
+        // For week view, bucket by day
+        const timeDiff = sessionDate.getTime() - startDate.getTime();
+        const daysDiff = Math.floor(timeDiff / (24 * 60 * 60 * 1000));
+        bucketIndex = daysDiff;
+        isCurrentPeriod = sessionDate >= startDate;
+      }
+
+      // Add to appropriate bucket
+      if (isCurrentPeriod && bucketIndex >= 0 && bucketIndex < bucketCount) {
+        if (metric === 'hours' || metric === 'totalHours') {
+          currentBuckets[bucketIndex] += duration / 3600;
+        } else if (metric === 'xp') {
+          currentBuckets[bucketIndex] += xpGained;
+        } else if (metric === 'sessions') {
+          currentBuckets[bucketIndex] += 1;
+        }
+      } else if (!isCurrentPeriod) {
+        // Previous period
+        let prevBucketIndex: number;
+        if (timeframe === 'year') {
+          const monthsDiff = (sessionDate.getFullYear() - previousStartDate.getFullYear()) * 12 +
+                            (sessionDate.getMonth() - previousStartDate.getMonth());
+          prevBucketIndex = monthsDiff;
+        } else if (timeframe === 'month') {
+          const timeDiff = sessionDate.getTime() - previousStartDate.getTime();
+          const daysDiff = Math.floor(timeDiff / (24 * 60 * 60 * 1000));
+          prevBucketIndex = Math.floor(daysDiff / 7);
+        } else {
+          const timeDiff = sessionDate.getTime() - previousStartDate.getTime();
+          const daysDiff = Math.floor(timeDiff / (24 * 60 * 60 * 1000));
+          prevBucketIndex = daysDiff;
+        }
+
+        if (prevBucketIndex >= 0 && prevBucketIndex < bucketCount) {
+          if (metric === 'hours' || metric === 'totalHours') {
+            previousBuckets[prevBucketIndex] += duration / 3600;
+          } else if (metric === 'xp') {
+            previousBuckets[prevBucketIndex] += xpGained;
+          } else if (metric === 'sessions') {
+            previousBuckets[prevBucketIndex] += 1;
+          }
+        }
+      }
+    });
+
+    // Calculate totals
+    const currentTotal = currentBuckets.reduce((sum, val) => sum + val, 0);
+    const previousTotal = previousBuckets.reduce((sum, val) => sum + val, 0);
+
+    // Create data array with labels
+    let data: Array<{ label: string; value: number }>;
+
+    if (metric === 'totalHours') {
+      // For totalHours, create cumulative values
+      let cumulative = 0;
+      data = labels.map((label, index) => {
+        cumulative += currentBuckets[index] || 0;
+        return {
+          label,
+          value: cumulative,
+        };
+      });
+    } else {
+      // For other metrics, use regular values
+      data = labels.map((label, index) => ({
+        label,
+        value: currentBuckets[index] || 0,
+      }));
+    }
+
+    return {
+      data,
+      currentValue: currentTotal,
+      previousValue: previousTotal,
+    };
+  }
 }

@@ -20,6 +20,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ButtonInteraction,
+  AttachmentBuilder,
 } from 'discord.js';
 import * as admin from 'firebase-admin';
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
@@ -33,6 +34,9 @@ import { PostService } from './services/posts';
 import { DailyGoalService } from './services/dailyGoal';
 import { XPService } from './services/xp';
 import { EventService } from './services/events';
+import { ProfileImageService } from './services/profileImage';
+import { StatsImageService } from './services/statsImage';
+import { PostImageService } from './services/postImage';
 import { getAchievement, getAllAchievements } from './data/achievements';
 import { ServerConfig } from './types';
 import {
@@ -42,6 +46,13 @@ import {
   isYesterday,
 } from './utils/formatters';
 import { calculateLevel, xpToNextLevel, levelProgress, xpForLevel } from './utils/xp';
+
+// Extend Discord.js Client type to include statsSelections
+declare module 'discord.js' {
+  interface Client {
+    statsSelections?: Map<string, { metric: 'hours' | 'xp' | 'sessions' | 'totalHours'; timeframe: 'week' | 'month' | 'year' }>;
+  }
+}
 
 // Load environment variables
 dotenv.config();
@@ -88,6 +99,9 @@ const postService = new PostService(db);
 const dailyGoalService = new DailyGoalService(db);
 const xpService = new XPService(db);
 const eventService = new EventService(db);
+const profileImageService = new ProfileImageService();
+const statsImageService = new StatsImageService();
+const postImageService = new PostImageService();
 
 // Create Discord client
 const client = new Client({
@@ -125,10 +139,6 @@ const eventBuilders = new Map<string, EventBuilderState>();
 
 // Define slash commands
 const commands = [
-  new SlashCommandBuilder()
-    .setName('ping')
-    .setDescription('Test if bot is responsive'),
-
   new SlashCommandBuilder()
     .setName('start')
     .setDescription('Start a new productivity session')
@@ -190,18 +200,20 @@ const commands = [
     ),
 
   new SlashCommandBuilder()
-    .setName('compare')
-    .setDescription('Compare your stats with another user')
-    .addUserOption(option =>
-      option
-        .setName('user')
-        .setDescription('User to compare with')
-        .setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
     .setName('leaderboard')
-    .setDescription('View server leaderboards with timeframe selector'),
+    .setDescription('View server leaderboards with timeframe selector')
+    .addStringOption(option =>
+      option
+        .setName('timeframe')
+        .setDescription('Leaderboard timeframe')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Daily', value: 'daily' },
+          { name: 'Weekly', value: 'weekly' },
+          { name: 'Monthly', value: 'monthly' },
+          { name: 'All-Time', value: 'all-time' }
+        )
+    ),
 
   new SlashCommandBuilder()
     .setName('live')
@@ -319,6 +331,22 @@ const commands = [
         .setDescription('The event to cancel')
         .setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName('me')
+    .setDescription('View your Duolingo-style profile overview'),
+
+  new SlashCommandBuilder()
+    .setName('graph')
+    .setDescription('View your stats as a Duolingo-style graph'),
+
+  new SlashCommandBuilder()
+    .setName('post')
+    .setDescription('Preview what your session completion post will look like in the feed'),
+
+  new SlashCommandBuilder()
+    .setName('postlong')
+    .setDescription('Preview a session post with a long description to see dynamic height'),
 ].map((command) => command.toJSON());
 
 // Register commands
@@ -547,7 +575,7 @@ async function postSessionStartToFeed(
 
     // Create embed for session start
     const embed = new EmbedBuilder()
-      .setColor(0x00FF00) // Green for "live"
+      .setColor(0x58CC02) // Duolingo green for "live"
       .setAuthor({
         name: `${username} 🟢`,
         iconURL: avatarUrl
@@ -624,37 +652,40 @@ async function postToFeed(
 
     const durationStr = formatDuration(duration);
 
-    // Get intensity display (visual bars)
-    const getIntensityDisplay = (intensity?: number): string => {
-      if (!intensity) return 'Not specified';
+    // Default intensity to 3 (moderate) if not specified
+    const sessionIntensity = intensity || 3;
 
-      // Create visual bar representation
-      const filled = '█';
-      const empty = '░';
-      const bars = filled.repeat(intensity) + empty.repeat(5 - intensity);
+    // Format the date as "Month Day at HH:MM AM/PM"
+    const sessionDate = endTime.toDate();
+    const dateStr = sessionDate.toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
 
-      const labels = ['Light', 'Easy', 'Normal', 'Hard', 'Max'];
-      return `${bars} ${labels[intensity - 1]}`;
-    };
+    // Generate the session post image
+    const imageBuffer = await postImageService.generateSessionPostImage(
+      username,
+      durationStr,
+      xpGained,
+      activity,
+      sessionIntensity,
+      avatarUrl,
+      title,
+      description,
+      dateStr
+    );
 
-    // Create the Strava-like embed
-    const embed = new EmbedBuilder()
-      .setColor(0x0080FF) // Electric blue
-      .setAuthor({
-        name: `${username} completed a session!`,
-        iconURL: avatarUrl
-      })
-      .setTitle(title)
-      .setDescription(description)
-      .addFields(
-        { name: '⏱️ Time', value: durationStr, inline: true },
-        { name: '🎯 Activity', value: activity, inline: true },
-        { name: '💪 Intensity', value: getIntensityDisplay(intensity), inline: true },
-        { name: '\u200b', value: `**✨ +${xpGained} XP Earned**`, inline: false }
-      );
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `session-${sessionId}.png`,
+      description: `${username} completed a ${durationStr} session`
+    });
 
     const message = await textChannel.send({
-      embeds: [embed]
+      files: [attachment]
     });
 
     // Track session post for social features
@@ -680,7 +711,7 @@ async function postToFeed(
     if (error.code === 50001) {
       console.error(`Bot lacks access to feed channel. Please ensure the bot has 'View Channel' permission.`);
     } else if (error.code === 50013) {
-      console.error(`Bot lacks permissions in feed channel. Please ensure the bot has 'Send Messages', 'Embed Links', and 'Add Reactions' permissions.`);
+      console.error(`Bot lacks permissions in feed channel. Please ensure the bot has 'Send Messages', 'Attach Files', and 'Add Reactions' permissions.`);
     } else {
       console.error('Error posting to feed:', error);
     }
@@ -725,24 +756,24 @@ async function postStreakMilestone(
     // Determine message and emoji based on milestones
     let message = '';
     let emoji = '';
-    let color = 0x00FF00; // Green
+    let color = 0x58CC02; // Duolingo green
     let shouldCelebrate = false;
 
     if (totalSessions === 1) {
       // First session ever - only triggers once
       message = `**@${username}** just completed their first session! 🎉`;
       emoji = '🎉';
-      color = 0x00FF00; // Green
+      color = 0x58CC02; // Duolingo green
       shouldCelebrate = true;
     } else if (streak === 7) {
       message = `**@${username}** hit a 7-day streak! 🔥🔥 A full week of grinding!`;
       emoji = '🔥';
-      color = 0xFF6B00; // Orange
+      color = 0xFF9600; // Duolingo orange (streak color)
       shouldCelebrate = true;
     } else if (streak === 30) {
       message = `**@${username}** reached a 30-day streak! 🔥🔥🔥 Unstoppable! 🚀`;
       emoji = '🔥';
-      color = 0xFF0000; // Red
+      color = 0xFF6B6B; // Duolingo red (best streak color)
       shouldCelebrate = true;
     }
 
@@ -835,7 +866,7 @@ async function postAchievementUnlock(
 
     // Create achievement unlock embed
     const embed = new EmbedBuilder()
-      .setColor(0xFFD700) // Gold
+      .setColor(0xFFD900) // Duolingo yellow (XP/achievement color)
       .setAuthor({
         name: `${username} 🏆`,
         iconURL: avatarUrl
@@ -904,7 +935,7 @@ async function postLevelUp(
 
     // Create level-up embed
     const embed = new EmbedBuilder()
-      .setColor(0x9B59B6) // Purple
+      .setColor(0xCE82FF) // Duolingo purple (achievement/level-up color)
       .setAuthor({
         name: `${username} 🎉`,
         iconURL: avatarUrl
@@ -962,7 +993,7 @@ async function postLevelUpBasic(
 
     // Create level-up embed
     const embed = new EmbedBuilder()
-      .setColor(0x9B59B6) // Purple
+      .setColor(0xCE82FF) // Duolingo purple (achievement/level-up color)
       .setAuthor({
         name: `${username} 🎉`,
         iconURL: avatarUrl
@@ -1358,7 +1389,7 @@ client.on('interactionCreate', async (interaction) => {
         // Update helper function
         const updateBuilderEmbed = (state: EventBuilderState): EmbedBuilder => {
           const embed = new EmbedBuilder()
-            .setColor(0x0080FF)
+            .setColor(0x1CB0F6) // Duolingo blue
             .setTitle('📅 Create Study Event')
             .setDescription('Use the buttons and dropdown below to configure your event.')
             .addFields(
@@ -1648,7 +1679,7 @@ client.on('interactionCreate', async (interaction) => {
               const studyType = builderState.studyType || 'conversation';
 
               const eventEmbed = new EmbedBuilder()
-                .setColor(0x0080FF)
+                .setColor(0x1CB0F6) // Duolingo blue
                 .setAuthor({
                   name: user.username,
                   iconURL: user.displayAvatarURL({ size: 128 }),
@@ -2030,7 +2061,7 @@ client.on('interactionCreate', async (interaction) => {
       // Update embed helper
       const updateBuilderEmbed = (state: EventBuilderState): EmbedBuilder => {
         const embed = new EmbedBuilder()
-          .setColor(0x0080FF)
+          .setColor(0x1CB0F6) // Duolingo blue
           .setTitle('📅 Create Study Event')
           .setDescription('Use the buttons and dropdown below to configure your event.')
           .addFields(
@@ -2142,7 +2173,7 @@ client.on('interactionCreate', async (interaction) => {
         };
 
         embed = new EmbedBuilder()
-          .setColor(0xFFD700)
+          .setColor(0xFFD900) // Duolingo yellow
           .setTitle('🏆 Your Leaderboard Position')
           .addFields(
             { name: '\u200B', value: formatLeaderboard(dailyAll, '📅', 'Daily'), inline: false },
@@ -2156,7 +2187,7 @@ client.on('interactionCreate', async (interaction) => {
 
         if (xpUsers.length === 0) {
           embed = new EmbedBuilder()
-            .setColor(0xFFD700)
+            .setColor(0xFFD900) // Duolingo yellow
             .setTitle('⚡ XP Leaderboard')
             .setDescription('No XP data yet! Complete sessions to earn XP! 🚀')
             .setFooter({ text: 'Use the dropdown below to view other timeframes' });
@@ -2183,7 +2214,7 @@ client.on('interactionCreate', async (interaction) => {
           }
 
           embed = new EmbedBuilder()
-            .setColor(0xFFD700)
+            .setColor(0xFFD900) // Duolingo yellow
             .setTitle('⚡ XP Leaderboard')
             .addFields(
               { name: 'Rank', value: ranks.join('\n'), inline: true },
@@ -2214,7 +2245,7 @@ client.on('interactionCreate', async (interaction) => {
 
         if (users.length === 0) {
           embed = new EmbedBuilder()
-            .setColor(0xFFD700)
+            .setColor(0xFFD900) // Duolingo yellow
             .setTitle(title)
             .setDescription('No sessions completed in this timeframe yet! Be the first! 🚀')
             .setFooter({ text: 'Use the dropdown below to view other timeframes' });
@@ -2241,7 +2272,7 @@ client.on('interactionCreate', async (interaction) => {
           }
 
           embed = new EmbedBuilder()
-            .setColor(0xFFD700)
+            .setColor(0xFFD900) // Duolingo yellow
             .setTitle(title)
             .addFields(
               { name: 'Rank', value: ranks.join('\n'), inline: true },
@@ -2295,6 +2326,155 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
+    // Leaderboard image timeframe dropdown handler
+    if (interaction.customId === 'leaderboard_image_timeframe') {
+      const selectedTimeframe = interaction.values[0] as 'daily' | 'weekly' | 'monthly' | 'all-time';
+      const user = interaction.user;
+      const guildId = interaction.guildId;
+
+      // Defer the update to prevent timeout
+      await interaction.deferUpdate();
+
+      try {
+        // Get data based on timeframe
+        let topUsers: Array<{ userId: string; username: string; totalDuration: number; xp?: number }> = [];
+
+        if (selectedTimeframe === 'all-time') {
+          const allTimeUsers = await statsService.getTopUsersByXP(20);
+          topUsers = allTimeUsers.map(u => ({
+            userId: u.userId,
+            username: u.username,
+            totalDuration: 0,
+            xp: u.xp,
+          }));
+        } else {
+          let startTime: Date;
+          if (selectedTimeframe === 'daily') {
+            startTime = getStartOfDayPacific();
+          } else if (selectedTimeframe === 'weekly') {
+            startTime = getStartOfWeekPacific();
+          } else {
+            startTime = getStartOfMonthPacific();
+          }
+
+          topUsers = await sessionService.getTopUsers(Timestamp.fromDate(startTime), 20, guildId!);
+        }
+
+        // TEMPORARY: Skip empty check to always show sample data
+        // if (topUsers.length === 0) {
+        //   await interaction.editReply({
+        //     content: '📊 No one on the leaderboard yet! Be the first to start a session with `/start`.',
+        //     components: [],
+        //   });
+        //   return;
+        // }
+
+        // Get top 10
+        const top10 = topUsers.slice(0, 10);
+
+        // Check if current user is in top 10
+        const userPosition = topUsers.findIndex(u => u.userId === user.id);
+
+        // Prepare leaderboard entries with avatars
+        const entries = await Promise.all(
+          top10.map(async (u, index) => {
+            try {
+              const discordUser = await client.users.fetch(u.userId);
+              const stats = await statsService.getUserStats(u.userId);
+              const totalDuration = selectedTimeframe === 'all-time' ? (stats?.totalDuration || 0) : u.totalDuration;
+              return {
+                userId: u.userId,
+                username: u.username,
+                avatarUrl: discordUser.displayAvatarURL({ size: 128, extension: 'png' }),
+                xp: stats?.xp || 0,
+                totalDuration,
+                rank: index + 1,
+              };
+            } catch (error) {
+              console.error(`Failed to fetch user ${u.userId}:`, error);
+              return {
+                userId: u.userId,
+                username: u.username,
+                avatarUrl: '',
+                xp: 0,
+                totalDuration: u.totalDuration,
+                rank: index + 1,
+              };
+            }
+          })
+        );
+
+        // Prepare current user entry if they're not in top 10
+        let currentUserEntry = undefined;
+        if (userPosition > 9) {
+          const userStats = await statsService.getUserStats(user.id);
+          currentUserEntry = {
+            userId: user.id,
+            username: user.username,
+            avatarUrl: user.displayAvatarURL({ size: 128, extension: 'png' }),
+            xp: userStats?.xp || 0,
+            totalDuration: topUsers[userPosition].totalDuration,
+            rank: userPosition + 1,
+          };
+        }
+
+        // Generate new leaderboard image
+        const imageBuffer = await profileImageService.generateLeaderboardImage(
+          selectedTimeframe,
+          entries,
+          currentUserEntry
+        );
+
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'leaderboard.png' });
+
+        // Recreate the select menu
+        const selectMenu = new StringSelectMenuBuilder()
+          .setCustomId('leaderboard_image_timeframe')
+          .setPlaceholder('Select a timeframe')
+          .addOptions([
+            {
+              label: 'Daily',
+              description: 'Today\'s top performers',
+              value: 'daily',
+              emoji: '📅',
+            },
+            {
+              label: 'Weekly',
+              description: 'This week\'s leaders',
+              value: 'weekly',
+              emoji: '📊',
+            },
+            {
+              label: 'Monthly',
+              description: 'This month\'s champions',
+              value: 'monthly',
+              emoji: '🌟',
+            },
+            {
+              label: 'All-Time',
+              description: 'Lifetime XP rankings',
+              value: 'all-time',
+              emoji: '⚡',
+            },
+          ]);
+
+        const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+
+        // Update with new image
+        await interaction.editReply({
+          files: [attachment],
+          components: [row],
+        });
+      } catch (error) {
+        console.error('Error updating leaderboard image:', error);
+        await interaction.editReply({
+          content: '❌ Failed to update leaderboard. Please try again later.',
+          components: [],
+        });
+      }
+      return;
+    }
+
     // Goal completion dropdown handler
     if (interaction.customId.startsWith('goal_complete:')) {
       const userId = interaction.customId.split(':')[1];
@@ -2331,7 +2511,7 @@ client.on('interactionCreate', async (interaction) => {
 
         // Create completion embed
         const embed = new EmbedBuilder()
-          .setColor(0x00FF00)
+          .setColor(0x58CC02) // Duolingo green
           .setTitle('🎉 Goal Completed!')
           .setDescription(`**${goal.text}**`)
           .addFields(
@@ -2395,7 +2575,7 @@ client.on('interactionCreate', async (interaction) => {
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
       const embed = new EmbedBuilder()
-        .setColor(0xFFD700) // Gold
+        .setColor(0xFFD900) // Duolingo yellow // Gold
         .setTitle(`🏆 Your Achievements (${unlockedAchievements.length}/${allAchievements.length})`)
         .setDescription(achievementList)
         .setFooter({
@@ -2429,6 +2609,142 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.editReply({ embeds: [embed], components: [row] });
       return;
     }
+
+    // Stats graph metric/timeframe selection handler
+    if (interaction.customId.startsWith('stats-metric:') || interaction.customId.startsWith('stats-timeframe:')) {
+      // Extract user ID from custom ID
+      const parts = interaction.customId.split(':');
+      const userId = parts[1];
+
+      // Only allow the owner to interact with their stats menu
+      if (interaction.user.id !== userId) {
+        await interaction.reply({
+          content: 'This stats menu belongs to someone else!',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.deferUpdate();
+
+      if (!client.statsSelections) {
+        client.statsSelections = new Map();
+      }
+
+      const currentSelection = client.statsSelections.get(userId) || { metric: 'hours', timeframe: 'week' };
+
+      if (interaction.customId.startsWith('stats-metric:')) {
+        currentSelection.metric = interaction.values[0] as 'hours' | 'xp' | 'sessions' | 'totalHours';
+      } else {
+        currentSelection.timeframe = interaction.values[0] as 'week' | 'month' | 'year';
+      }
+
+      client.statsSelections.set(userId, currentSelection);
+
+      try {
+        // Get historical data
+        const chartData = await statsService.getHistoricalChartData(
+          userId,
+          currentSelection.metric,
+          currentSelection.timeframe
+        );
+
+        // Get avatar URL
+        const avatarUrl = interaction.user.displayAvatarURL({ size: 256, extension: 'png' });
+
+        // Generate stats chart image
+        const imageBuffer = await statsImageService.generateStatsImage(
+          interaction.user.username,
+          currentSelection.metric,
+          currentSelection.timeframe,
+          chartData.data,
+          chartData.currentValue,
+          chartData.previousValue,
+          avatarUrl
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats-chart.png' });
+
+        // Recreate dropdown menus with updated defaults
+        const metricMenu = new StringSelectMenuBuilder()
+          .setCustomId(`stats-metric:${userId}`)
+          .setPlaceholder('Change metric')
+          .addOptions([
+            {
+              label: 'Hours Studied',
+              description: 'View your study hours over time',
+              value: 'hours',
+              emoji: '⏱️',
+              default: currentSelection.metric === 'hours',
+            },
+            {
+              label: 'Total Hours',
+              description: 'View cumulative hours studied',
+              value: 'totalHours',
+              emoji: '📈',
+              default: currentSelection.metric === 'totalHours',
+            },
+            {
+              label: 'XP Earned',
+              description: 'View your XP gains over time',
+              value: 'xp',
+              emoji: '⚡',
+              default: currentSelection.metric === 'xp',
+            },
+            {
+              label: 'Sessions Completed',
+              description: 'View your session count over time',
+              value: 'sessions',
+              emoji: '📚',
+              default: currentSelection.metric === 'sessions',
+            },
+          ]);
+
+        const timeframeMenu = new StringSelectMenuBuilder()
+          .setCustomId(`stats-timeframe:${userId}`)
+          .setPlaceholder('Change timeframe')
+          .addOptions([
+            {
+              label: 'Past 7 Days',
+              description: 'View last week\'s stats',
+              value: 'week',
+              emoji: '📅',
+              default: currentSelection.timeframe === 'week',
+            },
+            {
+              label: 'Past 30 Days',
+              description: 'View last month\'s stats',
+              value: 'month',
+              emoji: '📆',
+              default: currentSelection.timeframe === 'month',
+            },
+            {
+              label: 'Past Year',
+              description: 'View yearly stats',
+              value: 'year',
+              emoji: '📊',
+              default: currentSelection.timeframe === 'year',
+            },
+          ]);
+
+        const row1 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(timeframeMenu);
+        const row2 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(metricMenu);
+
+        // Update the message with the new chart (timeframe first, then metric)
+        await interaction.editReply({
+          files: [attachment],
+          components: [row1, row2],
+        });
+      } catch (error) {
+        console.error('Error generating stats chart:', error);
+        await interaction.followUp({
+          content: '❌ Failed to generate stats chart. Please try again later.',
+          ephemeral: true,
+        });
+      }
+      return;
+    }
   }
 
   if (!interaction.isChatInputCommand()) return;
@@ -2439,16 +2755,10 @@ client.on('interactionCreate', async (interaction) => {
   console.log(`[${new Date().toISOString()}] ${user.username} (${user.id}) used /${commandName} in guild ${guildId}`);
 
   try {
-    // /ping command
-    if (commandName === 'ping') {
-      await interaction.reply({ content: 'Pong! 🏓', ephemeral: true });
-      return;
-    }
-
     // /help command
     if (commandName === 'help') {
       const embed = new EmbedBuilder()
-        .setColor(0x0080FF)
+        .setColor(0x1CB0F6) // Duolingo blue
         .setTitle('📚 Study Together Bot - Commands')
         .setDescription('Track your productivity and compete with friends!')
         .addFields(
@@ -2532,7 +2842,7 @@ client.on('interactionCreate', async (interaction) => {
           const xpAmount = difficulty === 'easy' ? 50 : difficulty === 'medium' ? 100 : 200;
 
           const embed = new EmbedBuilder()
-            .setColor(0x00FF00)
+            .setColor(0x58CC02) // Duolingo green
             .setTitle('✅ Goal Added!')
             .setDescription(`**${goalText}**`)
             .addFields(
@@ -2587,7 +2897,7 @@ client.on('interactionCreate', async (interaction) => {
           const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 
           const embed = new EmbedBuilder()
-            .setColor(0x0080FF)
+            .setColor(0x1CB0F6) // Duolingo blue
             .setTitle('🎯 Complete a Goal')
             .setDescription('Select which goal you completed:')
             .setFooter({ text: `${activeGoals.length} active ${activeGoals.length === 1 ? 'goal' : 'goals'}` });
@@ -2621,7 +2931,7 @@ client.on('interactionCreate', async (interaction) => {
           const completedGoals = allGoals.filter(g => g.isCompleted);
 
           const embed = new EmbedBuilder()
-            .setColor(0xFFD700)
+            .setColor(0xFFD900) // Duolingo yellow
             .setTitle('📋 Your Goals');
 
           // Add active goals
@@ -2672,7 +2982,7 @@ client.on('interactionCreate', async (interaction) => {
       });
 
       const builderEmbed = new EmbedBuilder()
-        .setColor(0x0080FF)
+        .setColor(0x1CB0F6) // Duolingo blue
         .setTitle('📅 Create Study Event')
         .setDescription('Use the buttons and dropdown below to configure your event.')
         .addFields(
@@ -2793,7 +3103,7 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         const embed = new EmbedBuilder()
-          .setColor(0x0080FF)
+          .setColor(0x1CB0F6) // Duolingo blue
           .setTitle('📅 Upcoming Study Events')
           .setDescription(`${events.length} event${events.length === 1 ? '' : 's'} scheduled`)
           .setTimestamp();
@@ -2875,7 +3185,7 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         const embed = new EmbedBuilder()
-          .setColor(0xFFD700)
+          .setColor(0xFFD900) // Duolingo yellow
           .setTitle('📅 Your Events')
           .setDescription(`You're attending ${events.length} event${events.length === 1 ? '' : 's'}`)
           .setTimestamp();
@@ -2938,7 +3248,7 @@ client.on('interactionCreate', async (interaction) => {
               if (message) {
                 // Update the message to show it's cancelled
                 const cancelledEmbed = new EmbedBuilder()
-                  .setColor(0xFF0000)
+                  .setColor(0xFF6B6B) // Duolingo red (error/cancel)
                   .setTitle(`❌ CANCELLED: ${event.title}`)
                   .setDescription(`This event has been cancelled by the organizer.`)
                   .addFields(
@@ -3309,7 +3619,7 @@ client.on('interactionCreate', async (interaction) => {
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
       const embed = new EmbedBuilder()
-        .setColor(0x0080FF)
+        .setColor(0x1CB0F6) // Duolingo blue
         .setTitle('📊 Personal Study Statistics')
         .setDescription(
           `**Level ${currentLevel}** ${progressBar} ${progress.toFixed(0)}%\n` +
@@ -3367,7 +3677,7 @@ client.on('interactionCreate', async (interaction) => {
 
         // 1. Post example session completion embed
         const sessionEmbed = new EmbedBuilder()
-          .setColor(0x0080FF) // Electric blue
+          .setColor(0x1CB0F6) // Duolingo blue // Electric blue
           .setAuthor({
             name: `${user.username} 🎯`,
             iconURL: avatarUrl
@@ -3391,7 +3701,7 @@ client.on('interactionCreate', async (interaction) => {
 
         // 2. Post example level-up embed (right after)
         const levelUpEmbed = new EmbedBuilder()
-          .setColor(0x9B59B6) // Purple
+          .setColor(0xCE82FF) // Duolingo purple (achievement/level-up color)
           .setAuthor({
             name: `${user.username} 🎉`,
             iconURL: avatarUrl
@@ -3470,7 +3780,7 @@ client.on('interactionCreate', async (interaction) => {
 
         // Create achievement unlock embed
         const embed = new EmbedBuilder()
-          .setColor(0xFFD700) // Gold
+          .setColor(0xFFD900) // Duolingo yellow // Gold
           .setAuthor({
             name: `${user.username} 🏆`,
             iconURL: avatarUrl
@@ -3524,7 +3834,7 @@ client.on('interactionCreate', async (interaction) => {
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
       const embed = new EmbedBuilder()
-        .setColor(0xFFD700) // Gold
+        .setColor(0xFFD900) // Duolingo yellow // Gold
         .setTitle(`🏆 Your Achievements (${unlockedAchievements.length}/${allAchievements.length})`)
         .setDescription(achievementList)
         .setFooter({
@@ -3564,197 +3874,309 @@ client.on('interactionCreate', async (interaction) => {
 
     // /profile command - View user profile with comprehensive stats
     if (commandName === 'profile') {
-      const targetUser = interaction.options.getUser('user') || user;
-      const stats = await statsService.getUserStats(targetUser.id);
+      await interaction.deferReply({ ephemeral: false });
 
-      if (!stats) {
-        await interaction.reply({
-          content: `${targetUser.id === user.id ? 'You haven\'t' : `${targetUser.username} hasn't`} completed any sessions yet!`,
-          ephemeral: true,
-        });
-        return;
-      }
+      try {
+        const targetUser = interaction.options.getUser('user') || user;
+        const stats = await statsService.getUserStats(targetUser.id);
 
-      // Calculate XP and level
-      const currentXp = stats.xp || 0;
-      const currentLevel = calculateLevel(currentXp);
-      const xpToNext = xpToNextLevel(currentXp);
-      const progress = levelProgress(currentXp);
-
-      // Build progress bar
-      const progressBarLength = 20;
-      const filledLength = Math.floor((progress / 100) * progressBarLength);
-      const progressBar = '█'.repeat(filledLength) + '░'.repeat(progressBarLength - filledLength);
-
-      // Get achievements
-      const userAchievements = await achievementService.getUserAchievements(targetUser.id);
-      let achievementDisplay = '';
-      if (userAchievements.length > 0) {
-        const topAchievements = userAchievements.slice(0, 5);
-        achievementDisplay = topAchievements.map(b => b.emoji).join(' ');
-        if (userAchievements.length > 5) {
-          achievementDisplay += ` +${userAchievements.length - 5} more`;
+        if (!stats) {
+          await interaction.editReply({
+            content: `${targetUser.id === user.id ? 'You haven\'t' : `${targetUser.username} hasn't`} completed any sessions yet!`,
+          });
+          return;
         }
-      } else {
-        achievementDisplay = '*No achievements yet*';
+
+        // Get avatar URL
+        const avatarUrl = targetUser.displayAvatarURL({ size: 256, extension: 'png' });
+
+        // Generate profile image
+        const imageBuffer = await profileImageService.generateProfileImage(
+          targetUser.username,
+          stats,
+          avatarUrl
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile.png' });
+
+        // Send the image
+        await interaction.editReply({
+          files: [attachment],
+        });
+      } catch (error) {
+        console.error('Error generating profile image:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate profile image. Please try again later.',
+        });
       }
-
-      // Streak emojis
-      const currentStreakEmojis = '🔥'.repeat(Math.min(Math.floor(stats.currentStreak / 7), 5));
-      const longestStreakEmojis = '🔥'.repeat(Math.min(Math.floor(stats.longestStreak / 7), 5));
-
-      const avatarUrl = targetUser.displayAvatarURL({ size: 256 });
-
-      const embed = new EmbedBuilder()
-        .setColor(0x0080FF)
-        .setTitle(`${targetUser.username}'s Profile`)
-        .setThumbnail(avatarUrl)
-        .setDescription(
-          `**Level ${currentLevel}** ${progressBar} ${progress.toFixed(0)}%\n` +
-          `${currentXp.toLocaleString()} XP • ${xpToNext.toLocaleString()} XP to Level ${currentLevel + 1}`
-        )
-        .addFields(
-          {
-            name: '🏆 Achievements',
-            value: `${userAchievements.length}/20 • ${achievementDisplay}`,
-            inline: false
-          },
-          {
-            name: '📊 Statistics',
-            value:
-              `**Total Sessions:** ${stats.totalSessions}\n` +
-              `**Total Hours:** ${(stats.totalDuration / 3600).toFixed(1)}h\n` +
-              `**Longest Session:** ${stats.longestSessionDuration ? formatDuration(stats.longestSessionDuration) : 'N/A'}`,
-            inline: true
-          },
-          {
-            name: '🔥 Streaks',
-            value:
-              `**Current:** ${stats.currentStreak} days ${currentStreakEmojis}\n` +
-              `**Longest:** ${stats.longestStreak} days ${longestStreakEmojis}`,
-            inline: true
-          }
-        )
-        .setFooter({
-          text: `Member since their first session`,
-          iconURL: avatarUrl
-        })
-        .setTimestamp(stats.firstSessionAt.toDate());
-
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: false,
-      });
       return;
     }
 
-    // /compare command - Compare two users' stats
-    if (commandName === 'compare') {
-      const targetUser = interaction.options.getUser('user', true);
 
-      // Prevent comparing with yourself
-      if (targetUser.id === user.id) {
-        await interaction.reply({
-          content: '❌ You cannot compare with yourself! Try `/stats` to view your own stats.',
-          ephemeral: true,
+    // /me command - Generate Duolingo-style profile image
+    if (commandName === 'me') {
+      await interaction.deferReply({ ephemeral: false });
+
+      try {
+        // Get user stats
+        const stats = await statsService.getUserStats(user.id);
+
+        // Get avatar URL
+        const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
+
+        // Generate profile image
+        const imageBuffer = await profileImageService.generateProfileImage(
+          user.username,
+          stats,
+          avatarUrl
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile.png' });
+
+        // Send the image
+        await interaction.editReply({
+          files: [attachment],
         });
-        return;
-      }
-
-      // Prevent comparing with bots
-      if (targetUser.bot) {
-        await interaction.reply({
-          content: '❌ Cannot compare with bots!',
-          ephemeral: true,
+      } catch (error) {
+        console.error('Error generating profile image:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate profile image. Please try again later.',
         });
-        return;
       }
+      return;
+    }
 
-      // Get both users' stats
-      const [yourStats, theirStats] = await Promise.all([
-        statsService.getUserStats(user.id),
-        statsService.getUserStats(targetUser.id),
-      ]);
+    // /graph command - Auto-generate weekly hours chart with dropdown selectors below
+    if (commandName === 'graph') {
+      await interaction.deferReply({ ephemeral: false });
 
-      if (!yourStats) {
-        await interaction.reply({
-          content: 'You haven\'t completed any sessions yet! Complete your first session with `/start` and `/stop`.',
-          ephemeral: true,
+      try {
+        // Default: Hours over the past week
+        const defaultMetric = 'hours';
+        const defaultTimeframe = 'week';
+
+        // Get historical data
+        const chartData = await statsService.getHistoricalChartData(
+          user.id,
+          defaultMetric,
+          defaultTimeframe
+        );
+
+        console.log(`[/graph] Fetched chart data for ${user.username}:`, {
+          dataPoints: chartData.data.length,
+          currentValue: chartData.currentValue,
+          previousValue: chartData.previousValue,
+          data: chartData.data
         });
-        return;
-      }
 
-      if (!theirStats) {
-        await interaction.reply({
-          content: `${targetUser.username} hasn't completed any sessions yet!`,
-          ephemeral: true,
+        // Get avatar URL
+        const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
+
+        // Generate stats chart image
+        const imageBuffer = await statsImageService.generateStatsImage(
+          user.username,
+          defaultMetric,
+          defaultTimeframe,
+          chartData.data,
+          chartData.currentValue,
+          chartData.previousValue,
+          avatarUrl
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats-chart.png' });
+
+        // Create dropdown menus for metric and timeframe selection
+        const metricMenu = new StringSelectMenuBuilder()
+          .setCustomId(`stats-metric:${user.id}`)
+          .setPlaceholder('Change metric')
+          .addOptions([
+            {
+              label: 'Hours Studied',
+              description: 'View your study hours over time',
+              value: 'hours',
+              emoji: '⏱️',
+              default: true,
+            },
+            {
+              label: 'Total Hours',
+              description: 'View cumulative hours studied',
+              value: 'totalHours',
+              emoji: '📈',
+            },
+            {
+              label: 'XP Earned',
+              description: 'View your XP gains over time',
+              value: 'xp',
+              emoji: '⚡',
+            },
+            {
+              label: 'Sessions Completed',
+              description: 'View your session count over time',
+              value: 'sessions',
+              emoji: '📚',
+            },
+          ]);
+
+        const timeframeMenu = new StringSelectMenuBuilder()
+          .setCustomId(`stats-timeframe:${user.id}`)
+          .setPlaceholder('Change timeframe')
+          .addOptions([
+            {
+              label: 'Past 7 Days',
+              description: 'View last week\'s stats',
+              value: 'week',
+              emoji: '📅',
+              default: true,
+            },
+            {
+              label: 'Past 30 Days',
+              description: 'View last month\'s stats',
+              value: 'month',
+              emoji: '📆',
+            },
+            {
+              label: 'Past Year',
+              description: 'View yearly stats',
+              value: 'year',
+              emoji: '📊',
+            },
+          ]);
+
+        const row1 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(timeframeMenu);
+        const row2 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(metricMenu);
+
+        // Initialize the user's selection state
+        if (!client.statsSelections) {
+          client.statsSelections = new Map();
+        }
+        client.statsSelections.set(user.id, { metric: defaultMetric, timeframe: defaultTimeframe });
+
+        // Send the chart with dropdown menus below (timeframe first, then metric)
+        await interaction.editReply({
+          files: [attachment],
+          components: [row1, row2],
         });
-        return;
+      } catch (error) {
+        console.error('Error generating stats chart:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate stats chart. Please try again later.',
+        });
       }
+      return;
+    }
 
-      // Calculate stats for both users
-      const yourXP = yourStats.xp || 0;
-      const theirXP = theirStats.xp || 0;
-      const yourLevel = calculateLevel(yourXP);
-      const theirLevel = calculateLevel(theirXP);
-      const yourHours = yourStats.totalDuration / 3600;
-      const theirHours = theirStats.totalDuration / 3600;
+    // /post command - Preview session completion post
+    if (commandName === 'post') {
+      await interaction.deferReply({ ephemeral: false });
 
-      // Get achievements for both users
-      const [yourAchievements, theirAchievements] = await Promise.all([
-        achievementService.getUserAchievements(user.id),
-        achievementService.getUserAchievements(targetUser.id),
-      ]);
+      try {
+        // Get user stats for realistic sample data
+        const stats = await statsService.getUserStats(user.id);
+        const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
 
-      const avatarUrl1 = user.displayAvatarURL({ size: 128 });
-      const avatarUrl2 = targetUser.displayAvatarURL({ size: 128 });
+        // Create sample session data based on user's recent activity
+        const sampleDuration = '2h 15m';
+        const sampleXp = 135; // Sample XP value
+        const sampleActivity = 'Math homework';
+        const sampleIntensity = 3; // Moderate intensity
+        const sampleTitle = 'Productive study session';
+        const sampleDescription = 'Completed calculus problems and reviewed chapter 5';
 
-      // Determine who's ahead overall
-      const xpDiff = Math.abs(yourXP - theirXP);
-      let headerText = '';
-      if (yourXP > theirXP) {
-        headerText = `+${xpDiff.toLocaleString()} XP ahead`;
-      } else if (theirXP > yourXP) {
-        headerText = `${xpDiff.toLocaleString()} XP behind`;
-      } else {
-        headerText = 'Tied';
+        // Format sample date
+        const now = new Date();
+        const sampleDate = now.toLocaleString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+
+        // Generate the session post image
+        const imageBuffer = await postImageService.generateSessionPostImage(
+          user.username,
+          sampleDuration,
+          sampleXp,
+          sampleActivity,
+          sampleIntensity,
+          avatarUrl,
+          sampleTitle,
+          sampleDescription,
+          sampleDate
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'session-post.png' });
+
+        // Send the preview
+        await interaction.editReply({
+          content: '✨ **Session Post Preview**\nThis is what your completed session posts will look like in the feed!',
+          files: [attachment],
+        });
+      } catch (error) {
+        console.error('Error generating post preview:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate post preview. Please try again later.',
+        });
       }
+      return;
+    }
 
-      const embed = new EmbedBuilder()
-        .setColor(0x5865F2)
-        .setTitle(`${user.username} vs ${targetUser.username}`)
-        .setThumbnail(avatarUrl1)
-        .setDescription(headerText)
-        .addFields(
-          {
-            name: user.username,
-            value:
-              `Level **${yourLevel}**\n` +
-              `**${yourXP.toLocaleString()}** XP\n` +
-              `**${yourHours.toFixed(1)}h** logged\n` +
-              `**${yourStats.totalSessions}** sessions\n` +
-              `**${yourStats.currentStreak}d** streak\n` +
-              `**${yourAchievements.length}** achievements`,
-            inline: true
-          },
-          {
-            name: targetUser.username,
-            value:
-              `Level **${theirLevel}**\n` +
-              `**${theirXP.toLocaleString()}** XP\n` +
-              `**${theirHours.toFixed(1)}h** logged\n` +
-              `**${theirStats.totalSessions}** sessions\n` +
-              `**${theirStats.currentStreak}d** streak\n` +
-              `**${theirAchievements.length}** achievements`,
-            inline: true
-          }
-        )
-        .setImage(avatarUrl2);
+    // /postlong command - Preview session post with long description
+    if (commandName === 'postlong') {
+      await interaction.deferReply({ ephemeral: false });
 
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: false,
-      });
+      try {
+        const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
+
+        // Create sample session data with a LONG description
+        const sampleDuration = '3h 45m';
+        const sampleXp = 225;
+        const sampleActivity = 'Research & Writing';
+        const sampleIntensity = 4; // Hard intensity
+        const sampleTitle = 'Deep work session on thesis';
+        const sampleDescription = 'Spent the morning conducting literature review for my thesis on machine learning applications in healthcare. Read through 15 academic papers, took detailed notes on methodology and findings. After lunch, I outlined the introduction chapter and wrote the first draft of the literature review section. Also created a comprehensive bibliography and organized my research notes into a structured format. Made significant progress on understanding the current state of research in this field and identified several gaps that my thesis will address. Feeling accomplished and ready to continue tomorrow with the methodology section.';
+
+        // Format sample date
+        const now = new Date();
+        const sampleDate = now.toLocaleString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+
+        // Generate the session post image
+        const imageBuffer = await postImageService.generateSessionPostImage(
+          user.username,
+          sampleDuration,
+          sampleXp,
+          sampleActivity,
+          sampleIntensity,
+          avatarUrl,
+          sampleTitle,
+          sampleDescription,
+          sampleDate
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'session-post-long.png' });
+
+        // Send the preview
+        await interaction.editReply({
+          content: '✨ **Session Post Preview (Long Description)**\nThis shows how the post dynamically adjusts height for longer descriptions!',
+          files: [attachment],
+        });
+      } catch (error) {
+        console.error('Error generating long post preview:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate post preview. Please try again later.',
+        });
+      }
       return;
     }
 
@@ -3795,7 +4217,7 @@ client.on('interactionCreate', async (interaction) => {
 
       // Create single embed with list
       const embed = new EmbedBuilder()
-        .setColor(0x00FF00) // Green for live
+        .setColor(0x58CC02) // Duolingo green // Green for live
         .setTitle(`🟢 ${totalLive} ${totalLive === 1 ? 'person is' : 'people are'} studying right now`)
         .setDescription(description.trim())
         .setTimestamp();
@@ -3812,141 +4234,152 @@ client.on('interactionCreate', async (interaction) => {
 
     // /leaderboard command - Interactive leaderboard with timeframe selector
     if (commandName === 'leaderboard') {
-      // Defer IMMEDIATELY before any logging to prevent timeout
       await interaction.deferReply({ ephemeral: false });
-      console.log(`[LEADERBOARD] Command started for user ${user.username} (${user.id})`);
 
-      // Get data for all timeframes
-      const today = getStartOfDayPacific();
-      const weekStart = getStartOfWeekPacific();
-      const monthStart = getStartOfMonthPacific();
+      try {
+        // Get timeframe parameter (default to daily)
+        const timeframe = (interaction.options.getString('timeframe') || 'daily') as 'daily' | 'weekly' | 'monthly' | 'all-time';
 
-      console.log(`[LEADERBOARD] Timeframes - Today: ${today.toISOString()}, Week: ${weekStart.toISOString()}, Month: ${monthStart.toISOString()}`);
+        // Get data based on timeframe
+        let topUsers: Array<{ userId: string; username: string; totalDuration: number; xp?: number }> = [];
 
-      const [dailyAll, weeklyAll, monthlyAll] = await Promise.all([
-        sessionService.getTopUsers(Timestamp.fromDate(today), 20, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(weekStart), 20, guildId!),
-        sessionService.getTopUsers(Timestamp.fromDate(monthStart), 20, guildId!),
-      ]);
+        if (timeframe === 'all-time') {
+          // Get all-time top users by XP
+          const allTimeUsers = await statsService.getTopUsersByXP(20);
+          // Convert to expected format
+          topUsers = allTimeUsers.map(u => ({
+            userId: u.userId,
+            username: u.username,
+            totalDuration: 0, // We'll fetch this from stats
+            xp: u.xp,
+          }));
+        } else {
+          // Get time-based leaderboard
+          let startTime: Date;
+          if (timeframe === 'daily') {
+            startTime = getStartOfDayPacific();
+          } else if (timeframe === 'weekly') {
+            startTime = getStartOfWeekPacific();
+          } else {
+            startTime = getStartOfMonthPacific();
+          }
 
-      console.log(`[LEADERBOARD] Fetched users - Daily: ${dailyAll.length}, Weekly: ${weeklyAll.length}, Monthly: ${monthlyAll.length}`);
+          topUsers = await sessionService.getTopUsers(Timestamp.fromDate(startTime), 20, guildId!);
+        }
 
-      // Log detailed user data
-      console.log(`[LEADERBOARD] Daily top users:`, dailyAll.map(u => ({
-        username: u.username,
-        userId: u.userId,
-        totalDuration: u.totalDuration,
-        hours: (u.totalDuration / 3600).toFixed(2),
-        sessionCount: u.sessionCount
-      })));
+        // TEMPORARY: Use sample data if no real users (for testing)
+        let entries: Array<{ userId: string; username: string; avatarUrl: string; xp: number; totalDuration: number; rank: number }> = [];
+        let currentUserEntry = undefined;
 
-      console.log(`[LEADERBOARD] Weekly top users:`, weeklyAll.map(u => ({
-        username: u.username,
-        userId: u.userId,
-        totalDuration: u.totalDuration,
-        hours: (u.totalDuration / 3600).toFixed(2),
-        sessionCount: u.sessionCount
-      })));
+        if (topUsers.length === 0) {
+          // No real data, pass empty arrays - component will use sample data
+          entries = [];
+          currentUserEntry = undefined;
+        } else {
+          // Get top 10
+          const top10 = topUsers.slice(0, 10);
 
-      console.log(`[LEADERBOARD] Monthly top users:`, monthlyAll.map(u => ({
-        username: u.username,
-        userId: u.userId,
-        totalDuration: u.totalDuration,
-        hours: (u.totalDuration / 3600).toFixed(2),
-        sessionCount: u.sessionCount
-      })));
+          // Check if current user is in top 10
+          const userPosition = topUsers.findIndex(u => u.userId === user.id);
 
-      // Find current user position
-      const dailyUserPos = dailyAll.findIndex(u => u.userId === user.id);
-      const weeklyUserPos = weeklyAll.findIndex(u => u.userId === user.id);
-      const monthlyUserPos = monthlyAll.findIndex(u => u.userId === user.id);
+          // Prepare leaderboard entries with avatars
+          entries = await Promise.all(
+            top10.map(async (u, index) => {
+              try {
+                const discordUser = await client.users.fetch(u.userId);
+                const stats = await statsService.getUserStats(u.userId);
+                // For all-time, use stats totalDuration, otherwise use from topUsers
+                const totalDuration = timeframe === 'all-time' ? (stats?.totalDuration || 0) : u.totalDuration;
+                return {
+                  userId: u.userId,
+                  username: u.username,
+                  avatarUrl: discordUser.displayAvatarURL({ size: 128, extension: 'png' }),
+                  xp: stats?.xp || 0,
+                  totalDuration,
+                  rank: index + 1,
+                };
+              } catch (error) {
+                console.error(`Failed to fetch user ${u.userId}:`, error);
+                return {
+                  userId: u.userId,
+                  username: u.username,
+                  avatarUrl: '', // Fallback
+                  xp: 0,
+                  totalDuration: u.totalDuration,
+                  rank: index + 1,
+                };
+              }
+            })
+          );
 
-      console.log(`[LEADERBOARD] User ${user.username} positions - Daily: ${dailyUserPos >= 0 ? dailyUserPos + 1 : 'N/A'}, Weekly: ${weeklyUserPos >= 0 ? weeklyUserPos + 1 : 'N/A'}, Monthly: ${monthlyUserPos >= 0 ? monthlyUserPos + 1 : 'N/A'}`);
+          // Prepare current user entry if they're not in top 10
+          if (userPosition > 9) {
+            const userStats = await statsService.getUserStats(user.id);
+            currentUserEntry = {
+              userId: user.id,
+              username: user.username,
+              avatarUrl: user.displayAvatarURL({ size: 128, extension: 'png' }),
+              xp: userStats?.xp || 0,
+              totalDuration: topUsers[userPosition].totalDuration,
+              rank: userPosition + 1,
+            };
+          }
+        }
 
-      if (dailyUserPos >= 0) {
-        const userData = dailyAll[dailyUserPos];
-        console.log(`[LEADERBOARD] User ${user.username} daily data:`, {
-          totalDuration: userData.totalDuration,
-          hours: (userData.totalDuration / 3600).toFixed(2),
-          sessionCount: userData.sessionCount
+        // Generate leaderboard image
+        const imageBuffer = await profileImageService.generateLeaderboardImage(
+          timeframe,
+          entries,
+          currentUserEntry
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'leaderboard.png' });
+
+        // Create select menu for switching timeframes
+        const selectMenu = new StringSelectMenuBuilder()
+          .setCustomId('leaderboard_image_timeframe')
+          .setPlaceholder('Select a timeframe')
+          .addOptions([
+            {
+              label: 'Daily',
+              description: 'Today\'s top performers',
+              value: 'daily',
+              emoji: '📅',
+            },
+            {
+              label: 'Weekly',
+              description: 'This week\'s leaders',
+              value: 'weekly',
+              emoji: '📊',
+            },
+            {
+              label: 'Monthly',
+              description: 'This month\'s champions',
+              value: 'monthly',
+              emoji: '🌟',
+            },
+            {
+              label: 'All-Time',
+              description: 'Lifetime XP rankings',
+              value: 'all-time',
+              emoji: '⚡',
+            },
+          ]);
+
+        const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+
+        // Send the image with dropdown
+        await interaction.editReply({
+          files: [attachment],
+          components: [row],
+        });
+      } catch (error) {
+        console.error('Error generating leaderboard image:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate leaderboard. Please try again later.',
         });
       }
-
-      // Helper to format top 3 + user position
-      const formatLeaderboard = (allUsers: Array<{ userId: string; username: string; totalDuration: number }>, emoji: string, label: string) => {
-        if (allUsers.length === 0) return `${emoji} **${label}**\nNo data yet`;
-
-        const lines: string[] = [];
-        const userPosition = allUsers.findIndex(u => u.userId === user.id);
-
-        // Add top 3
-        for (let i = 0; i < Math.min(3, allUsers.length); i++) {
-          const u = allUsers[i];
-          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-          lines.push(`${medal} **${u.username}** - ${(u.totalDuration / 3600).toFixed(1)}h`);
-        }
-
-        // Add current user if not in top 3
-        if (userPosition > 2) {
-          const current = allUsers[userPosition];
-          lines.push(`**${userPosition + 1}. ${current.username} - ${(current.totalDuration / 3600).toFixed(1)}h**`);
-        }
-
-        return `${emoji} **${label}**\n${lines.join('\n')}`;
-      };
-
-      const embed = new EmbedBuilder()
-        .setColor(0xFFD700)
-        .setTitle('🏆 Your Leaderboard Position')
-        .addFields(
-          { name: '\u200B', value: formatLeaderboard(dailyAll, '📅', 'Daily'), inline: false },
-          { name: '\u200B', value: formatLeaderboard(weeklyAll, '📊', 'Weekly'), inline: false },
-          { name: '\u200B', value: formatLeaderboard(monthlyAll, '🌟', 'Monthly'), inline: false }
-        )
-        .setFooter({ text: 'Use the dropdown below to view full leaderboards' });
-
-      // Create select menu for switching views
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('leaderboard_timeframe')
-        .setPlaceholder('Select a timeframe to view')
-        .addOptions([
-          {
-            label: 'Overview',
-            description: 'Top 3 from each timeframe + your position',
-            value: 'overview',
-            emoji: '🏆',
-          },
-          {
-            label: 'Daily Leaderboard',
-            description: 'Full top 10 daily rankings by hours',
-            value: 'daily',
-            emoji: '📅',
-          },
-          {
-            label: 'Weekly Leaderboard',
-            description: 'Full top 10 weekly rankings by hours',
-            value: 'weekly',
-            emoji: '📊',
-          },
-          {
-            label: 'Monthly Leaderboard',
-            description: 'Full top 10 monthly rankings by hours',
-            value: 'monthly',
-            emoji: '🌟',
-          },
-          {
-            label: 'XP Leaderboard',
-            description: 'Top 10 by total XP and level',
-            value: 'xp',
-            emoji: '⚡',
-          },
-        ]);
-
-      const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-
-      console.log(`[LEADERBOARD] Sending response to user ${user.username}`);
-      await interaction.editReply({ embeds: [embed], components: [row] });
-      console.log(`[LEADERBOARD] Command completed successfully`);
       return;
     }
 
@@ -4205,8 +4638,16 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-client.once('clientReady', () => {
+client.once('clientReady', async () => {
   console.log(`✅ Bot is online as ${client.user?.tag}`);
+
+  // Pre-initialize Puppeteer browsers to avoid timeout on first command
+  console.log('🔄 Warming up image generation services...');
+  await Promise.all([
+    profileImageService.warmup(),
+    statsImageService.warmup(),
+  ]);
+  console.log('✅ Image services ready');
 });
 
 // Handle new member joins
