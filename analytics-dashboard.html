@@ -452,6 +452,126 @@
         </div>
     </header>
 
+    <!-- North Star Metrics -->
+    <div style="max-width: 1400px; margin: 2rem auto 0; padding: 0 2rem;">
+        <div style="background: linear-gradient(135deg, #7b68ee, #0080ff); border-radius: 16px; padding: 2.5rem; box-shadow: 0 8px 24px rgba(123, 104, 238, 0.3); margin-bottom: 1rem;">
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <h2 style="color: white; font-size: 1.3rem; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.1em;">North Star Metrics</h2>
+                <p style="color: rgba(255, 255, 255, 0.9); font-size: 0.95rem;">Core metrics that drive our product success</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
+                <div style="text-align: center; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 1.75rem; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    <div style="color: rgba(255, 255, 255, 0.95); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">7-Day Active Users</div>
+                    <div style="color: rgba(255, 255, 255, 0.7); font-size: 0.7rem; margin-bottom: 0.75rem; line-height: 1.3;">Users who completed a session in the last 7 days</div>
+                    <div style="color: white; font-size: 3.5rem; font-weight: 700; line-height: 1; margin-bottom: 0.5rem;" id="northStar7DAU">-</div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.85rem;" id="northStar7DAUChange">Loading...</div>
+                </div>
+                <div style="text-align: center; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 1.75rem; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    <div style="color: rgba(255, 255, 255, 0.95); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Weekly Study Hours</div>
+                    <div style="color: rgba(255, 255, 255, 0.7); font-size: 0.7rem; margin-bottom: 0.75rem; line-height: 1.3;">Total productive time by all users (last 7 days)</div>
+                    <div style="color: white; font-size: 3.5rem; font-weight: 700; line-height: 1; margin-bottom: 0.5rem;" id="northStarWeeklyHours">-</div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.85rem;" id="northStarWeeklyHoursChange">Loading...</div>
+                </div>
+                <div style="text-align: center; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 1.75rem; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    <div style="color: rgba(255, 255, 255, 0.95); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">L7 Activity Rate</div>
+                    <div style="color: rgba(255, 255, 255, 0.7); font-size: 0.7rem; margin-bottom: 0.75rem; line-height: 1.3;">% of total users active in last 7 days (stickiness)</div>
+                    <div style="color: white; font-size: 3.5rem; font-weight: 700; line-height: 1; margin-bottom: 0.5rem;" id="northStarL7Rate">-</div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.85rem;" id="northStarL7RateChange">Loading...</div>
+                </div>
+                <div style="text-align: center; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 1.75rem; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    <div style="color: rgba(255, 255, 255, 0.95); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Hours per Active User</div>
+                    <div style="color: rgba(255, 255, 255, 0.7); font-size: 0.7rem; margin-bottom: 0.75rem; line-height: 1.3;">Avg study time per engaged user (depth)</div>
+                    <div style="color: white; font-size: 3.5rem; font-weight: 700; line-height: 1; margin-bottom: 0.5rem;" id="northStarHoursPerUser">-</div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.85rem;" id="northStarHoursPerUserChange">Loading...</div>
+                </div>
+                <div style="text-align: center; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); border-radius: 12px; padding: 1.75rem; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    <div style="color: rgba(255, 255, 255, 0.95); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;">Weekly Streak Users</div>
+                    <div style="color: rgba(255, 255, 255, 0.7); font-size: 0.7rem; margin-bottom: 0.75rem; line-height: 1.3;">Users with 7+ day streaks (habit formation)</div>
+                    <div style="color: white; font-size: 3.5rem; font-weight: 700; line-height: 1; margin-bottom: 0.5rem;" id="northStarStreakUsers">-</div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.85rem;" id="northStarStreakUsersChange">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- North Star Metrics Breakdown Charts -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+            <!-- 7-Day Active Users Chart -->
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">Active Users Over Time</h3>
+                    <select id="dauPeriod" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 0.9rem;">
+                        <option value="daily">Daily (Last 30 Days)</option>
+                        <option value="weekly">Weekly (Last 12 Weeks)</option>
+                        <option value="monthly">Monthly (Last 12 Months)</option>
+                    </select>
+                </div>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="northStarDAUChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Weekly Study Hours Chart -->
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">Study Hours Over Time</h3>
+                    <select id="hoursPeriod" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 0.9rem;">
+                        <option value="daily">Daily (Last 30 Days)</option>
+                        <option value="weekly">Weekly (Last 12 Weeks)</option>
+                        <option value="monthly">Monthly (Last 12 Months)</option>
+                    </select>
+                </div>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="northStarHoursChart"></canvas>
+                </div>
+            </div>
+
+            <!-- L7 Activity Rate Chart -->
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">L7 Activity Rate Over Time</h3>
+                    <select id="l7Period" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 0.9rem;">
+                        <option value="daily">Daily (Last 30 Days)</option>
+                        <option value="weekly">Weekly (Last 12 Weeks)</option>
+                        <option value="monthly">Monthly (Last 12 Months)</option>
+                    </select>
+                </div>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="northStarL7Chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Hours per Active User Chart -->
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">Hours per Active User Over Time</h3>
+                    <select id="hpuPeriod" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 0.9rem;">
+                        <option value="daily">Daily (Last 30 Days)</option>
+                        <option value="weekly">Weekly (Last 12 Weeks)</option>
+                        <option value="monthly">Monthly (Last 12 Months)</option>
+                    </select>
+                </div>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="northStarHPUChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Streak Users Chart -->
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; box-shadow: var(--shadow);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">Weekly Streak Users Over Time</h3>
+                    <select id="streakPeriod" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 0.9rem;">
+                        <option value="daily">Daily (Last 30 Days)</option>
+                        <option value="weekly">Weekly (Last 12 Weeks)</option>
+                        <option value="monthly">Monthly (Last 12 Months)</option>
+                    </select>
+                </div>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="northStarStreakChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Quick Stats Banner -->
     <div class="quick-stats">
         <div class="stat-card">
@@ -1006,6 +1126,242 @@ const firebaseConfig = {
             return result;
         }
 
+        function calculateActiveUsersByPeriod(period) {
+            if (period === 'daily') {
+                return calculateDAU(30);
+            } else if (period === 'weekly') {
+                // Calculate weekly active users for last 12 weeks
+                const weeklyUsers = {};
+                const twelveWeeksAgo = new Date();
+                twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - (12 * 7));
+
+                allSessions.forEach(session => {
+                    const endTime = session.endTime?.toDate();
+                    if (!endTime || endTime < twelveWeeksAgo) return;
+
+                    // Get week start (Monday)
+                    const weekStart = new Date(endTime);
+                    const day = weekStart.getDay();
+                    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+                    weekStart.setDate(diff);
+                    weekStart.setHours(0, 0, 0, 0);
+                    const weekKey = weekStart.toISOString().split('T')[0];
+
+                    if (!weeklyUsers[weekKey]) {
+                        weeklyUsers[weekKey] = new Set();
+                    }
+                    weeklyUsers[weekKey].add(session.userId);
+                });
+
+                // Generate last 12 weeks
+                const result = [];
+                for (let i = 11; i >= 0; i--) {
+                    const weekStart = new Date();
+                    weekStart.setDate(weekStart.getDate() - (i * 7));
+                    const day = weekStart.getDay();
+                    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+                    weekStart.setDate(diff);
+                    weekStart.setHours(0, 0, 0, 0);
+                    const weekKey = weekStart.toISOString().split('T')[0];
+
+                    result.push({
+                        date: weekKey,
+                        users: weeklyUsers[weekKey] ? weeklyUsers[weekKey].size : 0
+                    });
+                }
+
+                return result;
+            } else if (period === 'monthly') {
+                // Calculate monthly active users for last 12 months
+                const monthlyUsers = {};
+                const twelveMonthsAgo = new Date();
+                twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+                allSessions.forEach(session => {
+                    const endTime = session.endTime?.toDate();
+                    if (!endTime || endTime < twelveMonthsAgo) return;
+
+                    const monthKey = `${endTime.getFullYear()}-${String(endTime.getMonth() + 1).padStart(2, '0')}`;
+
+                    if (!monthlyUsers[monthKey]) {
+                        monthlyUsers[monthKey] = new Set();
+                    }
+                    monthlyUsers[monthKey].add(session.userId);
+                });
+
+                // Generate last 12 months
+                const result = [];
+                for (let i = 11; i >= 0; i--) {
+                    const date = new Date();
+                    date.setMonth(date.getMonth() - i);
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+                    result.push({
+                        date: monthKey,
+                        users: monthlyUsers[monthKey] ? monthlyUsers[monthKey].size : 0
+                    });
+                }
+
+                return result;
+            }
+        }
+
+        function calculateStudyHoursByPeriod(period) {
+            if (period === 'daily') {
+                return calculateDailyStudyHours(30);
+            } else if (period === 'weekly') {
+                // Calculate weekly study hours for last 12 weeks
+                const weeklyHours = {};
+                const twelveWeeksAgo = new Date();
+                twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - (12 * 7));
+
+                allSessions.forEach(session => {
+                    const endTime = session.endTime?.toDate();
+                    if (!endTime || endTime < twelveWeeksAgo) return;
+
+                    // Get week start (Monday)
+                    const weekStart = new Date(endTime);
+                    const day = weekStart.getDay();
+                    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+                    weekStart.setDate(diff);
+                    weekStart.setHours(0, 0, 0, 0);
+                    const weekKey = weekStart.toISOString().split('T')[0];
+
+                    if (!weeklyHours[weekKey]) {
+                        weeklyHours[weekKey] = 0;
+                    }
+                    weeklyHours[weekKey] += (session.duration || 0) / 3600;
+                });
+
+                // Generate last 12 weeks
+                const result = [];
+                for (let i = 11; i >= 0; i--) {
+                    const weekStart = new Date();
+                    weekStart.setDate(weekStart.getDate() - (i * 7));
+                    const day = weekStart.getDay();
+                    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+                    weekStart.setDate(diff);
+                    weekStart.setHours(0, 0, 0, 0);
+                    const weekKey = weekStart.toISOString().split('T')[0];
+
+                    result.push({
+                        date: weekKey,
+                        hours: weeklyHours[weekKey] || 0
+                    });
+                }
+
+                return result;
+            } else if (period === 'monthly') {
+                // Calculate monthly study hours for last 12 months
+                const monthlyHours = {};
+                const twelveMonthsAgo = new Date();
+                twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+                allSessions.forEach(session => {
+                    const endTime = session.endTime?.toDate();
+                    if (!endTime || endTime < twelveMonthsAgo) return;
+
+                    const monthKey = `${endTime.getFullYear()}-${String(endTime.getMonth() + 1).padStart(2, '0')}`;
+
+                    if (!monthlyHours[monthKey]) {
+                        monthlyHours[monthKey] = 0;
+                    }
+                    monthlyHours[monthKey] += (session.duration || 0) / 3600;
+                });
+
+                // Generate last 12 months
+                const result = [];
+                for (let i = 11; i >= 0; i--) {
+                    const date = new Date();
+                    date.setMonth(date.getMonth() - i);
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+                    result.push({
+                        date: monthKey,
+                        hours: monthlyHours[monthKey] || 0
+                    });
+                }
+
+                return result;
+            }
+        }
+
+        function calculateL7RateByPeriod(period) {
+            const activeUsersData = calculateActiveUsersByPeriod(period);
+            const totalUsers = allUserStats.length;
+
+            return activeUsersData.map(d => ({
+                date: d.date,
+                rate: totalUsers > 0 ? (d.users / totalUsers) * 100 : 0
+            }));
+        }
+
+        function calculateHoursPerUserByPeriod(period) {
+            const activeUsersData = calculateActiveUsersByPeriod(period);
+            const hoursData = calculateStudyHoursByPeriod(period);
+
+            return activeUsersData.map((d, index) => ({
+                date: d.date,
+                hoursPerUser: d.users > 0 ? (hoursData[index].hours / d.users) : 0
+            }));
+        }
+
+        function calculateStreakUsersByPeriod(period) {
+            // Note: This is a snapshot-based calculation since we don't have historical streak data
+            // We'll show current streak users count across time periods
+            if (period === 'daily') {
+                const result = [];
+                for (let i = 29; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    const dateKey = date.toISOString().split('T')[0];
+
+                    // Count users with streaks >= 7 days
+                    const streakUsers = allUserStats.filter(u => (u.currentStreak || 0) >= 7).length;
+
+                    result.push({
+                        date: dateKey,
+                        users: streakUsers
+                    });
+                }
+                return result;
+            } else if (period === 'weekly') {
+                const result = [];
+                for (let i = 11; i >= 0; i--) {
+                    const weekStart = new Date();
+                    weekStart.setDate(weekStart.getDate() - (i * 7));
+                    const day = weekStart.getDay();
+                    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+                    weekStart.setDate(diff);
+                    weekStart.setHours(0, 0, 0, 0);
+                    const weekKey = weekStart.toISOString().split('T')[0];
+
+                    const streakUsers = allUserStats.filter(u => (u.currentStreak || 0) >= 7).length;
+
+                    result.push({
+                        date: weekKey,
+                        users: streakUsers
+                    });
+                }
+                return result;
+            } else if (period === 'monthly') {
+                const result = [];
+                for (let i = 11; i >= 0; i--) {
+                    const date = new Date();
+                    date.setMonth(date.getMonth() - i);
+                    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+                    const streakUsers = allUserStats.filter(u => (u.currentStreak || 0) >= 7).length;
+
+                    result.push({
+                        date: monthKey,
+                        users: streakUsers
+                    });
+                }
+                return result;
+            }
+        }
+
         function calculateLevelDistribution() {
             const distribution = {
                 '1-10': 0,
@@ -1507,6 +1863,380 @@ const firebaseConfig = {
                                 color: '#a0a0c0',
                                 maxRotation: 45,
                                 minRotation: 45
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderNorthStarDAUChart(period = 'daily') {
+            const data = calculateActiveUsersByPeriod(period);
+            const ctx = document.getElementById('northStarDAUChart').getContext('2d');
+
+            if (charts.northStarDAU) charts.northStarDAU.destroy();
+
+            const labels = data.map(d => {
+                if (period === 'daily') {
+                    return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else if (period === 'weekly') {
+                    return 'Week of ' + new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else {
+                    return new Date(d.date + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                }
+            });
+
+            charts.northStarDAU = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Active Users',
+                        data: data.map(d => d.users),
+                        borderColor: '#7b68ee',
+                        backgroundColor: 'rgba(123, 104, 238, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#7b68ee',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#7b68ee',
+                            borderWidth: 2,
+                            padding: 12,
+                            displayColors: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#a0a0c0', font: { size: 12 } },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { size: 11 }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderNorthStarHoursChart(period = 'daily') {
+            const data = calculateStudyHoursByPeriod(period);
+            const ctx = document.getElementById('northStarHoursChart').getContext('2d');
+
+            if (charts.northStarHours) charts.northStarHours.destroy();
+
+            const labels = data.map(d => {
+                if (period === 'daily') {
+                    return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else if (period === 'weekly') {
+                    return 'Week of ' + new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else {
+                    return new Date(d.date + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                }
+            });
+
+            charts.northStarHours = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Study Hours',
+                        data: data.map(d => d.hours),
+                        backgroundColor: '#00ff80',
+                        borderColor: '#00ff80',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#00ff80',
+                            borderWidth: 2,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.parsed.y.toFixed(1)} hours`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#a0a0c0',
+                                font: { size: 12 },
+                                callback: function(value) {
+                                    return value + 'h';
+                                }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { size: 11 }
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderNorthStarL7Chart(period = 'daily') {
+            const data = calculateL7RateByPeriod(period);
+            const ctx = document.getElementById('northStarL7Chart').getContext('2d');
+
+            if (charts.northStarL7) charts.northStarL7.destroy();
+
+            const labels = data.map(d => {
+                if (period === 'daily') {
+                    return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else if (period === 'weekly') {
+                    return 'Week of ' + new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else {
+                    return new Date(d.date + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                }
+            });
+
+            charts.northStarL7 = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'L7 Activity Rate',
+                        data: data.map(d => d.rate),
+                        borderColor: '#ff8800',
+                        backgroundColor: 'rgba(255, 136, 0, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#ff8800',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#ff8800',
+                            borderWidth: 2,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.parsed.y.toFixed(1)}% of users active`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                color: '#a0a0c0',
+                                font: { size: 12 },
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { size: 11 }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderNorthStarHPUChart(period = 'daily') {
+            const data = calculateHoursPerUserByPeriod(period);
+            const ctx = document.getElementById('northStarHPUChart').getContext('2d');
+
+            if (charts.northStarHPU) charts.northStarHPU.destroy();
+
+            const labels = data.map(d => {
+                if (period === 'daily') {
+                    return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else if (period === 'weekly') {
+                    return 'Week of ' + new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else {
+                    return new Date(d.date + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                }
+            });
+
+            charts.northStarHPU = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Hours per Active User',
+                        data: data.map(d => d.hoursPerUser),
+                        borderColor: '#ffd700',
+                        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#ffd700',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#ffd700',
+                            borderWidth: 2,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.parsed.y.toFixed(1)} hours per user`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#a0a0c0',
+                                font: { size: 12 },
+                                callback: function(value) {
+                                    return value.toFixed(1) + 'h';
+                                }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { size: 11 }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderNorthStarStreakChart(period = 'daily') {
+            const data = calculateStreakUsersByPeriod(period);
+            const ctx = document.getElementById('northStarStreakChart').getContext('2d');
+
+            if (charts.northStarStreak) charts.northStarStreak.destroy();
+
+            const labels = data.map(d => {
+                if (period === 'daily') {
+                    return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else if (period === 'weekly') {
+                    return 'Week of ' + new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                } else {
+                    return new Date(d.date + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                }
+            });
+
+            charts.northStarStreak = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Streak Users',
+                        data: data.map(d => d.users),
+                        backgroundColor: '#ff4444',
+                        borderColor: '#ff4444',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#ff4444',
+                            borderWidth: 2,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.parsed.y} users with 7+ day streaks`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#a0a0c0',
+                                font: { size: 12 }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { size: 11 }
                             },
                             grid: { display: false }
                         }
@@ -2152,6 +2882,116 @@ const firebaseConfig = {
 
         // ========== UI UPDATES ==========
 
+        function updateNorthStarMetrics() {
+            // Calculate 7-Day Active Users
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+            const active7DayUsers = new Set();
+            allSessions.forEach(session => {
+                const endTime = session.endTime?.toDate();
+                if (endTime && endTime >= sevenDaysAgo) {
+                    active7DayUsers.add(session.userId);
+                }
+            });
+
+            const sevenDAU = active7DayUsers.size;
+            document.getElementById('northStar7DAU').textContent = sevenDAU.toLocaleString();
+
+            // Calculate change from previous 7 days
+            const fourteenDaysAgo = new Date();
+            fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+            const activePrevious7DayUsers = new Set();
+            allSessions.forEach(session => {
+                const endTime = session.endTime?.toDate();
+                if (endTime && endTime >= fourteenDaysAgo && endTime < sevenDaysAgo) {
+                    activePrevious7DayUsers.add(session.userId);
+                }
+            });
+
+            const prevSevenDAU = activePrevious7DayUsers.size;
+            const dauChange = prevSevenDAU > 0 ? ((sevenDAU - prevSevenDAU) / prevSevenDAU) * 100 : 0;
+
+            const dauChangeHTML = dauChange >= 0
+                ? `<span style="color: rgba(0, 255, 128, 1);">↑ ${dauChange.toFixed(1)}% vs last week</span>`
+                : `<span style="color: rgba(255, 68, 68, 1);">↓ ${Math.abs(dauChange).toFixed(1)}% vs last week</span>`;
+
+            document.getElementById('northStar7DAUChange').innerHTML = dauChangeHTML;
+
+            // Calculate Weekly Active Study Hours (last 7 days)
+            let weeklySeconds = 0;
+            allSessions.forEach(session => {
+                const endTime = session.endTime?.toDate();
+                if (endTime && endTime >= sevenDaysAgo) {
+                    weeklySeconds += (session.duration || 0);
+                }
+            });
+
+            const weeklyHours = Math.round(weeklySeconds / 3600);
+            document.getElementById('northStarWeeklyHours').textContent = weeklyHours.toLocaleString();
+
+            // Calculate change from previous week
+            let prevWeeklySeconds = 0;
+            allSessions.forEach(session => {
+                const endTime = session.endTime?.toDate();
+                if (endTime && endTime >= fourteenDaysAgo && endTime < sevenDaysAgo) {
+                    prevWeeklySeconds += (session.duration || 0);
+                }
+            });
+
+            const prevWeeklyHours = prevWeeklySeconds / 3600;
+            const hoursChange = prevWeeklyHours > 0 ? ((weeklyHours - prevWeeklyHours) / prevWeeklyHours) * 100 : 0;
+
+            const hoursChangeHTML = hoursChange >= 0
+                ? `<span style="color: rgba(0, 255, 128, 1);">↑ ${hoursChange.toFixed(1)}% vs last week</span>`
+                : `<span style="color: rgba(255, 68, 68, 1);">↓ ${Math.abs(hoursChange).toFixed(1)}% vs last week</span>`;
+
+            document.getElementById('northStarWeeklyHoursChange').innerHTML = hoursChangeHTML;
+
+            // Calculate L7 Activity Rate (% of total users active in last 7 days)
+            const totalUsers = allUserStats.length;
+            const l7Rate = totalUsers > 0 ? (sevenDAU / totalUsers) * 100 : 0;
+            document.getElementById('northStarL7Rate').textContent = l7Rate.toFixed(1) + '%';
+
+            // Calculate previous L7 rate
+            const prevL7Rate = totalUsers > 0 ? (prevSevenDAU / totalUsers) * 100 : 0;
+            const l7RateChange = prevL7Rate > 0 ? l7Rate - prevL7Rate : 0;
+
+            const l7RateChangeHTML = l7RateChange >= 0
+                ? `<span style="color: rgba(0, 255, 128, 1);">↑ ${Math.abs(l7RateChange).toFixed(1)}pp vs last week</span>`
+                : `<span style="color: rgba(255, 68, 68, 1);">↓ ${Math.abs(l7RateChange).toFixed(1)}pp vs last week</span>`;
+
+            document.getElementById('northStarL7RateChange').innerHTML = l7RateChangeHTML;
+
+            // Calculate Hours per Active User (weekly hours / 7-day active users)
+            const hoursPerUser = sevenDAU > 0 ? weeklyHours / sevenDAU : 0;
+            document.getElementById('northStarHoursPerUser').textContent = hoursPerUser.toFixed(1) + 'h';
+
+            // Calculate previous hours per active user
+            const prevHoursPerUser = prevSevenDAU > 0 ? prevWeeklyHours / prevSevenDAU : 0;
+            const hoursPerUserChange = prevHoursPerUser > 0 ? ((hoursPerUser - prevHoursPerUser) / prevHoursPerUser) * 100 : 0;
+
+            const hoursPerUserChangeHTML = hoursPerUserChange >= 0
+                ? `<span style="color: rgba(0, 255, 128, 1);">↑ ${hoursPerUserChange.toFixed(1)}% vs last week</span>`
+                : `<span style="color: rgba(255, 68, 68, 1);">↓ ${Math.abs(hoursPerUserChange).toFixed(1)}% vs last week</span>`;
+
+            document.getElementById('northStarHoursPerUserChange').innerHTML = hoursPerUserChangeHTML;
+
+            // Calculate Weekly Streak Users (users with streaks >= 7 days)
+            const streakUsers = allUserStats.filter(user => (user.currentStreak || 0) >= 7).length;
+            document.getElementById('northStarStreakUsers').textContent = streakUsers.toLocaleString();
+
+            // Calculate change in streak users
+            // Note: We can't accurately calculate previous streak users without historical data,
+            // so we'll show the percentage of total users as context
+            const streakUsersPct = totalUsers > 0 ? (streakUsers / totalUsers) * 100 : 0;
+
+            const streakUsersChangeHTML = `<span style="color: rgba(255, 255, 255, 0.9);">${streakUsersPct.toFixed(1)}% of all users</span>`;
+
+            document.getElementById('northStarStreakUsersChange').innerHTML = streakUsersChangeHTML;
+        }
+
         function updateOverviewCards() {
             // Total Users
             document.getElementById('totalUsers').textContent = allUserStats.length.toLocaleString();
@@ -2263,6 +3103,12 @@ const firebaseConfig = {
         }
 
         function updateDashboard() {
+            updateNorthStarMetrics();
+            renderNorthStarDAUChart(document.getElementById('dauPeriod').value);
+            renderNorthStarHoursChart(document.getElementById('hoursPeriod').value);
+            renderNorthStarL7Chart(document.getElementById('l7Period').value);
+            renderNorthStarHPUChart(document.getElementById('hpuPeriod').value);
+            renderNorthStarStreakChart(document.getElementById('streakPeriod').value);
             updateOverviewCards();
             renderDAUChart();
             renderDailyHoursChart();
@@ -2388,6 +3234,27 @@ const firebaseConfig = {
         document.getElementById('screenshotBtn').addEventListener('click', takeScreenshot);
 
         document.getElementById('timeRange').addEventListener('change', fetchAllData);
+
+        // North Star metric period selectors
+        document.getElementById('dauPeriod').addEventListener('change', (e) => {
+            renderNorthStarDAUChart(e.target.value);
+        });
+
+        document.getElementById('hoursPeriod').addEventListener('change', (e) => {
+            renderNorthStarHoursChart(e.target.value);
+        });
+
+        document.getElementById('l7Period').addEventListener('change', (e) => {
+            renderNorthStarL7Chart(e.target.value);
+        });
+
+        document.getElementById('hpuPeriod').addEventListener('change', (e) => {
+            renderNorthStarHPUChart(e.target.value);
+        });
+
+        document.getElementById('streakPeriod').addEventListener('change', (e) => {
+            renderNorthStarStreakChart(e.target.value);
+        });
 
         document.getElementById('themeToggle').addEventListener('click', () => {
             document.body.classList.toggle('light-theme');
