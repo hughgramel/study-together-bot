@@ -84,7 +84,7 @@ export const StatsChart: React.FC<StatsChartProps> = ({
   };
 
   return (
-    <div className="w-[1200px] h-[700px] bg-white flex flex-col p-8">
+    <div className="w-[1200px] h-[700px] bg-[#131F24] flex flex-col p-8">
       {/* Header - All in one line, larger text */}
       <div className="flex items-center gap-6 mb-10">
         {/* Profile Picture - larger */}
@@ -93,31 +93,31 @@ export const StatsChart: React.FC<StatsChartProps> = ({
             <img
               src={avatarUrl}
               alt={username}
-              className="w-full h-full rounded-full object-cover border-2 border-white"
+              className="w-full h-full rounded-full object-cover border-2 border-[#1F2B31]"
             />
           </div>
         ) : (
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#58CC02] to-[#4CAF00] flex items-center justify-center text-3xl border-2 border-white flex-shrink-0">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#58CC02] to-[#4CAF00] flex items-center justify-center text-3xl border-2 border-[#1F2B31] flex-shrink-0">
             👤
           </div>
         )}
 
         {/* Username - larger text */}
-        <span className="text-[#3C3C3C] text-3xl font-bold">{username}</span>
+        <span className="text-[#EFEFEF] text-3xl font-bold">{username}</span>
 
         {/* Separator - taller */}
-        <div className="w-px h-10 bg-[#E5E5E5]"></div>
+        <div className="w-px h-10 bg-[#2E3D44]"></div>
 
         {/* Value only - larger text */}
-        <span className="text-[#3C3C3C] text-3xl font-bold">
+        <span className="text-[#EFEFEF] text-3xl font-bold">
           {formatValue(currentValue)}{metricConfig.unit}
         </span>
 
         {/* Separator - taller */}
-        <div className="w-px h-10 bg-[#E5E5E5]"></div>
+        <div className="w-px h-10 bg-[#2E3D44]"></div>
 
         {/* Timeframe - larger text */}
-        <span className="text-[#3C3C3C] text-3xl font-bold">{timeframeLabel}</span>
+        <span className="text-[#EFEFEF] text-3xl font-bold">{timeframeLabel}</span>
       </div>
 
       {/* Bar Chart - takes up remaining space */}
@@ -128,7 +128,7 @@ export const StatsChart: React.FC<StatsChartProps> = ({
             const value = (maxValue / 4) * i;
             return (
               <div key={i} className="flex items-center justify-end">
-                <span className="text-[#6B6B6B] text-base font-semibold">
+                <span className="text-[#EFEFEF] text-base font-semibold">
                   {formatValue(value)}{metricConfig.unit}
                 </span>
               </div>
@@ -146,7 +146,7 @@ export const StatsChart: React.FC<StatsChartProps> = ({
               <div key={index} className="flex-1 flex flex-col items-center gap-3 group">
                 {/* Value Label on Hover */}
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity h-6">
-                  <span className="text-[#3C3C3C] text-lg font-bold">
+                  <span className="text-[#EFEFEF] text-lg font-bold">
                     {formatValue(point.value)}
                   </span>
                 </div>
@@ -167,10 +167,8 @@ export const StatsChart: React.FC<StatsChartProps> = ({
                   />
                 </div>
 
-                {/* Label - darker color, more space below */}
-                <span className={`text-xl font-bold mb-4 ${
-                  isHighlighted ? 'text-[#3C3C3C]' : 'text-[#6B6B6B]'
-                }`}>
+                {/* Label - consistent white color, more space below */}
+                <span className="text-xl font-bold mb-4 text-[#EFEFEF]">
                   {point.label}
                 </span>
               </div>

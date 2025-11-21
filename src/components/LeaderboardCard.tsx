@@ -15,12 +15,14 @@ interface LeaderboardCardProps {
   timeframe: 'daily' | 'weekly' | 'monthly' | 'all-time';
   entries: LeaderboardEntry[];
   currentUser?: LeaderboardEntry; // User who called the command (if not in top 10)
+  currentUserId?: string; // Current user ID for highlighting
 }
 
 export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
   timeframe,
   entries: originalEntries,
   currentUser: originalCurrentUser,
+  currentUserId,
 }) => {
   // TEMPORARY: Generate sample data for testing
   const sampleEntries: LeaderboardEntry[] = [
@@ -70,27 +72,20 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
 
   const getRankIcon = (rank: number) => {
     if (rank === 1) {
-      return <Trophy className="w-6 h-6 text-[#FFD700]" fill="#FFD700" />;
+      return <Trophy className="w-7 h-7 text-[#FFD700]" fill="#FFD700" />;
     } else if (rank === 2) {
-      return <Medal className="w-6 h-6 text-[#C0C0C0]" fill="#C0C0C0" />;
+      return <Trophy className="w-7 h-7 text-[#C0C0C0]" fill="#C0C0C0" />;
     } else if (rank === 3) {
-      return <Medal className="w-6 h-6 text-[#CD7F32]" fill="#CD7F32" />;
+      return <Trophy className="w-7 h-7 text-[#CD7F32]" fill="#CD7F32" />;
     }
     return null;
   };
 
-  const getRankColor = (rank: number) => {
-    if (rank === 1) return 'bg-gradient-to-r from-[#FFD700] to-[#FFA500]';
-    if (rank === 2) return 'bg-gradient-to-r from-[#C0C0C0] to-[#A8A8A8]';
-    if (rank === 3) return 'bg-gradient-to-r from-[#CD7F32] to-[#B87333]';
-    return 'bg-[#F7F7F7]';
-  };
-
   return (
-    <div className="w-[700px] bg-[#F7F7F7] flex flex-col p-8 pb-6">
+    <div className="w-[700px] bg-[#131F24] flex flex-col p-8 pb-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-[#3C3C3C] text-3xl font-extrabold flex items-center gap-3">
+        <h1 className="text-[#EFEFEF] text-3xl font-extrabold flex items-center gap-3">
           <Award className="w-9 h-9 text-[#FFD900]" fill="#FFD900" />
           {timeframeLabels[timeframe]}
         </h1>
@@ -101,16 +96,21 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
         {entries.map((entry) => {
           const level = calculateLevel(entry.xp);
           const hours = Math.floor(entry.totalDuration / 3600);
+          const isCurrentUser = currentUserId && entry.userId === currentUserId;
 
           return (
             <div
               key={entry.userId}
-              className={`${getRankColor(entry.rank)} rounded-xl p-3 border-2 ${entry.rank <= 3 ? 'border-transparent' : 'border-[#E5E5E5] bg-white'} flex items-center gap-3`}
+              className={`rounded-xl p-3 border-2 flex items-center gap-3 ${
+                isCurrentUser
+                  ? 'bg-[#1F3A44] border-[#1CB0F6]'
+                  : 'bg-[#1F2B31] border-[#2E3D44]'
+              }`}
             >
               {/* Rank */}
               <div className="w-10 flex items-center justify-center">
                 {getRankIcon(entry.rank) || (
-                  <span className="text-xl font-bold text-[#777777]">
+                  <span className="text-xl font-bold text-[#AFAFAF]">
                     {entry.rank}
                   </span>
                 )}
@@ -121,31 +121,31 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 <img
                   src={entry.avatarUrl}
                   alt={entry.username}
-                  className="w-full h-full rounded-full object-cover border-2 border-white"
+                  className="w-full h-full rounded-full object-cover border-2 border-[#1F2B31]"
                 />
               </div>
 
               {/* Username */}
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-[#3C3C3C]">
+                <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {entry.username}
                 </h3>
-                <p className="text-xs text-[#777777]">Level {level}</p>
+                <p className="text-xs text-[#AFAFAF]">Level {level}</p>
               </div>
 
               {/* Stats */}
               <div className="flex items-center gap-5 mr-2">
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#3C3C3C]">
+                  <div className="text-xl font-extrabold text-[#EFEFEF]">
                     {entry.xp.toLocaleString()}
                   </div>
-                  <div className="text-xs text-[#777777]">XP</div>
+                  <div className="text-xs text-[#AFAFAF]">XP</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#3C3C3C]">
+                  <div className="text-xl font-extrabold text-[#EFEFEF]">
                     {hours}h
                   </div>
-                  <div className="text-xs text-[#777777]">Time</div>
+                  <div className="text-xs text-[#AFAFAF]">Time</div>
                 </div>
               </div>
             </div>
@@ -155,10 +155,7 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
         {/* Current User (if not in top 10) */}
         {currentUser && (
           <>
-            <div className="flex items-center justify-center py-1">
-              <div className="text-xl text-[#AFAFAF]">...</div>
-            </div>
-            <div className="bg-[#E3F2FD] rounded-xl p-3 border-2 border-[#1CB0F6] flex items-center gap-3">
+            <div className="bg-[#1F3A44] rounded-xl p-3 border-2 border-[#1CB0F6] flex items-center gap-3">
               {/* Rank */}
               <div className="w-10 flex items-center justify-center">
                 <span className="text-xl font-bold text-[#1CB0F6]">
@@ -171,16 +168,16 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 <img
                   src={currentUser.avatarUrl}
                   alt={currentUser.username}
-                  className="w-full h-full rounded-full object-cover border-2 border-white"
+                  className="w-full h-full rounded-full object-cover border-2 border-[#1F2B31]"
                 />
               </div>
 
               {/* Username */}
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-[#3C3C3C]">
+                <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {currentUser.username} (You)
                 </h3>
-                <p className="text-xs text-[#777777]">
+                <p className="text-xs text-[#AFAFAF]">
                   Level {calculateLevel(currentUser.xp)}
                 </p>
               </div>
@@ -188,16 +185,16 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
               {/* Stats */}
               <div className="flex items-center gap-5 mr-2">
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#3C3C3C]">
+                  <div className="text-xl font-extrabold text-[#EFEFEF]">
                     {currentUser.xp.toLocaleString()}
                   </div>
-                  <div className="text-xs text-[#777777]">XP</div>
+                  <div className="text-xs text-[#AFAFAF]">XP</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#3C3C3C]">
+                  <div className="text-xl font-extrabold text-[#EFEFEF]">
                     {Math.floor(currentUser.totalDuration / 3600)}h
                   </div>
-                  <div className="text-xs text-[#777777]">Time</div>
+                  <div className="text-xs text-[#AFAFAF]">Time</div>
                 </div>
               </div>
             </div>

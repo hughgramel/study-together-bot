@@ -31,7 +31,19 @@ export class ProfileImageService {
    * Initialize the browser instance (reusable for performance)
    */
   private async getBrowser(): Promise<Browser> {
+    // Check if browser exists and is still connected
+    if (this.browser && !this.browser.connected) {
+      console.log('[ProfileImageService] Browser disconnected, recreating...');
+      try {
+        await this.browser.close();
+      } catch (e) {
+        // Ignore errors when closing disconnected browser
+      }
+      this.browser = null;
+    }
+
     if (!this.browser) {
+      console.log('[ProfileImageService] Launching new browser instance...');
       this.browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -137,7 +149,8 @@ export class ProfileImageService {
   async generateLeaderboardImage(
     timeframe: 'daily' | 'weekly' | 'monthly' | 'all-time',
     entries: LeaderboardEntry[],
-    currentUser?: LeaderboardEntry
+    currentUser?: LeaderboardEntry,
+    currentUserId?: string
   ): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
@@ -151,6 +164,7 @@ export class ProfileImageService {
         timeframe,
         entries,
         currentUser,
+        currentUserId,
       });
 
       const html = ReactDOMServer.renderToStaticMarkup(component);
@@ -173,7 +187,7 @@ export class ProfileImageService {
                 padding: 0;
                 width: 700px;
                 font-family: var(--font-main);
-                background-color: #F7F7F7;
+                background-color: #131F24;
               }
               * {
                 font-family: var(--font-main);

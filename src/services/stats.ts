@@ -711,9 +711,9 @@ export class StatsService {
         return `Week ${(weekNumber || 0) + 1}`;
       };
     } else {
-      // Year view: 12 months
-      startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-      previousStartDate = new Date(now.getFullYear() - 2, now.getMonth(), 1);
+      // Year view: 12 months ending with current month
+      startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+      previousStartDate = new Date(now.getFullYear() - 1, now.getMonth() - 11, 1);
       bucketCount = 12;
       labelFormat = (date) => {
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

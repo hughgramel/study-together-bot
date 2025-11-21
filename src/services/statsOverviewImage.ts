@@ -10,9 +10,14 @@ export class StatsOverviewImageService {
    * Initialize the browser instance (reusable for performance)
    */
   private async getBrowser(): Promise<Browser> {
-    // Check if browser is connected, if not recreate it
+    // Check if browser exists and is still connected
     if (this.browser && !this.browser.connected) {
       console.log('[StatsOverviewImageService] Browser disconnected, recreating...');
+      try {
+        await this.browser.close();
+      } catch (e) {
+        // Ignore errors when closing disconnected browser
+      }
       this.browser = null;
     }
 

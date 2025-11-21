@@ -2414,12 +2414,15 @@ client.on('interactionCreate', async (interaction) => {
               value = Math.round(weekSessions.reduce((sum, s) => sum + (s.xpGained || 0), 0));
             }
 
-            breakdown.push({ label: breakdownLabels[i], value });
-
-            // Highlight current week
-            if (currentDate >= weekStart && currentDate < weekEnd) {
+            // Check if this is the current week
+            const isCurrentWeek = currentDate >= weekStart && currentDate < weekEnd;
+            if (isCurrentWeek) {
               highlightIndex = i;
             }
+
+            // Use "This Week" for current week, otherwise use default label
+            const weekLabel = isCurrentWeek ? 'This Week' : breakdownLabels[i];
+            breakdown.push({ label: weekLabel, value });
 
             weekStart.setDate(weekStart.getDate() + 7);
           }
@@ -4090,16 +4093,17 @@ client.on('interactionCreate', async (interaction) => {
 
         const dayHours = Math.round(daySessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
 
-        // Get day name
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const dayName = days[dayStart.getDay()];
-
-        breakdown.push({ label: dayName, value: dayHours });
-
         // Check if this is today
-        if (dayStart.toDateString() === now.toDateString()) {
+        const isToday = dayStart.toDateString() === now.toDateString();
+        if (isToday) {
           highlightIndex = i;
         }
+
+        // Get day name - use "Today" for current day
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayName = isToday ? 'Today' : days[dayStart.getDay()];
+
+        breakdown.push({ label: dayName, value: dayHours });
 
         dayStart.setDate(dayStart.getDate() + 1);
       }
@@ -4881,11 +4885,12 @@ client.on('interactionCreate', async (interaction) => {
           }
         }
 
-        // Generate leaderboard image
+        // Generate leaderboard image - pass current user ID for highlighting
         const imageBuffer = await profileImageService.generateLeaderboardImage(
           timeframe,
           entries,
-          currentUserEntry
+          currentUserEntry,
+          user.id // Pass current user ID for highlighting in top 10
         );
 
         // Create attachment

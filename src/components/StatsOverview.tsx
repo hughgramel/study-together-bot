@@ -74,12 +74,12 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
   const isPositive = percentChange >= 0;
 
   return (
-    <div className="w-[700px] h-[700px] bg-white flex flex-col p-10">
+    <div className="w-[700px] h-[700px] bg-[#131F24] flex flex-col p-10">
       {/* Header with user info and timeframe */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           {avatarUrl ? (
-            <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-[#E5E5E5]">
+            <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-[#2E3D44]">
               <img
                 src={avatarUrl}
                 alt={username}
@@ -87,15 +87,15 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
               />
             </div>
           ) : (
-            <div className="w-14 h-14 rounded-full bg-[#E5E5E5] flex items-center justify-center text-2xl">
+            <div className="w-14 h-14 rounded-full bg-[#1F2B31] border-2 border-[#2E3D44] flex items-center justify-center text-2xl">
               👤
             </div>
           )}
           <div className="flex flex-col">
-            <h2 className="text-[#1A1A1A] text-xl font-bold truncate max-w-[400px]">
+            <h2 className="text-[#EFEFEF] text-xl font-bold truncate max-w-[400px]">
               {username}
             </h2>
-            <p className="text-[#666666] text-sm font-normal">
+            <p className="text-[#AFAFAF] text-sm font-normal">
               Detailed Statistics
             </p>
           </div>
@@ -109,7 +109,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
 
       {/* Breakdown Section - Full height */}
       <div className="flex-1">
-        <h3 className="text-[#1A1A1A] text-lg font-bold mb-4">{metricInfo.emoji} {metricInfo.title}</h3>
+        <h3 className="text-[#EFEFEF] text-lg font-bold mb-4">{metricInfo.emoji} {metricInfo.title}</h3>
         <div className="grid grid-cols-2 gap-4">
           {breakdown.map((item, index) => {
             const isHighlighted = highlightIndex !== undefined && index === highlightIndex;
@@ -118,17 +118,17 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
                 key={index}
                 className={`rounded-xl p-5 border-2 flex flex-col ${
                   isHighlighted
-                    ? 'bg-[#1CB0F6] border-[#0088CC]'
-                    : 'bg-[#F7F7F7] border-[#E5E5E5]'
+                    ? 'bg-[#1A2A32] border-[#1CB0F6]'
+                    : 'bg-[#1F2B31] border-[#2E3D44]'
                 }`}
               >
                 <div className={`text-sm font-semibold uppercase tracking-wide mb-2 ${
-                  isHighlighted ? 'text-white' : 'text-[#777777]'
+                  isHighlighted ? 'text-[#1CB0F6]' : 'text-[#AFAFAF]'
                 }`}>
                   {item.label}
                 </div>
                 <div className={`text-4xl font-extrabold leading-none ${
-                  isHighlighted ? 'text-white' : 'text-[#3C3C3C]'
+                  isHighlighted ? 'text-[#EFEFEF]' : 'text-[#EFEFEF]'
                 }`}>
                   {metric === 'xp' ? item.value.toLocaleString() : item.value}{metricInfo.unit}
                 </div>
