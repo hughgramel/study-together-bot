@@ -767,13 +767,13 @@ async function postStreakMilestone(
 
     if (totalSessions === 1) {
       // First session ever - only triggers once
-      message = `just completed their first session! 🎉`;
+      message = `just completed their first session!`;
       shouldCelebrate = true;
     } else if (streak === 7) {
-      message = `hit a 7-day streak! 🔥🔥 A full week of grinding!`;
+      message = `hit a 7-day streak! A full week of grinding!`;
       shouldCelebrate = true;
     } else if (streak === 30) {
-      message = `reached a 30-day streak! 🔥🔥🔥 Unstoppable! 🚀`;
+      message = `reached a 30-day streak! Unstoppable!`;
       shouldCelebrate = true;
     }
 
