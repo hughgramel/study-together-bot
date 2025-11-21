@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trophy } from 'lucide-react';
+import { getIconForEmoji } from '../utils/emojiToIcon';
 
 interface Achievement {
   emoji: string;
@@ -50,26 +51,31 @@ export default function AchievementUnlockCard({
         <div className="flex items-center gap-2 flex-1">
           <Trophy className="w-6 h-6 text-[#FFD900]" fill="#FFD900" strokeWidth={2.5} />
           <h2 className="text-[#EFEFEF] text-xl font-extrabold">
-            {username}
+            {username.length > 10 ? username.substring(0, 10) + '...' : username}
           </h2>
         </div>
       </div>
 
       {/* Achievement list */}
       <div className="px-6 pb-2 z-10 relative flex flex-col gap-1">
-        {achievements.map((achievement, index) => (
-          <div key={index} className="flex items-center gap-3 py-1">
-            <span className="text-2xl flex-shrink-0">{achievement.emoji}</span>
-            <div className="flex-1">
-              <div className="text-[#FFD900] text-base font-bold leading-tight">
-                {achievement.name}
+        {achievements.map((achievement, index) => {
+          const IconComponent = getIconForEmoji(achievement.emoji);
+          return (
+            <div key={index} className="flex items-center gap-3 py-1">
+              <div className="flex-shrink-0">
+                <IconComponent className="w-7 h-7 text-[#FFD900]" strokeWidth={2} />
               </div>
-              <div className="text-[#AFAFAF] text-xs font-normal leading-tight">
-                {achievement.description}
+              <div className="flex-1">
+                <div className="text-[#FFD900] text-base font-bold leading-tight">
+                  {achievement.name}
+                </div>
+                <div className="text-[#AFAFAF] text-xs font-normal leading-tight">
+                  {achievement.description}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Footer with XP */}

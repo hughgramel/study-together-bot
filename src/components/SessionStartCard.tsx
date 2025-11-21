@@ -37,7 +37,7 @@ export default function SessionStartCard({
       <div className="flex flex-col gap-1 flex-1 z-10">
         <div className="flex items-center gap-2">
           <h2 className="text-[#EFEFEF] text-xl font-extrabold">
-            {username}
+            {username.length > 10 ? username.substring(0, 10) + '...' : username}
           </h2>
           <div className="w-2 h-2 bg-[#58CC02] rounded-full animate-pulse" />
           <span className="text-[#58CC02] text-sm font-bold tracking-wide">

@@ -53,10 +53,13 @@ export default function StreakCard({
 
       {/* Text content */}
       <div className="flex flex-col gap-1 flex-1 z-10">
-        <h2 className="text-[#EFEFEF] text-xl font-extrabold">
-          {username} 🔥
-        </h2>
-        <p className="text-[#DBDEE1] text-base font-semibold leading-snug">
+        <div className="flex items-center gap-2">
+          <h2 className="text-[#EFEFEF] text-xl font-extrabold">
+            {username.length > 10 ? username.substring(0, 10) + '...' : username}
+          </h2>
+          <Flame className="w-5 h-5" style={{ color: colors.from }} fill={colors.from} />
+        </div>
+        <p className="text-[#DBDEE1] text-base font-semibold leading-snug mt-1">
           {message}
         </p>
       </div>

@@ -37,7 +37,7 @@ export default function LevelUpCard({
       {/* Text content */}
       <div className="flex flex-col gap-1 flex-1 z-10">
         <h2 className="text-[#EFEFEF] text-xl font-extrabold">
-          {username}
+          {username.length > 10 ? username.substring(0, 10) + '...' : username}
         </h2>
         <div className="text-[#CE82FF] text-2xl font-extrabold">
           Level {newLevel}!

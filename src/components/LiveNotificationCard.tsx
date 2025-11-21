@@ -1,5 +1,5 @@
 import React from 'react';
-import { Radio } from 'lucide-react';
+import { Radio, Pause, Circle } from 'lucide-react';
 
 interface LiveUser {
   username: string;
@@ -67,11 +67,13 @@ export default function LiveNotificationCard({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-[#EFEFEF] text-base font-bold truncate">
-                    {user.username}
+                    {user.username.length > 10 ? user.username.substring(0, 10) + '...' : user.username}
                   </span>
-                  <span className="text-[#58CC02] text-xs flex-shrink-0">
-                    {user.isPaused ? '⏸️' : '🟢'}
-                  </span>
+                  {user.isPaused ? (
+                    <Pause className="w-3 h-3 text-[#FFA500] flex-shrink-0" fill="#FFA500" />
+                  ) : (
+                    <Circle className="w-3 h-3 text-[#58CC02] flex-shrink-0" fill="#58CC02" />
+                  )}
                 </div>
                 <p className="text-[#DBDEE1] text-sm font-bold truncate mt-0.5">
                   {user.activity}

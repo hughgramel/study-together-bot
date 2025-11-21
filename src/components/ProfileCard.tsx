@@ -1,6 +1,6 @@
 import React from 'react';
 import { xpForLevel, levelProgress } from '../utils/xp';
-import { Flame, Zap, Award, BookOpen, Timer } from 'lucide-react';
+import { Flame, Zap, Award, BookOpen, Timer, User } from 'lucide-react';
 
 interface ProfileCardProps {
   username: string;
@@ -61,13 +61,13 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </div>
           </div>
         ) : (
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#58CC02] to-[#4CAF00] flex items-center justify-center text-5xl border-4 border-[#1F2B31]">
-            👤
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#58CC02] to-[#4CAF00] flex items-center justify-center border-4 border-[#1F2B31]">
+            <User className="w-14 h-14 text-white" />
           </div>
         )}
         <div className="flex flex-col">
           <h2 className="text-[#EFEFEF] text-3xl font-extrabold">
-            {username}
+            {username.length > 10 ? username.substring(0, 10) + '...' : username}
           </h2>
         </div>
       </div>
