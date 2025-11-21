@@ -16,7 +16,7 @@ interface AchievementUnlockCardProps {
 
 /**
  * Achievement unlock celebration card component
- * Duolingo-style design with dark mode and trophy theme
+ * Modern design with dark mode and trophy theme
  * Dynamic height based on number of achievements
  */
 export default function AchievementUnlockCard({

@@ -10,7 +10,7 @@ interface StreakCardProps {
 
 /**
  * Streak milestone celebration card component
- * Compact Duolingo-style design with dark mode
+ * Compact modern design with dark mode
  */
 export default function StreakCard({
   username,

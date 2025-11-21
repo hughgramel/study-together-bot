@@ -9,7 +9,7 @@ interface SessionStartCardProps {
 
 /**
  * Session start notification card component (single user)
- * Compact Duolingo-style design with dark mode
+ * Compact modern design with dark mode
  * Matches dimensions of LevelUpCard and StreakCard (500x140px)
  */
 export default function SessionStartCard({

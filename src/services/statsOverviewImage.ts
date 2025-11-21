@@ -37,7 +37,7 @@ export class StatsOverviewImageService {
   }
 
   /**
-   * Generate a Duolingo-style stats overview image
+   * Generate a stats overview image
    */
   async generateStatsOverviewImage(
     username: string,

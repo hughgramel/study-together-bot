@@ -37,7 +37,7 @@ export class PostImageService {
   }
 
   /**
-   * Generate a Duolingo-style session post image using React + Tailwind
+   * Generate a session post image using React + Tailwind
    */
   async generateSessionPostImage(
     username: string,

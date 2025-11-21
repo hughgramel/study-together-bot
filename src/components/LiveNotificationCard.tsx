@@ -16,7 +16,7 @@ interface LiveNotificationCardProps {
 
 /**
  * Live session notification card component
- * Compact Duolingo-style design with dark mode
+ * Compact modern design with dark mode
  * Shows up to 10 users with "and n more" footer if needed
  */
 export default function LiveNotificationCard({

@@ -22,8 +22,8 @@ A Discord bot for collaborative productivity tracking with Strava-style social f
 - `/cancel` - Discard your active session without saving
 
 ### Statistics & Leaderboards
-- `/stats` - View your personal statistics with Duolingo-style images
-- `/me` - View your Duolingo-style profile overview
+- `/stats` - View your personal statistics with modern images
+- `/me` - View your profile overview
 - `/leaderboard [timeframe]` - Interactive leaderboard with daily/weekly/monthly/all-time selector
 
 ### Admin

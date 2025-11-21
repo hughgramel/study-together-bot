@@ -58,7 +58,7 @@ export class ProfileImageService {
   }
 
   /**
-   * Generate a Duolingo-style profile image using React + Tailwind
+   * Generate a profile image using React + Tailwind
    */
   async generateProfileImage(
     username: string,

@@ -46,7 +46,7 @@ export class StatsImageService {
   }
 
   /**
-   * Generate a Duolingo-style stats chart image using React + Tailwind
+   * Generate a stats chart image using React + Tailwind
    */
   async generateStatsImage(
     username: string,

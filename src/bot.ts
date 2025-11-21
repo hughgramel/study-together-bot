@@ -341,47 +341,16 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('me')
-    .setDescription('View your Duolingo-style profile overview'),
+    .setDescription('View your profile overview'),
 
   new SlashCommandBuilder()
     .setName('graph')
-    .setDescription('View your stats as a Duolingo-style graph'),
+    .setDescription('View your stats as a graph'),
 
   new SlashCommandBuilder()
     .setName('post')
     .setDescription('Preview what your session completion post will look like in the feed'),
 
-  new SlashCommandBuilder()
-    .setName('postlong')
-    .setDescription('Preview a session post with a long description to see dynamic height'),
-
-  new SlashCommandBuilder()
-    .setName('testlevelup')
-    .setDescription('Preview a level-up notification image in the feed'),
-
-  new SlashCommandBuilder()
-    .setName('testlive')
-    .setDescription('Preview a live session notification image in the feed'),
-
-  new SlashCommandBuilder()
-    .setName('testlivelist')
-    .setDescription('Preview a live sessions list image (shows multiple users)'),
-
-  new SlashCommandBuilder()
-    .setName('teststreak')
-    .setDescription('Preview a streak milestone notification image in the feed'),
-
-  new SlashCommandBuilder()
-    .setName('testachievements')
-    .setDescription('Preview an achievement unlock notification image in the feed'),
-
-  new SlashCommandBuilder()
-    .setName('testachievements1')
-    .setDescription('Preview achievement unlock with 1 achievement'),
-
-  new SlashCommandBuilder()
-    .setName('testachievements3')
-    .setDescription('Preview achievement unlock with 3 achievements'),
 ].map((command) => command.toJSON());
 
 // Register commands
@@ -1416,7 +1385,7 @@ client.on('interactionCreate', async (interaction) => {
         // Update helper function
         const updateBuilderEmbed = (state: EventBuilderState): EmbedBuilder => {
           const embed = new EmbedBuilder()
-            .setColor(0x1CB0F6) // Duolingo blue
+            .setColor(0x1CB0F6) // Blue
             .setTitle('📅 Create Study Event')
             .setDescription('Use the buttons and dropdown below to configure your event.')
             .addFields(
@@ -1706,7 +1675,7 @@ client.on('interactionCreate', async (interaction) => {
               const studyType = builderState.studyType || 'conversation';
 
               const eventEmbed = new EmbedBuilder()
-                .setColor(0x1CB0F6) // Duolingo blue
+                .setColor(0x1CB0F6) // Blue
                 .setAuthor({
                   name: user.username,
                   iconURL: user.displayAvatarURL({ size: 128 }),
@@ -2584,7 +2553,7 @@ client.on('interactionCreate', async (interaction) => {
       // Update embed helper
       const updateBuilderEmbed = (state: EventBuilderState): EmbedBuilder => {
         const embed = new EmbedBuilder()
-          .setColor(0x1CB0F6) // Duolingo blue
+          .setColor(0x1CB0F6) // Blue
           .setTitle('📅 Create Study Event')
           .setDescription('Use the buttons and dropdown below to configure your event.')
           .addFields(
@@ -2696,7 +2665,7 @@ client.on('interactionCreate', async (interaction) => {
         };
 
         embed = new EmbedBuilder()
-          .setColor(0xFFD900) // Duolingo yellow
+          .setColor(0xFFD900) // Yellow
           .setTitle('🏆 Your Leaderboard Position')
           .addFields(
             { name: '\u200B', value: formatLeaderboard(dailyAll, '📅', 'Daily'), inline: false },
@@ -2710,7 +2679,7 @@ client.on('interactionCreate', async (interaction) => {
 
         if (xpUsers.length === 0) {
           embed = new EmbedBuilder()
-            .setColor(0xFFD900) // Duolingo yellow
+            .setColor(0xFFD900) // Yellow
             .setTitle('⚡ XP Leaderboard')
             .setDescription('No XP data yet! Complete sessions to earn XP! 🚀')
             .setFooter({ text: 'Use the dropdown below to view other timeframes' });
@@ -2737,7 +2706,7 @@ client.on('interactionCreate', async (interaction) => {
           }
 
           embed = new EmbedBuilder()
-            .setColor(0xFFD900) // Duolingo yellow
+            .setColor(0xFFD900) // Yellow
             .setTitle('⚡ XP Leaderboard')
             .addFields(
               { name: 'Rank', value: ranks.join('\n'), inline: true },
@@ -2768,7 +2737,7 @@ client.on('interactionCreate', async (interaction) => {
 
         if (users.length === 0) {
           embed = new EmbedBuilder()
-            .setColor(0xFFD900) // Duolingo yellow
+            .setColor(0xFFD900) // Yellow
             .setTitle(title)
             .setDescription('No sessions completed in this timeframe yet! Be the first! 🚀')
             .setFooter({ text: 'Use the dropdown below to view other timeframes' });
@@ -2795,7 +2764,7 @@ client.on('interactionCreate', async (interaction) => {
           }
 
           embed = new EmbedBuilder()
-            .setColor(0xFFD900) // Duolingo yellow
+            .setColor(0xFFD900) // Yellow
             .setTitle(title)
             .addFields(
               { name: 'Rank', value: ranks.join('\n'), inline: true },
@@ -3030,7 +2999,7 @@ client.on('interactionCreate', async (interaction) => {
 
         // Create completion embed
         const embed = new EmbedBuilder()
-          .setColor(0x58CC02) // Duolingo green
+          .setColor(0x58CC02) // Green
           .setTitle('🎉 Goal Completed!')
           .setDescription(`**${goal.text}**`)
           .addFields(
@@ -3094,7 +3063,7 @@ client.on('interactionCreate', async (interaction) => {
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
       const embed = new EmbedBuilder()
-        .setColor(0xFFD900) // Duolingo yellow // Gold
+        .setColor(0xFFD900) // Gold
         .setTitle(`🏆 Your Achievements (${unlockedAchievements.length}/${allAchievements.length})`)
         .setDescription(achievementList)
         .setFooter({
@@ -3277,7 +3246,7 @@ client.on('interactionCreate', async (interaction) => {
     // /help command
     if (commandName === 'help') {
       const embed = new EmbedBuilder()
-        .setColor(0x1CB0F6) // Duolingo blue
+        .setColor(0x1CB0F6) // Blue
         .setTitle('📚 Study Together Bot - Commands')
         .setDescription('Track your productivity and compete with friends!')
         .addFields(
@@ -3361,7 +3330,7 @@ client.on('interactionCreate', async (interaction) => {
           const xpAmount = difficulty === 'easy' ? 50 : difficulty === 'medium' ? 100 : 200;
 
           const embed = new EmbedBuilder()
-            .setColor(0x58CC02) // Duolingo green
+            .setColor(0x58CC02) // Green
             .setTitle('✅ Goal Added!')
             .setDescription(`**${goalText}**`)
             .addFields(
@@ -3416,7 +3385,7 @@ client.on('interactionCreate', async (interaction) => {
           const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 
           const embed = new EmbedBuilder()
-            .setColor(0x1CB0F6) // Duolingo blue
+            .setColor(0x1CB0F6) // Blue
             .setTitle('🎯 Complete a Goal')
             .setDescription('Select which goal you completed:')
             .setFooter({ text: `${activeGoals.length} active ${activeGoals.length === 1 ? 'goal' : 'goals'}` });
@@ -3450,7 +3419,7 @@ client.on('interactionCreate', async (interaction) => {
           const completedGoals = allGoals.filter(g => g.isCompleted);
 
           const embed = new EmbedBuilder()
-            .setColor(0xFFD900) // Duolingo yellow
+            .setColor(0xFFD900) // Yellow
             .setTitle('📋 Your Goals');
 
           // Add active goals
@@ -3501,7 +3470,7 @@ client.on('interactionCreate', async (interaction) => {
       });
 
       const builderEmbed = new EmbedBuilder()
-        .setColor(0x1CB0F6) // Duolingo blue
+        .setColor(0x1CB0F6) // Blue
         .setTitle('📅 Create Study Event')
         .setDescription('Use the buttons and dropdown below to configure your event.')
         .addFields(
@@ -3622,7 +3591,7 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         const embed = new EmbedBuilder()
-          .setColor(0x1CB0F6) // Duolingo blue
+          .setColor(0x1CB0F6) // Blue
           .setTitle('📅 Upcoming Study Events')
           .setDescription(`${events.length} event${events.length === 1 ? '' : 's'} scheduled`)
           .setTimestamp();
@@ -3704,7 +3673,7 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         const embed = new EmbedBuilder()
-          .setColor(0xFFD900) // Duolingo yellow
+          .setColor(0xFFD900) // Yellow
           .setTitle('📅 Your Events')
           .setDescription(`You're attending ${events.length} event${events.length === 1 ? '' : 's'}`)
           .setTimestamp();
@@ -3767,7 +3736,7 @@ client.on('interactionCreate', async (interaction) => {
               if (message) {
                 // Update the message to show it's cancelled
                 const cancelledEmbed = new EmbedBuilder()
-                  .setColor(0xFF6B6B) // Duolingo red (error/cancel)
+                  .setColor(0xFF6B6B) // Red (error/cancel)
                   .setTitle(`❌ CANCELLED: ${event.title}`)
                   .setDescription(`This event has been cancelled by the organizer.`)
                   .addFields(
@@ -4223,309 +4192,6 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // /testlevelup command
-    if (commandName === 'testlevelup') {
-      // Preview level-up image in current channel
-      await interaction.deferReply();
-
-      try {
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Generate level-up image
-        const imageBuffer = await levelUpImageService.generateLevelUpImage(
-          user.username,
-          avatarUrl,
-          12, // Example level
-          8   // Example hours to next level
-        );
-
-        // Create attachment
-        const attachment = new AttachmentBuilder(imageBuffer, {
-          name: 'levelup-test.png',
-          description: `${user.username} leveled up!`
-        });
-
-        await interaction.editReply({
-          content: '✅ **Level-up notification preview:**',
-          files: [attachment]
-        });
-      } catch (error) {
-        console.error('Error generating test level-up image:', error);
-        await interaction.editReply('❌ Failed to generate test image.');
-      }
-      return;
-    }
-
-    // /testlive command
-    if (commandName === 'testlive') {
-      // Preview live session notification image in current channel
-      await interaction.deferReply();
-
-      try {
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Generate session start image
-        const imageBuffer = await sessionStartImageService.generateSessionStartImage(
-          user.username,
-          avatarUrl,
-          'Deep Learning Research'
-        );
-
-        // Create attachment
-        const attachment = new AttachmentBuilder(imageBuffer, {
-          name: 'live-test.png',
-          description: `${user.username} is live!`
-        });
-
-        await interaction.editReply({
-          content: '✅ **Live notification preview:**',
-          files: [attachment]
-        });
-      } catch (error) {
-        console.error('Error generating test live notification image:', error);
-        await interaction.editReply('❌ Failed to generate test image.');
-      }
-      return;
-    }
-
-    // /testlivelist command
-    if (commandName === 'testlivelist') {
-      // Preview live sessions list image with multiple users
-      await interaction.deferReply();
-
-      try {
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Generate live list image with example users
-        const imageBuffer = await liveNotificationImageService.generateLiveNotificationImage(
-          [
-            {
-              username: user.username,
-              avatarUrl,
-              activity: 'Deep Learning Research',
-              duration: '2h 15m',
-              isPaused: false,
-            },
-            {
-              username: 'Alice',
-              avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
-              activity: 'Calculus Problem Set',
-              duration: '1h 23m',
-              isPaused: false,
-            },
-            {
-              username: 'Bob',
-              avatarUrl: 'https://cdn.discordapp.com/embed/avatars/1.png',
-              activity: 'Biology Lab Report',
-              duration: '45m',
-              isPaused: true,
-            },
-            {
-              username: 'Charlie',
-              avatarUrl: 'https://cdn.discordapp.com/embed/avatars/2.png',
-              activity: 'Essay Writing',
-              duration: '3h 5m',
-              isPaused: false,
-            },
-            {
-              username: 'Diana',
-              avatarUrl: 'https://cdn.discordapp.com/embed/avatars/3.png',
-              activity: 'Chemistry Notes',
-              duration: '30m',
-              isPaused: false,
-            },
-          ],
-          5
-        );
-
-        // Create attachment
-        const attachment = new AttachmentBuilder(imageBuffer, {
-          name: 'livelist-test.png',
-          description: '5 people are studying'
-        });
-
-        await interaction.editReply({
-          content: '✅ **Live sessions list preview:**',
-          files: [attachment]
-        });
-      } catch (error) {
-        console.error('Error generating test live list image:', error);
-        await interaction.editReply('❌ Failed to generate test image.');
-      }
-      return;
-    }
-
-    // /teststreak command
-    if (commandName === 'teststreak') {
-      // Preview streak milestone notification image in current channel
-      await interaction.deferReply();
-
-      try {
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Generate streak image (7-day streak example)
-        const imageBuffer = await streakImageService.generateStreakImage(
-          user.username,
-          avatarUrl,
-          7,
-          'hit a 7-day streak! 🔥🔥 A full week of grinding!'
-        );
-
-        // Create attachment
-        const attachment = new AttachmentBuilder(imageBuffer, {
-          name: 'streak-test.png',
-          description: `${user.username} streak milestone!`
-        });
-
-        await interaction.editReply({
-          content: '✅ **Streak notification preview:**',
-          files: [attachment]
-        });
-      } catch (error) {
-        console.error('Error generating test streak image:', error);
-        await interaction.editReply('❌ Failed to generate test image.');
-      }
-      return;
-    }
-
-    if (commandName === 'testachievements') {
-      // Preview achievement unlock image in current channel
-      await interaction.deferReply();
-
-      try {
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Example: User unlocked 2 achievements
-        const exampleAchievements = [
-          {
-            emoji: '✍️',
-            name: 'Academic',
-            description: 'Study for 25 hours total',
-            xpReward: 100
-          },
-          {
-            emoji: '🏅',
-            name: 'Achiever',
-            description: 'Reach Level 10',
-            xpReward: 175
-          }
-        ];
-
-        // Generate achievement unlock image
-        const imageBuffer = await achievementUnlockImageService.generateAchievementUnlockImage(
-          user.username,
-          avatarUrl,
-          exampleAchievements
-        );
-
-        const attachment = new AttachmentBuilder(imageBuffer, {
-          name: 'achievement-unlock.png',
-          description: `${user.username} unlocked achievements!`
-        });
-
-        await interaction.editReply({
-          content: '✅ **Achievement unlock preview:**',
-          files: [attachment]
-        });
-      } catch (error) {
-        console.error('Error generating test achievement image:', error);
-        await interaction.editReply('❌ Failed to generate test image.');
-      }
-      return;
-    }
-
-    if (commandName === 'testachievements1') {
-      // Preview achievement unlock image with 1 achievement
-      await interaction.deferReply();
-
-      try {
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Example: User unlocked 1 achievement
-        const exampleAchievements = [
-          {
-            emoji: '🎯',
-            name: 'First Steps',
-            description: 'Complete your first session',
-            xpReward: 50
-          }
-        ];
-
-        // Generate achievement unlock image
-        const imageBuffer = await achievementUnlockImageService.generateAchievementUnlockImage(
-          user.username,
-          avatarUrl,
-          exampleAchievements
-        );
-
-        const attachment = new AttachmentBuilder(imageBuffer, {
-          name: 'achievement-unlock.png',
-          description: `${user.username} unlocked an achievement!`
-        });
-
-        await interaction.editReply({
-          content: '✅ **Achievement unlock preview (1 achievement):**',
-          files: [attachment]
-        });
-      } catch (error) {
-        console.error('Error generating test achievement image:', error);
-        await interaction.editReply('❌ Failed to generate test image.');
-      }
-      return;
-    }
-
-    if (commandName === 'testachievements3') {
-      // Preview achievement unlock image with 3 achievements
-      await interaction.deferReply();
-
-      try {
-        const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-        // Example: User unlocked 3 achievements
-        const exampleAchievements = [
-          {
-            emoji: '🎯',
-            name: 'First Steps',
-            description: 'Complete your first session',
-            xpReward: 50
-          },
-          {
-            emoji: '🔥',
-            name: 'Hot Streak',
-            description: 'Maintain a 3-day streak',
-            xpReward: 75
-          },
-          {
-            emoji: '⏰',
-            name: 'Marathon',
-            description: 'Study for 3+ hours in one session',
-            xpReward: 100
-          }
-        ];
-
-        // Generate achievement unlock image
-        const imageBuffer = await achievementUnlockImageService.generateAchievementUnlockImage(
-          user.username,
-          avatarUrl,
-          exampleAchievements
-        );
-
-        const attachment = new AttachmentBuilder(imageBuffer, {
-          name: 'achievement-unlock.png',
-          description: `${user.username} unlocked achievements!`
-        });
-
-        await interaction.editReply({
-          content: '✅ **Achievement unlock preview (3 achievements):**',
-          files: [attachment]
-        });
-      } catch (error) {
-        console.error('Error generating test achievement image:', error);
-        await interaction.editReply('❌ Failed to generate test image.');
-      }
-      return;
-    }
-
     if (commandName === 'achievements') {
       const stats = await statsService.getUserStats(user.id);
 
@@ -4555,7 +4221,7 @@ client.on('interactionCreate', async (interaction) => {
       const avatarUrl = user.displayAvatarURL({ size: 128 });
 
       const embed = new EmbedBuilder()
-        .setColor(0xFFD900) // Duolingo yellow // Gold
+        .setColor(0xFFD900) // Gold
         .setTitle(`🏆 Your Achievements (${unlockedAchievements.length}/${allAchievements.length})`)
         .setDescription(achievementList)
         .setFooter({
@@ -4635,7 +4301,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 
 
-    // /me command - Generate Duolingo-style profile image
+    // /me command - Generate profile image
     if (commandName === 'me') {
       await interaction.deferReply({ ephemeral: false });
 
@@ -4855,61 +4521,6 @@ client.on('interactionCreate', async (interaction) => {
         });
       } catch (error) {
         console.error('Error generating post preview:', error);
-        await interaction.editReply({
-          content: '❌ Failed to generate post preview. Please try again later.',
-        });
-      }
-      return;
-    }
-
-    // /postlong command - Preview session post with long description
-    if (commandName === 'postlong') {
-      await interaction.deferReply({ ephemeral: false });
-
-      try {
-        const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
-
-        // Create sample session data with a LONG description
-        const sampleDuration = '3h 45m';
-        const sampleXp = 225;
-        const sampleActivity = 'Research & Writing';
-        const sampleIntensity = 4; // Hard intensity
-        const sampleTitle = 'Deep work session on thesis';
-        const sampleDescription = 'Spent the morning conducting literature review for my thesis on machine learning applications in healthcare. Read through 15 academic papers, took detailed notes on methodology and findings. After lunch, I outlined the introduction chapter and wrote the first draft of the literature review section. Also created a comprehensive bibliography and organized my research notes into a structured format. Made significant progress on understanding the current state of research in this field and identified several gaps that my thesis will address. Feeling accomplished and ready to continue tomorrow with the methodology section.';
-
-        // Format sample date
-        const now = new Date();
-        const sampleDate = now.toLocaleString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        });
-
-        // Generate the session post image
-        const imageBuffer = await postImageService.generateSessionPostImage(
-          user.username,
-          sampleDuration,
-          sampleXp,
-          sampleActivity,
-          sampleIntensity,
-          avatarUrl,
-          sampleTitle,
-          sampleDescription,
-          sampleDate
-        );
-
-        // Create attachment
-        const attachment = new AttachmentBuilder(imageBuffer, { name: 'session-post-long.png' });
-
-        // Send the preview
-        await interaction.editReply({
-          content: '✨ **Session Post Preview (Long Description)**\nThis shows how the post dynamically adjusts height for longer descriptions!',
-          files: [attachment],
-        });
-      } catch (error) {
-        console.error('Error generating long post preview:', error);
         await interaction.editReply({
           content: '❌ Failed to generate post preview. Please try again later.',
         });
