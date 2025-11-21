@@ -38,6 +38,11 @@ import { ProfileImageService } from './services/profileImage';
 import { StatsImageService } from './services/statsImage';
 import { StatsOverviewImageService } from './services/statsOverviewImage';
 import { PostImageService } from './services/postImage';
+import { levelUpImageService } from './services/levelUpImage';
+import { liveNotificationImageService } from './services/liveNotificationImage';
+import { sessionStartImageService } from './services/sessionStartImage';
+import { streakImageService } from './services/streakImage';
+import { achievementUnlockImageService } from './services/achievementUnlockImage';
 import { getAchievement, getAllAchievements } from './data/achievements';
 import { ServerConfig } from './types';
 import {
@@ -349,6 +354,34 @@ const commands = [
   new SlashCommandBuilder()
     .setName('postlong')
     .setDescription('Preview a session post with a long description to see dynamic height'),
+
+  new SlashCommandBuilder()
+    .setName('testlevelup')
+    .setDescription('Preview a level-up notification image in the feed'),
+
+  new SlashCommandBuilder()
+    .setName('testlive')
+    .setDescription('Preview a live session notification image in the feed'),
+
+  new SlashCommandBuilder()
+    .setName('testlivelist')
+    .setDescription('Preview a live sessions list image (shows multiple users)'),
+
+  new SlashCommandBuilder()
+    .setName('teststreak')
+    .setDescription('Preview a streak milestone notification image in the feed'),
+
+  new SlashCommandBuilder()
+    .setName('testachievements')
+    .setDescription('Preview an achievement unlock notification image in the feed'),
+
+  new SlashCommandBuilder()
+    .setName('testachievements1')
+    .setDescription('Preview achievement unlock with 1 achievement'),
+
+  new SlashCommandBuilder()
+    .setName('testachievements3')
+    .setDescription('Preview achievement unlock with 3 achievements'),
 ].map((command) => command.toJSON());
 
 // Register commands
@@ -575,17 +608,21 @@ async function postSessionStartToFeed(
       return;
     }
 
-    // Create embed for session start
-    const embed = new EmbedBuilder()
-      .setColor(0x58CC02) // Duolingo green for "live"
-      .setAuthor({
-        name: `${username} 🟢`,
-        iconURL: avatarUrl
-      })
-      .setDescription(`**@${username}** is live now working on **${activity}**!`);
+    // Generate the session start image
+    const imageBuffer = await sessionStartImageService.generateSessionStartImage(
+      username,
+      avatarUrl,
+      activity
+    );
+
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `live-${userId}.png`,
+      description: `${username} is live now!`
+    });
 
     await textChannel.send({
-      embeds: [embed]
+      files: [attachment]
     });
   } catch (error: any) {
     // Log detailed error for debugging
@@ -755,27 +792,19 @@ async function postStreakMilestone(
       return;
     }
 
-    // Determine message and emoji based on milestones
+    // Determine message based on milestones
     let message = '';
-    let emoji = '';
-    let color = 0x58CC02; // Duolingo green
     let shouldCelebrate = false;
 
     if (totalSessions === 1) {
       // First session ever - only triggers once
-      message = `**@${username}** just completed their first session! 🎉`;
-      emoji = '🎉';
-      color = 0x58CC02; // Duolingo green
+      message = `just completed their first session! 🎉`;
       shouldCelebrate = true;
     } else if (streak === 7) {
-      message = `**@${username}** hit a 7-day streak! 🔥🔥 A full week of grinding!`;
-      emoji = '🔥';
-      color = 0xFF9600; // Duolingo orange (streak color)
+      message = `hit a 7-day streak! 🔥🔥 A full week of grinding!`;
       shouldCelebrate = true;
     } else if (streak === 30) {
-      message = `**@${username}** reached a 30-day streak! 🔥🔥🔥 Unstoppable! 🚀`;
-      emoji = '🔥';
-      color = 0xFF6B6B; // Duolingo red (best streak color)
+      message = `reached a 30-day streak! 🔥🔥🔥 Unstoppable! 🚀`;
       shouldCelebrate = true;
     }
 
@@ -784,24 +813,29 @@ async function postStreakMilestone(
       return;
     }
 
-    // Create milestone embed
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setAuthor({
-        name: `${username} ${emoji}`,
-        iconURL: avatarUrl
-      })
-      .setDescription(message);
+    // Generate the streak image
+    const imageBuffer = await streakImageService.generateStreakImage(
+      username,
+      avatarUrl,
+      streak,
+      message
+    );
+
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `streak-${streak}.png`,
+      description: `${username} streak milestone!`
+    });
 
     const milestoneMessage = await textChannel.send({
-      embeds: [embed]
+      files: [attachment]
     });
 
     // React with appropriate emoji if bot has permission
     if (permissions?.has(PermissionFlagsBits.AddReactions)) {
-      await milestoneMessage.react(emoji);
+      await milestoneMessage.react('🔥');
 
-      // Add fire reactions for streaks
+      // Add additional reactions for streaks
       if (streak === 7) {
         await milestoneMessage.react('💪');
       } else if (streak === 30) {
@@ -858,26 +892,19 @@ async function postAchievementUnlock(
       return;
     }
 
-    // Build achievement list with emojis, names, and descriptions
-    const achievementList = achievements.map(b => `${b!.emoji} **${b!.name}**\n${b!.description}`).join('\n\n');
-    const totalXP = achievements.reduce((sum, b) => sum + b!.xpReward, 0);
+    // Generate achievement unlock image
+    const imageBuffer = await achievementUnlockImageService.generateAchievementUnlockImage(
+      username,
+      avatarUrl,
+      achievements as Array<{ emoji: string; name: string; description: string; xpReward: number }>
+    );
 
-    const message = achievements.length === 1
-      ? `**@${username}** unlocked a new achievement! 🏆`
-      : `**@${username}** unlocked ${achievements.length} new achievements! 🏆`;
-
-    // Create achievement unlock embed
-    const embed = new EmbedBuilder()
-      .setColor(0xFFD900) // Duolingo yellow (XP/achievement color)
-      .setAuthor({
-        name: `${username} 🏆`,
-        iconURL: avatarUrl
-      })
-      .setDescription(`${message}\n\n${achievementList}`)
-      .setFooter({ text: `+${totalXP} bonus XP earned` });
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: 'achievement-unlock.png'
+    });
 
     const achievementMessage = await textChannel.send({
-      embeds: [embed]
+      files: [attachment]
     });
 
     // React with confetti if bot has permission
@@ -930,23 +957,22 @@ async function postLevelUp(
     const xpNeeded = nextLevelXP - currentXP;
     const hoursNeeded = Math.ceil(xpNeeded / 100); // 100 XP per hour
 
-    const levelDiff = newLevel - oldLevel;
-    const levelMessage = levelDiff > 1
-      ? `**@${username}** is now Level ${newLevel}! 🎉`
-      : `**@${username}** is now Level ${newLevel}! 🎉`;
+    // Generate the level-up image
+    const imageBuffer = await levelUpImageService.generateLevelUpImage(
+      username,
+      avatarUrl,
+      newLevel,
+      hoursNeeded
+    );
 
-    // Create level-up embed
-    const embed = new EmbedBuilder()
-      .setColor(0xCE82FF) // Duolingo purple (achievement/level-up color)
-      .setAuthor({
-        name: `${username} 🎉`,
-        iconURL: avatarUrl
-      })
-      .setDescription(levelMessage)
-      .setFooter({ text: `About ${hoursNeeded} more ${hoursNeeded === 1 ? 'hour' : 'hours'} needed to reach Level ${newLevel + 1}!` });
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `levelup-${newLevel}.png`,
+      description: `${username} leveled up to ${newLevel}!`
+    });
 
     const levelUpMessage = await textChannel.send({
-      embeds: [embed]
+      files: [attachment]
     });
 
     // React with celebration emojis if bot has permission
@@ -988,23 +1014,22 @@ async function postLevelUpBasic(
     const xpNeeded = nextLevelXP - currentXP;
     const hoursNeeded = Math.ceil(xpNeeded / 100); // 100 XP per hour
 
-    const levelDiff = newLevel - oldLevel;
-    const levelMessage = levelDiff > 1
-      ? `**@${username}** is now Level ${newLevel}! 🎉`
-      : `**@${username}** is now Level ${newLevel}! 🎉`;
+    // Generate the level-up image
+    const imageBuffer = await levelUpImageService.generateLevelUpImage(
+      username,
+      avatarUrl,
+      newLevel,
+      hoursNeeded
+    );
 
-    // Create level-up embed
-    const embed = new EmbedBuilder()
-      .setColor(0xCE82FF) // Duolingo purple (achievement/level-up color)
-      .setAuthor({
-        name: `${username} 🎉`,
-        iconURL: avatarUrl
-      })
-      .setDescription(levelMessage)
-      .setFooter({ text: `About ${hoursNeeded} more ${hoursNeeded === 1 ? 'hour' : 'hours'} needed to reach Level ${newLevel + 1}!` });
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `levelup-${newLevel}.png`,
+      description: `${username} leveled up to ${newLevel}!`
+    });
 
     const levelUpMessage = await textChannel.send({
-      embeds: [embed]
+      files: [attachment]
     });
 
     // React with celebration emojis
@@ -4198,106 +4223,262 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
-    // /achievements command
+    // /testlevelup command
     if (commandName === 'testlevelup') {
-      // Preview level-up and session post embeds
-      const config = await getServerConfig(interaction.guildId!);
-
-      if (!config || !config.feedChannelId) {
-        await interaction.reply({
-          content: '❌ No feed channel configured! Use `/setup-feed` first.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      await interaction.deferReply({ ephemeral: true });
+      // Preview level-up image in current channel
+      await interaction.deferReply();
 
       try {
-        const channel = await client.channels.fetch(config.feedChannelId);
-
-        if (!channel || !channel.isTextBased()) {
-          await interaction.editReply('❌ Feed channel not found or not text-based');
-          return;
-        }
-
-        const textChannel = channel as TextChannel;
         const avatarUrl = user.displayAvatarURL({ size: 128 });
 
-        // 1. Post example session completion embed
-        const sessionEmbed = new EmbedBuilder()
-          .setColor(0x1CB0F6) // Duolingo blue // Electric blue
-          .setAuthor({
-            name: `${user.username} 🎯`,
-            iconURL: avatarUrl
-          })
-          .setTitle('Deep work on React components')
-          .setDescription('Built the new dashboard UI with real-time updates and fixed several performance issues')
-          .addFields(
-            { name: 'Activity', value: 'Frontend Development', inline: true },
-            { name: 'Duration', value: '2h 45m', inline: true },
-            { name: '', value: '', inline: false },
-            { name: 'XP Earned', value: '+275 XP', inline: true },
-            { name: 'Level', value: 'Level 8 → 9', inline: true }
-          )
-          .setFooter({ text: `Session completed • ${new Date().toLocaleDateString()}` });
+        // Generate level-up image
+        const imageBuffer = await levelUpImageService.generateLevelUpImage(
+          user.username,
+          avatarUrl,
+          12, // Example level
+          8   // Example hours to next level
+        );
 
-        const sessionMessage = await textChannel.send({
-          embeds: [sessionEmbed]
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'levelup-test.png',
+          description: `${user.username} leveled up!`
         });
-
-        await sessionMessage.react('❤️').catch(() => {});
-
-        // 2. Post example level-up embed (right after)
-        const levelUpEmbed = new EmbedBuilder()
-          .setColor(0xCE82FF) // Duolingo purple (achievement/level-up color)
-          .setAuthor({
-            name: `${user.username} 🎉`,
-            iconURL: avatarUrl
-          })
-          .setDescription(`**@${user.username}** is now Level 9! 🎉`)
-          .setFooter({ text: 'About 5 more hours needed to reach Level 10!' });
-
-        const levelUpMessage = await textChannel.send({
-          embeds: [levelUpEmbed]
-        });
-
-        await levelUpMessage.react('🎉').catch(() => {});
-        await levelUpMessage.react('✨').catch(() => {});
 
         await interaction.editReply({
-          content: `✅ Test embeds posted to <#${config.feedChannelId}>!\n\n**Posted:**\n1. Session completion embed (blue)\n2. Level-up celebration embed (purple)`
+          content: '✅ **Level-up notification preview:**',
+          files: [attachment]
         });
       } catch (error) {
-        console.error('Error posting test embeds:', error);
-        await interaction.editReply('❌ Failed to post test embeds. Check bot permissions in the feed channel.');
+        console.error('Error generating test level-up image:', error);
+        await interaction.editReply('❌ Failed to generate test image.');
+      }
+      return;
+    }
+
+    // /testlive command
+    if (commandName === 'testlive') {
+      // Preview live session notification image in current channel
+      await interaction.deferReply();
+
+      try {
+        const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+        // Generate session start image
+        const imageBuffer = await sessionStartImageService.generateSessionStartImage(
+          user.username,
+          avatarUrl,
+          'Deep Learning Research'
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'live-test.png',
+          description: `${user.username} is live!`
+        });
+
+        await interaction.editReply({
+          content: '✅ **Live notification preview:**',
+          files: [attachment]
+        });
+      } catch (error) {
+        console.error('Error generating test live notification image:', error);
+        await interaction.editReply('❌ Failed to generate test image.');
+      }
+      return;
+    }
+
+    // /testlivelist command
+    if (commandName === 'testlivelist') {
+      // Preview live sessions list image with multiple users
+      await interaction.deferReply();
+
+      try {
+        const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+        // Generate live list image with example users
+        const imageBuffer = await liveNotificationImageService.generateLiveNotificationImage(
+          [
+            {
+              username: user.username,
+              avatarUrl,
+              activity: 'Deep Learning Research',
+              duration: '2h 15m',
+              isPaused: false,
+            },
+            {
+              username: 'Alice',
+              avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
+              activity: 'Calculus Problem Set',
+              duration: '1h 23m',
+              isPaused: false,
+            },
+            {
+              username: 'Bob',
+              avatarUrl: 'https://cdn.discordapp.com/embed/avatars/1.png',
+              activity: 'Biology Lab Report',
+              duration: '45m',
+              isPaused: true,
+            },
+            {
+              username: 'Charlie',
+              avatarUrl: 'https://cdn.discordapp.com/embed/avatars/2.png',
+              activity: 'Essay Writing',
+              duration: '3h 5m',
+              isPaused: false,
+            },
+            {
+              username: 'Diana',
+              avatarUrl: 'https://cdn.discordapp.com/embed/avatars/3.png',
+              activity: 'Chemistry Notes',
+              duration: '30m',
+              isPaused: false,
+            },
+          ],
+          5
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'livelist-test.png',
+          description: '5 people are studying'
+        });
+
+        await interaction.editReply({
+          content: '✅ **Live sessions list preview:**',
+          files: [attachment]
+        });
+      } catch (error) {
+        console.error('Error generating test live list image:', error);
+        await interaction.editReply('❌ Failed to generate test image.');
+      }
+      return;
+    }
+
+    // /teststreak command
+    if (commandName === 'teststreak') {
+      // Preview streak milestone notification image in current channel
+      await interaction.deferReply();
+
+      try {
+        const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+        // Generate streak image (7-day streak example)
+        const imageBuffer = await streakImageService.generateStreakImage(
+          user.username,
+          avatarUrl,
+          7,
+          'hit a 7-day streak! 🔥🔥 A full week of grinding!'
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'streak-test.png',
+          description: `${user.username} streak milestone!`
+        });
+
+        await interaction.editReply({
+          content: '✅ **Streak notification preview:**',
+          files: [attachment]
+        });
+      } catch (error) {
+        console.error('Error generating test streak image:', error);
+        await interaction.editReply('❌ Failed to generate test image.');
       }
       return;
     }
 
     if (commandName === 'testachievements') {
-      // Preview achievement unlock embed
-      const config = await getServerConfig(interaction.guildId!);
-
-      if (!config || !config.feedChannelId) {
-        await interaction.reply({
-          content: '❌ No feed channel configured! Use `/setup-feed` first.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      await interaction.deferReply({ ephemeral: true });
+      // Preview achievement unlock image in current channel
+      await interaction.deferReply();
 
       try {
-        const channel = await client.channels.fetch(config.feedChannelId);
+        const avatarUrl = user.displayAvatarURL({ size: 128 });
 
-        if (!channel || !channel.isTextBased()) {
-          await interaction.editReply('❌ Feed channel not found or not text-based');
-          return;
-        }
+        // Example: User unlocked 2 achievements
+        const exampleAchievements = [
+          {
+            emoji: '✍️',
+            name: 'Academic',
+            description: 'Study for 25 hours total',
+            xpReward: 100
+          },
+          {
+            emoji: '🏅',
+            name: 'Achiever',
+            description: 'Reach Level 10',
+            xpReward: 175
+          }
+        ];
 
-        const textChannel = channel as TextChannel;
+        // Generate achievement unlock image
+        const imageBuffer = await achievementUnlockImageService.generateAchievementUnlockImage(
+          user.username,
+          avatarUrl,
+          exampleAchievements
+        );
+
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'achievement-unlock.png',
+          description: `${user.username} unlocked achievements!`
+        });
+
+        await interaction.editReply({
+          content: '✅ **Achievement unlock preview:**',
+          files: [attachment]
+        });
+      } catch (error) {
+        console.error('Error generating test achievement image:', error);
+        await interaction.editReply('❌ Failed to generate test image.');
+      }
+      return;
+    }
+
+    if (commandName === 'testachievements1') {
+      // Preview achievement unlock image with 1 achievement
+      await interaction.deferReply();
+
+      try {
+        const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+        // Example: User unlocked 1 achievement
+        const exampleAchievements = [
+          {
+            emoji: '🎯',
+            name: 'First Steps',
+            description: 'Complete your first session',
+            xpReward: 50
+          }
+        ];
+
+        // Generate achievement unlock image
+        const imageBuffer = await achievementUnlockImageService.generateAchievementUnlockImage(
+          user.username,
+          avatarUrl,
+          exampleAchievements
+        );
+
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'achievement-unlock.png',
+          description: `${user.username} unlocked an achievement!`
+        });
+
+        await interaction.editReply({
+          content: '✅ **Achievement unlock preview (1 achievement):**',
+          files: [attachment]
+        });
+      } catch (error) {
+        console.error('Error generating test achievement image:', error);
+        await interaction.editReply('❌ Failed to generate test image.');
+      }
+      return;
+    }
+
+    if (commandName === 'testachievements3') {
+      // Preview achievement unlock image with 3 achievements
+      await interaction.deferReply();
+
+      try {
         const avatarUrl = user.displayAvatarURL({ size: 128 });
 
         // Example: User unlocked 3 achievements
@@ -4312,44 +4493,35 @@ client.on('interactionCreate', async (interaction) => {
             emoji: '🔥',
             name: 'Hot Streak',
             description: 'Maintain a 3-day streak',
-            xpReward: 50
+            xpReward: 75
           },
           {
-            emoji: '💯',
-            name: 'Centurion',
-            description: 'Study for 100 hours total',
-            xpReward: 200
+            emoji: '⏰',
+            name: 'Marathon',
+            description: 'Study for 3+ hours in one session',
+            xpReward: 100
           }
         ];
 
-        const achievementList = exampleAchievements.map(b => `${b.emoji} **${b.name}**\n${b.description}`).join('\n\n');
-        const totalXP = exampleAchievements.reduce((sum, b) => sum + b.xpReward, 0);
+        // Generate achievement unlock image
+        const imageBuffer = await achievementUnlockImageService.generateAchievementUnlockImage(
+          user.username,
+          avatarUrl,
+          exampleAchievements
+        );
 
-        const message = `**@${user.username}** unlocked ${exampleAchievements.length} new achievements! 🏆`;
-
-        // Create achievement unlock embed
-        const embed = new EmbedBuilder()
-          .setColor(0xFFD900) // Duolingo yellow // Gold
-          .setAuthor({
-            name: `${user.username} 🏆`,
-            iconURL: avatarUrl
-          })
-          .setDescription(`${message}\n\n${achievementList}`)
-          .setFooter({ text: `+${totalXP} bonus XP earned` });
-
-        const achievementMessage = await textChannel.send({
-          embeds: [embed]
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'achievement-unlock.png',
+          description: `${user.username} unlocked achievements!`
         });
-
-        // React with confetti if bot has permission
-        await achievementMessage.react('🎉').catch(() => {});
 
         await interaction.editReply({
-          content: `✅ Test achievement embed posted to <#${config.feedChannelId}>!\n\n**Posted:**\n- Achievement unlock embed (gold) with 3 example achievements`
+          content: '✅ **Achievement unlock preview (3 achievements):**',
+          files: [attachment]
         });
       } catch (error) {
-        console.error('Error posting test achievement embed:', error);
-        await interaction.editReply('❌ Failed to post test embed. Check bot permissions in the feed channel.');
+        console.error('Error generating test achievement image:', error);
+        await interaction.editReply('❌ Failed to generate test image.');
       }
       return;
     }
@@ -4758,42 +4930,74 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
 
-      // Sort by start time (earliest first)
-      activeSessions.sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
+      try {
+        // Build user list with avatars and durations
+        const usersWithDurations = await Promise.all(
+          activeSessions.map(async (session) => {
+            const elapsed = calculateDuration(
+              session.startTime,
+              session.pausedDuration,
+              session.isPaused ? session.pausedAt : undefined
+            );
+            const elapsedStr = formatDuration(elapsed);
 
-      // Limit to 10 users max to avoid spam
-      const displaySessions = activeSessions.slice(0, 10);
+            try {
+              const discordUser = await client.users.fetch(session.userId);
+              const avatarUrl = discordUser.displayAvatarURL({ size: 128 });
 
-      // Build description with list of active users
-      let description = '';
-
-      for (const session of displaySessions) {
-        const elapsed = calculateDuration(
-          session.startTime,
-          session.pausedDuration,
-          session.isPaused ? session.pausedAt : undefined
+              return {
+                username: session.username,
+                avatarUrl,
+                activity: session.activity,
+                duration: elapsedStr,
+                isPaused: session.isPaused,
+                durationMinutes: elapsed, // Keep raw minutes for sorting
+              };
+            } catch (error) {
+              console.error(`Error fetching user ${session.userId}:`, error);
+              // Fallback with default avatar
+              return {
+                username: session.username,
+                avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
+                activity: session.activity,
+                duration: elapsedStr,
+                isPaused: session.isPaused,
+                durationMinutes: elapsed,
+              };
+            }
+          })
         );
-        const elapsedStr = formatDuration(elapsed);
-        const statusEmoji = session.isPaused ? '⏸️' : '🟢';
 
-        // Format: 🟢 **username** working on **activity** for 1h 23m
-        description += `${statusEmoji} **${session.username}** working on **${session.activity}** for ${elapsedStr}\n`;
+        // Sort by duration (longest first)
+        usersWithDurations.sort((a, b) => b.durationMinutes - a.durationMinutes);
+
+        // Limit to 10 users max for display
+        const displayUsers = usersWithDurations.slice(0, 10);
+
+        // Remove durationMinutes property before passing to image service
+        const users = displayUsers.map(({ durationMinutes, ...user }) => user);
+
+        // Generate the live notification image
+        const imageBuffer = await liveNotificationImageService.generateLiveNotificationImage(
+          users,
+          totalLive
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, {
+          name: 'live-sessions.png',
+          description: `${totalLive} ${totalLive === 1 ? 'person is' : 'people are'} studying`,
+        });
+
+        await interaction.editReply({
+          files: [attachment],
+        });
+      } catch (error) {
+        console.error('Error generating live notification image:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate live sessions image.',
+        });
       }
-
-      // Create single embed with list
-      const embed = new EmbedBuilder()
-        .setColor(0x58CC02) // Duolingo green // Green for live
-        .setTitle(`🟢 ${totalLive} ${totalLive === 1 ? 'person is' : 'people are'} studying right now`)
-        .setDescription(description.trim())
-        .setTimestamp();
-
-      if (totalLive > 10) {
-        embed.setFooter({ text: 'Showing first 10 users' });
-      }
-
-      await interaction.editReply({
-        embeds: [embed],
-      });
       return;
     }
 

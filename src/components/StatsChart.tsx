@@ -75,6 +75,13 @@ export const StatsChart: React.FC<StatsChartProps> = ({
     year: 'Past 12 Months',
   }[timeframe];
 
+  // Get current period label
+  const currentPeriodLabel = {
+    week: 'Today',
+    month: 'This Week',
+    year: 'This Month',
+  }[timeframe];
+
   // Format value based on metric
   const formatValue = (value: number) => {
     if (metric === 'hours' || metric === 'totalHours') {
@@ -167,9 +174,11 @@ export const StatsChart: React.FC<StatsChartProps> = ({
                   />
                 </div>
 
-                {/* Label - consistent white color, more space below */}
-                <span className="text-xl font-bold mb-4 text-[#EFEFEF]">
-                  {point.label}
+                {/* Label - blue for current period, white for others */}
+                <span className={`text-xl font-bold mb-4 ${
+                  isHighlighted ? 'text-[#1CB0F6]' : 'text-[#EFEFEF]'
+                }`}>
+                  {isHighlighted ? currentPeriodLabel : point.label}
                 </span>
               </div>
             );
