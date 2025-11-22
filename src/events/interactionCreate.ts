@@ -11,6 +11,12 @@ import { handleCommandError } from '../middleware/errorHandler';
 import type { CommandContext } from '../commands/types';
 import { createLogger } from '../utils/logger';
 import { handleGroupButtons } from '../interactions/buttons/groupButtons';
+import {
+  handleEventJoinButton,
+  handleEventLeaveButton,
+  handleEventListJoinButton,
+  handleEventListLeaveButton,
+} from '../interactions/buttons/eventButtons';
 import { handleEndSessionModal } from '../interactions/modals/endSessionModal';
 import { handleManualSessionModal } from '../interactions/modals/manualSessionModal';
 
@@ -61,6 +67,27 @@ export async function handleInteractionCreate(
     // Handle group-related buttons
     if (interaction.customId.startsWith('groupadmin_delete_')) {
       await handleGroupButtons(interaction, db, client);
+      return;
+    }
+
+    // Handle event-related buttons
+    if (interaction.customId.startsWith('event_join:')) {
+      await handleEventJoinButton(interaction, db);
+      return;
+    }
+
+    if (interaction.customId.startsWith('event_leave:')) {
+      await handleEventLeaveButton(interaction, db);
+      return;
+    }
+
+    if (interaction.customId === 'event_list_join') {
+      await handleEventListJoinButton(interaction);
+      return;
+    }
+
+    if (interaction.customId === 'event_list_leave') {
+      await handleEventListLeaveButton(interaction);
       return;
     }
 

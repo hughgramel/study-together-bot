@@ -42,6 +42,9 @@ describe('handleGroupButtons', () => {
 
     // Mock Client
     mockClient = {
+      users: {
+        fetch: jest.fn(),
+      } as any,
       guilds: {
         fetch: jest.fn(),
       } as any,
@@ -68,7 +71,7 @@ describe('handleGroupButtons', () => {
       update: jest.fn().mockResolvedValue(undefined),
       editReply: jest.fn().mockResolvedValue(undefined),
       guildId: 'guild123',
-    } as Partial<ButtonInteraction>;
+    } as unknown as Partial<ButtonInteraction>;
   });
 
   describe('Group Deletion Confirmation', () => {
@@ -112,23 +115,20 @@ describe('handleGroupButtons', () => {
       mockGroupService.getGroupMembers.mockResolvedValue(mockMembers as any);
       mockGroupService.deleteGroup.mockResolvedValue(undefined);
 
-      // Mock guild members
-      const mockMember1 = {
+      // Mock users - only non-owner members should receive DMs
+      const mockUser1 = {
         send: jest.fn().mockResolvedValue(undefined),
       };
-      const mockMember2 = {
+      const mockUser2 = {
         send: jest.fn().mockResolvedValue(undefined),
       };
 
-      const mockGuild = {
-        members: {
-          fetch: jest.fn()
-            .mockResolvedValueOnce(mockMember1)
-            .mockResolvedValueOnce(mockMember2),
-        },
-      };
-
-      (mockClient.guilds!.fetch as jest.Mock).mockResolvedValue(mockGuild);
+      // Mock client.users.fetch to return appropriate users
+      (mockClient.users!.fetch as jest.Mock).mockImplementation((userId: string) => {
+        if (userId === 'user456') return Promise.resolve(mockUser1);
+        if (userId === 'user789') return Promise.resolve(mockUser2);
+        return Promise.reject(new Error('User not found'));
+      });
 
       await handleGroupButtons(
         mockInteraction as ButtonInteraction,
@@ -149,11 +149,12 @@ describe('handleGroupButtons', () => {
         components: [],
       });
 
-      // Verify members were notified (excluding owner)
-      expect(mockMember1.send).toHaveBeenCalledWith(
+      // Verify members were notified (excluding owner user123)
+      // Only user456 and user789 should get DMs
+      expect(mockUser1.send).toHaveBeenCalledWith(
         expect.stringContaining('Test Group')
       );
-      expect(mockMember2.send).toHaveBeenCalledWith(
+      expect(mockUser2.send).toHaveBeenCalledWith(
         expect.stringContaining('Test Group')
       );
     });

@@ -11,7 +11,15 @@ import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
 import { GroupService } from '../../services/groups';
 import { AchievementService } from '../../services/achievements';
+import { getAchievement } from '../../data/achievements';
 import { formatDuration } from '../../utils/formatters';
+import { calculateLevel } from '../../utils/xp';
+import {
+  postSessionToFeed,
+  postLevelUpToFeed,
+  postStreakMilestoneToFeed,
+  postAchievementUnlockToFeed,
+} from '../../utils/feedHelpers';
 
 const logger = createLogger('ManualSessionModal');
 
@@ -158,7 +166,10 @@ export async function handleManualSessionModal(
     }
 
     // Check for new achievements
-    const newAchievements = await achievementService.checkAndAwardAchievements(user.id);
+    const newAchievementIds = await achievementService.checkAndAwardAchievements(user.id);
+    const newAchievements = newAchievementIds
+      .map((id) => getAchievement(id))
+      .filter((a) => a !== null) as Array<{ id: string; name: string; description?: string }>;
 
     const durationStr = formatDuration(duration);
 
@@ -170,10 +181,71 @@ export async function handleManualSessionModal(
     }
 
     await interaction.editReply({
-      content: `✅ Manual session logged! (${durationStr})${xpMessage}\n\nYour session has been saved.`,
+      content: `✅ Manual session logged! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
     });
 
-    // TODO: Post to feed channel (needs migration of feed helpers from bot.legacy.ts)
+    // Get user's avatar URL
+    const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+    // Post to feed channel
+    await postSessionToFeed(
+      db,
+      interaction,
+      user.id,
+      user.username,
+      avatarUrl,
+      activity,
+      title,
+      description,
+      duration,
+      endTime,
+      sessionId,
+      statsUpdate.xpGained,
+      statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
+      newAchievements.length > 0 ? newAchievements : undefined,
+      intensity
+    );
+
+    // Get updated stats to check for streak milestones
+    const updatedStats = await statsService.getUserStats(user.id);
+    if (updatedStats) {
+      // Post streak milestone celebration if applicable
+      await postStreakMilestoneToFeed(
+        db,
+        interaction,
+        user.username,
+        avatarUrl,
+        updatedStats.currentStreak
+      );
+    }
+
+    // Post achievement unlock celebration if applicable
+    if (newAchievementIds.length > 0) {
+      await postAchievementUnlockToFeed(
+        db,
+        interaction,
+        user.username,
+        avatarUrl,
+        newAchievementIds
+      );
+    }
+
+    // Post level-up celebration if applicable
+    if (statsUpdate.leveledUp && statsUpdate.newLevel) {
+      // Calculate old level from XP
+      const currentXP = statsUpdate.stats.xp || 0;
+      const oldXP = currentXP - statsUpdate.xpGained;
+      const oldLevel = calculateLevel(oldXP);
+
+      await postLevelUpToFeed(
+        db,
+        interaction,
+        user.username,
+        avatarUrl,
+        statsUpdate.newLevel,
+        oldLevel
+      );
+    }
 
     logger.info(
       `Manual session completed for user ${user.username} (${user.id}): ${formatDuration(duration)}`
