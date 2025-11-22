@@ -32,7 +32,68 @@ export async function loadCommands(): Promise<void> {
     '../commands/session/cancel',
   ];
 
-  for (const commandPath of sessionCommands) {
+  // Stats commands
+  const statsCommands = [
+    '../commands/stats/me',
+    '../commands/stats/stats',
+    '../commands/stats/achievements',
+    '../commands/stats/profile',
+    '../commands/stats/leaderboard',
+    '../commands/stats/live',
+    '../commands/stats/graph',
+  ];
+
+  // Goals commands
+  const goalsCommands = [
+    '../commands/goals/goal',
+  ];
+
+  // Events commands
+  const eventsCommands = [
+    '../commands/events/createevent',
+    '../commands/events/events',
+    '../commands/events/myevents',
+    '../commands/events/cancelevent',
+  ];
+
+  // Admin commands
+  const adminCommands = [
+    '../commands/admin/setup-feed',
+    '../commands/admin/set-welcome-channel',
+    '../commands/admin/setup-events-channel',
+    '../commands/admin/setup-timezone',
+  ];
+
+  // Group commands
+  const groupCommands = [
+    '../commands/groups/group',
+    '../commands/groups/creategroup',
+    '../commands/groups/joingroup',
+    '../commands/groups/leavegroup',
+    '../commands/groups/group_leaderboard',
+    '../commands/groups/findgroups',
+    '../commands/groups/groupadmin',
+  ];
+
+  // Utility commands
+  const utilityCommands = [
+    '../commands/utility/manual',
+    '../commands/utility/help',
+    '../commands/utility/post',
+  ];
+
+  // Combine all command paths
+  const allCommands = [
+    ...sessionCommands,
+    ...statsCommands,
+    ...groupCommands,
+    ...goalsCommands,
+    ...eventsCommands,
+    ...adminCommands,
+    ...utilityCommands,
+  ];
+
+  for (const commandPath of allCommands) {
     try {
       const { command } = await import(commandPath);
       commands.set(command.data.name, command);

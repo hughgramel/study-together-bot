@@ -9,6 +9,7 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
   SlashCommandOptionsOnlyBuilder,
+  SlashCommandSubcommandsOnlyBuilder,
   Client
 } from 'discord.js';
 import { Firestore } from 'firebase-admin/firestore';
@@ -35,7 +36,7 @@ export type CommandExecute = (
  * Each command file exports this structure
  */
 export interface Command {
-  data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
+  data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder | SlashCommandSubcommandsOnlyBuilder;
   execute: CommandExecute;
 }
 
