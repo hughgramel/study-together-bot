@@ -182,29 +182,12 @@ export const command: Command = {
         member.rank = index + 1;
       });
 
-      // Always update group stats to ensure accurate data
-      logger.info(`[GROUP OVERVIEW] Member stats:`, memberStats.map(m => ({ username: m.username, hours: m.hours })));
-      logger.info('[GROUP OVERVIEW] Updating group stats to ensure accuracy...');
-
+      // Get total all-time hours from database
+      // Stats are kept up-to-date by: join/leave operations and session completions
       let totalAllTimeHours = group?.totalHours || 0;
 
-      try {
-        await groupService.updateGroupStats(groupId);
-        // Fetch updated group data
-        const updatedGroupDoc = await db
-          .collection('discord-data')
-          .doc('groups')
-          .collection('active')
-          .doc(groupId)
-          .get();
-        const updatedGroup = updatedGroupDoc.data();
-        totalAllTimeHours = updatedGroup?.totalHours || 0;
-        logger.info(`[GROUP OVERVIEW] Updated total hours: ${totalAllTimeHours}`);
-      } catch (error) {
-        logger.error('[GROUP OVERVIEW] Error updating group stats:', error);
-        // Fall back to database value if update fails
-        totalAllTimeHours = group?.totalHours || 0;
-      }
+      logger.info(`[GROUP OVERVIEW] Member stats:`, memberStats.map(m => ({ username: m.username, hours: m.hours })));
+      logger.info(`[GROUP OVERVIEW] Total all-time hours (from DB): ${totalAllTimeHours}`);
 
       // Calculate group level based on all-time total hours
       // Formula: 1 level per 25 hours (Math.floor(totalHours / 25) + 1)
