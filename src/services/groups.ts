@@ -99,6 +99,10 @@ export class GroupService {
   /**
    * Create a new group with auto-generated ID
    * Returns the created group
+   *
+   * @remarks
+   * Uses collision detection to ensure unique group IDs. Retries up to 10 times
+   * if an ID collision is detected.
    */
   async createGroup(
     name: string,
@@ -111,12 +115,32 @@ export class GroupService {
     }
   ): Promise<Group> {
     try {
-      // Generate unique group ID
-      const groupId = this.generateGroupId();
+      // Generate unique group ID with collision detection
+      let groupId: string;
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (attempts < maxAttempts) {
+        groupId = this.generateGroupId();
+        const existingGroup = await this.getGroup(groupId);
+
+        if (!existingGroup) {
+          // Found a unique ID
+          break;
+        }
+
+        attempts++;
+        console.log(`[GROUP CREATE] ID collision detected (${groupId}), retry ${attempts}/${maxAttempts}`);
+      }
+
+      if (attempts === maxAttempts) {
+        throw new Error('Failed to generate unique group ID after 10 attempts');
+      }
+
       const now = Timestamp.now();
 
       const group: Group = {
-        groupId,
+        groupId: groupId!,
         name,
         ownerId,
         ownerUsername,
@@ -135,14 +159,14 @@ export class GroupService {
         .collection('discord-data')
         .doc('groups')
         .collection('active')
-        .doc(groupId)
+        .doc(groupId!)
         .set(group);
 
       // Create owner's membership
       const membership: GroupMembership = {
         userId: ownerId,
         username: ownerUsername,
-        groupId,
+        groupId: groupId!,
         joinedAt: now,
         isOwner: true,
       };
@@ -154,7 +178,7 @@ export class GroupService {
         .doc(ownerId)
         .set(membership);
 
-      console.log(`[GROUP CREATE] Created group ${groupId} (${name}) by ${ownerUsername}`);
+      console.log(`[GROUP CREATE] Created group ${groupId!} (${name}) by ${ownerUsername}`);
 
       return group;
     } catch (error) {
@@ -228,6 +252,11 @@ export class GroupService {
 
   /**
    * Add a member to a group
+   *
+   * @remarks
+   * Uses Firestore transaction to atomically check capacity and add member.
+   * This prevents race conditions where multiple users could join simultaneously
+   * and exceed the group's max capacity.
    */
   async addMemberToGroup(
     groupId: string,
@@ -235,18 +264,7 @@ export class GroupService {
     username: string
   ): Promise<void> {
     try {
-      const group = await this.getGroup(groupId);
-
-      if (!group) {
-        throw new Error('Group not found');
-      }
-
-      // Check if group has space
-      if (group.memberCount >= group.maxMembers) {
-        throw new Error('Group is full');
-      }
-
-      // Check if user is already in a group
+      // Check if user is already in a group (outside transaction)
       const existingMembership = await this.getUserGroup(userId);
       if (existingMembership) {
         throw new Error('User is already in a group');
@@ -254,32 +272,49 @@ export class GroupService {
 
       const now = Timestamp.now();
 
-      // Create membership
-      const membership: GroupMembership = {
-        userId,
-        username,
-        groupId,
-        joinedAt: now,
-        isOwner: false,
-      };
+      await this.db.runTransaction(async (transaction) => {
+        // Read phase: Get current group state
+        const groupRef = this.db
+          .collection('discord-data')
+          .doc('groups')
+          .collection('active')
+          .doc(groupId);
 
-      await this.db
-        .collection('discord-data')
-        .doc('groupMembers')
-        .collection('memberships')
-        .doc(userId)
-        .set(membership);
+        const groupSnap = await transaction.get(groupRef);
 
-      // Update group member count
-      await this.db
-        .collection('discord-data')
-        .doc('groups')
-        .collection('active')
-        .doc(groupId)
-        .update({
+        // Validation phase
+        if (!groupSnap.exists) {
+          throw new Error('Group not found');
+        }
+
+        const group = groupSnap.data() as Group;
+
+        // Check if group has space
+        if (group.memberCount >= group.maxMembers) {
+          throw new Error('Group is full');
+        }
+
+        // Write phase: Create membership and update group count atomically
+        const membershipRef = this.db
+          .collection('discord-data')
+          .doc('groupMembers')
+          .collection('memberships')
+          .doc(userId);
+
+        const membership: GroupMembership = {
+          userId,
+          username,
+          groupId,
+          joinedAt: now,
+          isOwner: false,
+        };
+
+        transaction.set(membershipRef, membership);
+        transaction.update(groupRef, {
           memberCount: group.memberCount + 1,
           updatedAt: now,
         });
+      });
 
       console.log(`[GROUP ADD MEMBER] Added ${username} to group ${groupId}`);
     } catch (error) {
@@ -290,37 +325,70 @@ export class GroupService {
 
   /**
    * Remove a member from a group
+   *
+   * @remarks
+   * Uses Firestore transaction to atomically delete membership and update count.
+   * This prevents race conditions where concurrent removals could result in
+   * incorrect member counts.
+   *
+   * Automatically deletes the group if this was the last member (memberCount becomes 0).
+   * This prevents orphaned groups from remaining in the database.
    */
   async removeMemberFromGroup(groupId: string, userId: string): Promise<void> {
     try {
-      const group = await this.getGroup(groupId);
-
-      if (!group) {
-        throw new Error('Group not found');
-      }
-
-      // Delete membership
-      await this.db
-        .collection('discord-data')
-        .doc('groupMembers')
-        .collection('memberships')
-        .doc(userId)
-        .delete();
-
       const now = Timestamp.now();
+      let groupName = '';
+      let wasAutoDeleted = false;
 
-      // Update group member count
-      await this.db
-        .collection('discord-data')
-        .doc('groups')
-        .collection('active')
-        .doc(groupId)
-        .update({
-          memberCount: group.memberCount - 1,
-          updatedAt: now,
-        });
+      await this.db.runTransaction(async (transaction) => {
+        // Read phase: Get current group state
+        const groupRef = this.db
+          .collection('discord-data')
+          .doc('groups')
+          .collection('active')
+          .doc(groupId);
+
+        const groupSnap = await transaction.get(groupRef);
+
+        // Validation phase
+        if (!groupSnap.exists) {
+          throw new Error('Group not found');
+        }
+
+        const group = groupSnap.data() as Group;
+        groupName = group.name;
+
+        // Calculate updated member count
+        const updatedMemberCount = group.memberCount - 1;
+
+        // Write phase: Delete membership and update/delete group atomically
+        const membershipRef = this.db
+          .collection('discord-data')
+          .doc('groupMembers')
+          .collection('memberships')
+          .doc(userId);
+
+        transaction.delete(membershipRef);
+
+        // Check if this was the last member
+        if (updatedMemberCount === 0) {
+          // Auto-delete empty group
+          transaction.delete(groupRef);
+          wasAutoDeleted = true;
+        } else {
+          // Update group member count
+          transaction.update(groupRef, {
+            memberCount: updatedMemberCount,
+            updatedAt: now,
+          });
+        }
+      });
 
       console.log(`[GROUP REMOVE MEMBER] Removed user ${userId} from group ${groupId}`);
+
+      if (wasAutoDeleted) {
+        console.log(`[GROUP AUTO-DELETE] Deleted group ${groupId} (${groupName}) - no members remaining`);
+      }
     } catch (error) {
       console.error('[GROUP REMOVE MEMBER] Error removing member:', error);
       throw error;
@@ -329,6 +397,11 @@ export class GroupService {
 
   /**
    * Delete entire group and all memberships
+   *
+   * @remarks
+   * Uses Firestore batched writes to atomically delete the group and all memberships.
+   * This ensures that if the operation fails, no partial state is left in the database.
+   * Processes deletions in batches of 500 (Firestore's batch size limit).
    */
   async deleteGroup(groupId: string): Promise<void> {
     try {
@@ -340,19 +413,38 @@ export class GroupService {
         .where('groupId', '==', groupId)
         .get();
 
-      // Delete all memberships
-      const deletePromises = membershipsSnapshot.docs.map((doc) =>
-        doc.ref.delete()
-      );
-      await Promise.all(deletePromises);
-
-      // Delete the group
-      await this.db
+      const groupRef = this.db
         .collection('discord-data')
         .doc('groups')
         .collection('active')
-        .doc(groupId)
-        .delete();
+        .doc(groupId);
+
+      // Firestore batches can handle up to 500 operations
+      const batchSize = 500;
+      const membershipDocs = membershipsSnapshot.docs;
+
+      // Process deletions in batches
+      for (let i = 0; i < membershipDocs.length; i += batchSize) {
+        const batch = this.db.batch();
+        const batchDocs = membershipDocs.slice(i, i + batchSize);
+
+        // Add membership deletions to batch
+        batchDocs.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+
+        // Add group deletion to the last batch
+        if (i + batchSize >= membershipDocs.length) {
+          batch.delete(groupRef);
+        }
+
+        await batch.commit();
+      }
+
+      // If there were no memberships, delete the group separately
+      if (membershipDocs.length === 0) {
+        await groupRef.delete();
+      }
 
       console.log(`[GROUP DELETE] Deleted group ${groupId} and ${membershipsSnapshot.size} memberships`);
     } catch (error) {
@@ -460,6 +552,11 @@ export class GroupService {
 
   /**
    * Transfer group ownership to another member
+   *
+   * @remarks
+   * Uses Firestore transaction to atomically update ownership across group and both memberships.
+   * This prevents race conditions where ownership could be left in an inconsistent state if
+   * the operation partially fails.
    */
   async transferOwnership(
     groupId: string,
@@ -467,57 +564,59 @@ export class GroupService {
     newOwnerUsername: string
   ): Promise<void> {
     try {
-      const group = await this.getGroup(groupId);
-
-      if (!group) {
-        throw new Error('Group not found');
-      }
-
-      // Verify new owner is a member of the group
-      const newOwnerMembership = await this.db
-        .collection('discord-data')
-        .doc('groupMembers')
-        .collection('memberships')
-        .doc(newOwnerId)
-        .get();
-
-      if (!newOwnerMembership.exists || newOwnerMembership.data()?.groupId !== groupId) {
-        throw new Error('New owner is not a member of this group');
-      }
-
       const now = Timestamp.now();
 
-      // Update old owner's membership
-      await this.db
-        .collection('discord-data')
-        .doc('groupMembers')
-        .collection('memberships')
-        .doc(group.ownerId)
-        .update({
+      await this.db.runTransaction(async (transaction) => {
+        // Read phase: Get group and verify new owner membership
+        const groupRef = this.db
+          .collection('discord-data')
+          .doc('groups')
+          .collection('active')
+          .doc(groupId);
+
+        const newOwnerMembershipRef = this.db
+          .collection('discord-data')
+          .doc('groupMembers')
+          .collection('memberships')
+          .doc(newOwnerId);
+
+        const [groupSnap, newOwnerMembershipSnap] = await Promise.all([
+          transaction.get(groupRef),
+          transaction.get(newOwnerMembershipRef),
+        ]);
+
+        // Validation phase
+        if (!groupSnap.exists) {
+          throw new Error('Group not found');
+        }
+
+        if (!newOwnerMembershipSnap.exists || newOwnerMembershipSnap.data()?.groupId !== groupId) {
+          throw new Error('New owner is not a member of this group');
+        }
+
+        const group = groupSnap.data() as Group;
+
+        // Write phase: Update both memberships and group atomically
+        const oldOwnerMembershipRef = this.db
+          .collection('discord-data')
+          .doc('groupMembers')
+          .collection('memberships')
+          .doc(group.ownerId);
+
+        transaction.update(oldOwnerMembershipRef, {
           isOwner: false,
         });
 
-      // Update new owner's membership
-      await this.db
-        .collection('discord-data')
-        .doc('groupMembers')
-        .collection('memberships')
-        .doc(newOwnerId)
-        .update({
+        transaction.update(newOwnerMembershipRef, {
           isOwner: true,
         });
 
-      // Update group ownership
-      await this.db
-        .collection('discord-data')
-        .doc('groups')
-        .collection('active')
-        .doc(groupId)
-        .update({
+        transaction.update(groupRef, {
           ownerId: newOwnerId,
           ownerUsername: newOwnerUsername,
           updatedAt: now,
         });
+      });
 
       console.log(`[GROUP TRANSFER] Transferred ownership of ${groupId} to ${newOwnerUsername}`);
     } catch (error) {

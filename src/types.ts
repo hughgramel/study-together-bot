@@ -329,46 +329,42 @@ export interface StudyEvent {
  * Group - represents a study group with multiple members
  *
  * Study group with up to 5 members. Groups earn XP bonuses based on their
- * level (calculated from total member hours). Can be public or private,
- * with optional join approval.
+ * level (calculated from total member hours). Can be public or private.
+ * Member information is stored separately in GroupMembership records.
+ *
+ * NOTE: This interface is re-exported from services/groups.ts where it is
+ * actually implemented. Kept here for backward compatibility and centralized
+ * type definitions.
  */
 export interface Group {
-  groupId: string;           // Unique group ID (e.g., "STUDY001")
-  groupName: string;         // Group name
-  ownerId: string;           // Discord user ID of creator/owner
-  ownerUsername: string;     // Owner's username
-  serverId: string;          // Discord server ID
-  createdAt: Timestamp;      // Creation timestamp
-
-  // Members
-  members: Array<{
-    userId: string;
-    username: string;
-    joinedAt: Timestamp;
-  }>;
-  maxMembers: number;        // Maximum capacity (default: 5)
-
-  // Stats
-  totalHours: number;        // Cumulative hours from all members
-  groupLevel: number;        // Group level (based on total hours)
-  groupXp: number;           // Total group XP
-
-  // Settings
-  isPublic: boolean;         // Whether group appears in /findgroups
-  requiresApproval: boolean; // Whether owner must approve joins
-  description?: string;      // Optional group description
+  groupId: string;          // Unique group ID (e.g., 'GP-A1B2')
+  name: string;             // Group name
+  ownerId: string;          // Discord user ID of group owner
+  ownerUsername: string;    // Discord username of owner
+  serverId: string;         // Discord server ID
+  isPublic: boolean;        // Whether group is publicly visible/joinable
+  maxMembers: number;       // Maximum number of members (default: 5)
+  memberCount: number;      // Current number of members
+  totalHours: number;       // Total study hours across all members
+  level: number;            // Group level (calculated from total hours)
+  createdAt: Timestamp;     // When group was created
+  updatedAt: Timestamp;     // Last stats update
 }
 
 /**
  * Group membership - one per user (for quick lookup)
  *
  * Denormalized record for fast user -> group lookups. Each user can only
- * be in one group at a time. Tracks role (owner vs member) and join date.
+ * be in one group at a time. Tracks ownership status and join date.
+ *
+ * NOTE: This interface is re-exported from services/groups.ts where it is
+ * actually implemented. Kept here for backward compatibility and centralized
+ * type definitions.
  */
 export interface GroupMembership {
-  userId: string;
-  groupId: string;
-  groupName: string;
-  role: 'owner' | 'member';
-  joinedAt: Timestamp;
+  userId: string;           // Discord user ID
+  username: string;         // Discord username
+  groupId: string;          // Group ID user belongs to
+  joinedAt: Timestamp;      // When user joined the group
+  isOwner: boolean;         // Whether user is the group owner
 }

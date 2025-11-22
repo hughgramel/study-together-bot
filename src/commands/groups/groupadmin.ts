@@ -2,7 +2,7 @@
  * /groupadmin Command
  *
  * Group owner administration commands.
- * Subcommands: delete, kick
+ * Subcommands: delete, kick, transfer
  */
 
 import { SlashCommandBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
@@ -29,6 +29,17 @@ export const command: Command = {
           option
             .setName('user')
             .setDescription('The user to remove from your group')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('transfer')
+        .setDescription('Transfer group ownership to another member')
+        .addUserOption(option =>
+          option
+            .setName('user')
+            .setDescription('The member to transfer ownership to')
             .setRequired(true)
         )
     ),
@@ -169,6 +180,82 @@ export const command: Command = {
         logger.error('Error in groupadmin kick command:', error);
         await interaction.editReply({
           content: '❌ Failed to kick member. Please try again later.',
+        });
+      }
+    } else if (subcommand === 'transfer') {
+      try {
+        await interaction.deferReply({ ephemeral: true });
+
+        // Get the user to transfer ownership to
+        const targetUser = interaction.options.getUser('user', true);
+
+        logger.info(`User ${user.username} (${user.id}) attempting to transfer ownership to ${targetUser.username} (${targetUser.id})`);
+
+        // Check if command user is in a group
+        const userGroupData = await groupService.getUserGroup(user.id);
+
+        if (!userGroupData) {
+          await interaction.editReply({
+            content: '❌ You are not in a group.',
+          });
+          return;
+        }
+
+        const { membership, group } = userGroupData;
+
+        // Verify user is the group owner
+        if (!membership.isOwner) {
+          await interaction.editReply({
+            content: '❌ Only the group owner can transfer ownership.',
+          });
+          return;
+        }
+
+        // Check if target user is trying to transfer to themselves
+        if (targetUser.id === user.id) {
+          await interaction.editReply({
+            content: '❌ You are already the owner of this group.',
+          });
+          return;
+        }
+
+        // Check if target user is in the group
+        const targetMembershipDoc = await db
+          .collection('discord-data')
+          .doc('groupMembers')
+          .collection('memberships')
+          .doc(targetUser.id)
+          .get();
+
+        if (!targetMembershipDoc.exists) {
+          await interaction.editReply({
+            content: `❌ ${targetUser.username} is not in any group.`,
+          });
+          return;
+        }
+
+        const targetMembership = targetMembershipDoc.data();
+
+        // Verify target is in the same group
+        if (targetMembership?.groupId !== group.groupId) {
+          await interaction.editReply({
+            content: `❌ ${targetUser.username} is not in your group.`,
+          });
+          return;
+        }
+
+        // Transfer ownership
+        await groupService.transferOwnership(group.groupId, targetUser.id, targetUser.username);
+
+        await interaction.editReply({
+          content: `✅ **${targetUser.username}** is now the owner of **${group.name}**.\n\nYou are now a regular member of the group.`,
+        });
+
+        logger.info(`Ownership of group ${group.name} (${group.groupId}) transferred from ${user.username} (${user.id}) to ${targetUser.username} (${targetUser.id})`);
+      } catch (error) {
+        logger.error('Error in groupadmin transfer command:', error);
+        await interaction.editReply({
+          content: '❌ Failed to transfer ownership. Please try again later.',
         });
       }
     }

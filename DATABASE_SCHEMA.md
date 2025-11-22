@@ -1,8 +1,8 @@
 # Database Schema Documentation
 
-**Last Updated:** 2025-01-15
-**Current Phase:** Phase 1 Complete, Phase 2 Planning
-**Purpose:** Document Firestore schema including Phase 1 (XP & Badges) and planned Phase 2 changes
+**Last Updated:** 2025-01-22
+**Current Phase:** Phase 1 Complete, Groups Feature Active, Phase 2 Planning
+**Purpose:** Document Firestore schema including Phase 1 (XP & Badges), Groups feature, and planned Phase 2 changes
 
 ---
 
@@ -22,9 +22,17 @@ discord-data/ (root document)
   │   └── stats/ (subcollection)
   │       └── {userId} (document)
   │
-  └── serverConfig/ (subcollection)
-      └── configs/ (subcollection)
-          └── {serverId} (document)
+  ├── serverConfig/ (subcollection)
+  │   └── configs/ (subcollection)
+  │       └── {serverId} (document)
+  │
+  ├── groups/ (subcollection)
+  │   └── active/ (subcollection)
+  │       └── {groupId} (document)
+  │
+  └── groupMembers/ (subcollection)
+      └── memberships/ (subcollection)
+          └── {userId} (document)
 ```
 
 ---
@@ -114,6 +122,72 @@ discord-data/ (root document)
 | `focusRoomIds` | string[] (optional) | Voice channels for auto-start |
 | `setupAt` | Timestamp | Last config update |
 | `setupBy` | string | Admin user ID |
+
+---
+
+### 5. Groups
+**Path:** `discord-data/groups/active/{groupId}`
+
+**Purpose:** Study groups with XP bonuses and collaborative features
+
+**Interface:** `Group`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `groupId` | string | Unique ID (format: GP-XXXX, e.g., "GP-A1B2") |
+| `name` | string | Group name (chosen by owner) |
+| `ownerId` | string | Discord user ID of group owner |
+| `ownerUsername` | string | Discord username of owner |
+| `serverId` | string | Discord server ID |
+| `isPublic` | boolean | Whether group is publicly visible/joinable |
+| `maxMembers` | number | Maximum capacity (default: 5) |
+| `memberCount` | number | Current number of members |
+| `totalHours` | number | Sum of all member study hours |
+| `level` | number | Group level (floor(totalHours / 25) + 1) |
+| `createdAt` | Timestamp | When group was created |
+| `updatedAt` | Timestamp | Last stats update |
+
+**Notes:**
+- Groups level up every 25 collective hours studied
+- XP bonus formula: min(0.5, groupLevel * 0.01) = 1% per level, capped at 50%
+- Auto-deleted when memberCount reaches 0
+- One user can only be in one group at a time (enforced via GroupMembership)
+- Group ID format uses alphanumeric characters (A-Z, 0-9)
+
+**Leveling Examples:**
+- 0-24.99 hours = Level 1 (1% XP bonus)
+- 25-49.99 hours = Level 2 (2% XP bonus)
+- 50-74.99 hours = Level 3 (3% XP bonus)
+- 1,225+ hours = Level 50+ (50% XP bonus, capped)
+
+---
+
+### 6. Group Memberships
+**Path:** `discord-data/groupMembers/memberships/{userId}`
+
+**Purpose:** Track which group each user belongs to (enforces one-group limit)
+
+**Interface:** `GroupMembership`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `userId` | string | Discord user ID (document ID) |
+| `username` | string | Discord username |
+| `groupId` | string | ID of group user belongs to |
+| `joinedAt` | Timestamp | When user joined the group |
+| `isOwner` | boolean | Whether user owns this group |
+
+**Notes:**
+- One document per user maximum (enforces one-group limit)
+- Document deleted when user leaves group
+- Used for quick lookup of user's current group
+- If group is deleted, orphaned memberships are cleaned up
+- Owner membership created automatically when group is created
+
+**Key Constraints:**
+- Users can only be in ONE group at a time
+- Users cannot join a new group without leaving their current group first
+- If a user is the owner and leaves, ownership must be transferred or group is disbanded
 
 ---
 
