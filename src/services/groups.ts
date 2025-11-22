@@ -333,6 +333,9 @@ export class GroupService {
    *
    * Automatically deletes the group if this was the last member (memberCount becomes 0).
    * This prevents orphaned groups from remaining in the database.
+   *
+   * After removing the member, recalculates group stats (total hours and level) to
+   * reflect the change in membership.
    */
   async removeMemberFromGroup(groupId: string, userId: string): Promise<void> {
     try {
@@ -388,6 +391,10 @@ export class GroupService {
 
       if (wasAutoDeleted) {
         console.log(`[GROUP AUTO-DELETE] Deleted group ${groupId} (${groupName}) - no members remaining`);
+      } else {
+        // Recalculate group stats (total hours and level) now that member is removed
+        await this.updateGroupStats(groupId);
+        console.log(`[GROUP REMOVE MEMBER] Recalculated stats for group ${groupId} after member removal`);
       }
     } catch (error) {
       console.error('[GROUP REMOVE MEMBER] Error removing member:', error);
