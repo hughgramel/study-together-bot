@@ -27,7 +27,7 @@
 
 import React from 'react';
 import { xpForLevel, levelProgress } from '../utils/xp';
-import { Flame, Zap, Award, BookOpen, Timer, User, Users } from 'lucide-react';
+import { Flame, Zap, Award, BookOpen, Timer, User, Shield } from 'lucide-react';
 
 interface ProfileCardProps {
   username: string;
@@ -119,22 +119,15 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           <h2 className="text-[#EFEFEF] text-3xl font-extrabold">
             {username.length > 10 ? username.substring(0, 10) + '...' : username}
           </h2>
-          {groupName && (
+          {groupName && groupLevel && (
             <div className="flex items-center gap-2 mt-2">
-              <Users className="w-5 h-5 text-[#58CC02]" />
+              <Shield className="w-5 h-5 text-[#58CC02]" fill="#58CC02" />
+              <span className="text-[#58CC02] text-lg font-bold">
+                Level {groupLevel}
+              </span>
               <span className="text-[#AFAFAF] text-lg font-semibold">
                 {groupName}
               </span>
-              {groupId && (
-                <span className="text-[#6B7280] text-base font-normal">
-                  #{groupId}
-                </span>
-              )}
-              {groupLevel && (
-                <span className="text-[#58CC02] text-base font-bold ml-1">
-                  Lv. {groupLevel}
-                </span>
-              )}
             </div>
           )}
         </div>
