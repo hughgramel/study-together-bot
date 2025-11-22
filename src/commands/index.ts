@@ -82,6 +82,14 @@ export async function loadCommands(): Promise<void> {
     '../commands/utility/post',
   ];
 
+  // Test commands - internal testing only
+  const testCommands = [
+    '../commands/testing/testgroup',
+    '../commands/testing/testgroup5',
+    '../commands/testing/testgroupleaderboard',
+    '../commands/testing/testfindgroups',
+  ];
+
   // Combine all command paths
   const allCommands = [
     ...sessionCommands,
@@ -91,6 +99,7 @@ export async function loadCommands(): Promise<void> {
     ...eventsCommands,
     ...adminCommands,
     ...utilityCommands,
+    ...testCommands,
   ];
 
   for (const commandPath of allCommands) {
