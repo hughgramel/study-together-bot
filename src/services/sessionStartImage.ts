@@ -1,8 +1,21 @@
+/**
+ * Session Start Image Service - Renders session start notifications as images
+ *
+ * Uses Puppeteer to render the SessionStartCard React component as a PNG image for
+ * Discord embeds. Displays when a user starts a new study session with their activity.
+ * Maintains a reusable browser instance for performance.
+ *
+ * @module services/sessionStartImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import SessionStartCard from '../components/SessionStartCard';
 
+/**
+ * Service for rendering session start notification cards as images
+ */
 class SessionStartImageService {
   private browser: Browser | null = null;
 

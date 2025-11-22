@@ -1,3 +1,22 @@
+/**
+ * Streak Card - Celebration card for streak milestones
+ *
+ * Displays a compact celebration card when users reach streak milestones (3, 7, 14, 30+ days).
+ * Features dynamic color gradients based on streak length (yellow for 3+, orange for 7+, red for 30+).
+ * Matches the dimensions of LevelUpCard and SessionStartCard (500x140px). Rendered in Discord
+ * when users maintain consecutive day streaks.
+ *
+ * @module components/StreakCard
+ *
+ * @example
+ * <StreakCard
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   streak={7}
+ *   message="Keep it up! You're on a roll!"
+ * />
+ */
+
 import React from 'react';
 import { Flame } from 'lucide-react';
 
@@ -9,8 +28,13 @@ interface StreakCardProps {
 }
 
 /**
- * Streak milestone celebration card component
- * Compact modern design with dark mode
+ * Renders a streak milestone celebration card
+ *
+ * @param username - User's display name (truncated to 10 chars if longer)
+ * @param avatarUrl - URL to user's Discord avatar
+ * @param streak - Current consecutive day streak count
+ * @param message - Custom celebration message
+ * @returns Streak card component with dynamic color based on streak length
  */
 export default function StreakCard({
   username,
@@ -18,7 +42,11 @@ export default function StreakCard({
   streak,
   message,
 }: StreakCardProps) {
-  // Determine color based on streak milestone
+  /**
+   * Determines the color gradient based on streak milestone tiers
+   *
+   * @returns Color gradient object with 'from' and 'to' hex values
+   */
   const getStreakColor = () => {
     if (streak >= 30) return { from: '#FF6B6B', to: '#FF4444' }; // Red for 30+
     if (streak >= 7) return { from: '#FF9600', to: '#FF7700' };  // Orange for 7+

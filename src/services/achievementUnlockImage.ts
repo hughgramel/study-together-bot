@@ -1,3 +1,13 @@
+/**
+ * Achievement Unlock Image Service - Renders achievement unlock cards as images
+ *
+ * Uses Puppeteer to render the AchievementUnlockCard React component as a PNG image
+ * for Discord embeds. Maintains a reusable browser instance for performance. Used when
+ * users unlock achievements to display celebration cards in Discord channels.
+ *
+ * @module services/achievementUnlockImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
@@ -10,11 +20,19 @@ interface Achievement {
   xpReward: number;
 }
 
+/**
+ * Service for rendering achievement unlock cards as images
+ */
 class AchievementUnlockImageService {
   private browser: Browser | null = null;
 
   /**
-   * Initialize the browser instance (reusable for performance)
+   * Gets or creates a Puppeteer browser instance
+   *
+   * Reuses existing browser for performance, recreates if disconnected.
+   *
+   * @returns Active browser instance
+   * @private
    */
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected

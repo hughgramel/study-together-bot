@@ -1,13 +1,32 @@
+/**
+ * Post Image Service - Renders session posts as images
+ *
+ * Uses Puppeteer to render the SessionPost React component as a PNG image for
+ * Discord feed channels. Creates Strava-style session completion posts with
+ * user info, stats, and optional title/description. Maintains a reusable browser
+ * instance for performance.
+ *
+ * @module services/postImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { SessionPost } from '../components/SessionPost';
 
+/**
+ * Service for rendering session post cards as images
+ */
 export class PostImageService {
   private browser: Browser | null = null;
 
   /**
-   * Initialize the browser instance (reusable for performance)
+   * Gets or creates a Puppeteer browser instance
+   *
+   * Reuses existing browser for performance, recreates if disconnected.
+   *
+   * @returns Active browser instance
+   * @private
    */
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected

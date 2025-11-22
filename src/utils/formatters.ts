@@ -1,8 +1,25 @@
+/**
+ * Formatters Utility - Time and date formatting helpers
+ *
+ * Provides utility functions for formatting durations, calculating elapsed time,
+ * comparing dates, and generating date keys. Used throughout the bot for consistent
+ * time display and date calculations.
+ *
+ * @module utils/formatters
+ */
+
 import { Timestamp } from 'firebase-admin/firestore';
 
 /**
  * Formats duration in seconds to a human-readable string
- * Examples: "2h 15m", "45m", "1h 0m"
+ *
+ * @param seconds - Duration in seconds
+ * @returns Formatted string (e.g., "2h 15m", "45m", "< 1m")
+ *
+ * @example
+ * formatDuration(8100) // "2h 15m"
+ * formatDuration(2700) // "45m"
+ * formatDuration(30)   // "< 1m"
  */
 export function formatDuration(seconds: number): string {
   if (seconds < 60) {
@@ -48,7 +65,11 @@ export function calculateDuration(
 }
 
 /**
- * Checks if two timestamps are on the same day
+ * Checks if two timestamps are on the same UTC day
+ *
+ * @param date1 - First timestamp to compare
+ * @param date2 - Second timestamp to compare
+ * @returns True if both timestamps are on the same UTC day
  */
 export function isSameDay(date1: Timestamp, date2: Timestamp): boolean {
   const d1 = new Date(date1.toMillis());
@@ -62,7 +83,11 @@ export function isSameDay(date1: Timestamp, date2: Timestamp): boolean {
 }
 
 /**
- * Checks if date1 is the day before date2
+ * Checks if date1 is the day before date2 (in UTC)
+ *
+ * @param date1 - Timestamp to check if it's yesterday
+ * @param date2 - Reference timestamp (typically "today")
+ * @returns True if date1 is exactly one day before date2
  */
 export function isYesterday(date1: Timestamp, date2: Timestamp): boolean {
   const d1 = new Date(date1.toMillis());
@@ -81,6 +106,10 @@ export function isYesterday(date1: Timestamp, date2: Timestamp): boolean {
 
 /**
  * Gets the number of days between two timestamps
+ *
+ * @param date1 - First timestamp
+ * @param date2 - Second timestamp
+ * @returns Absolute number of days between the timestamps
  */
 export function daysBetween(date1: Timestamp, date2: Timestamp): number {
   const ms1 = date1.toMillis();
@@ -90,7 +119,10 @@ export function daysBetween(date1: Timestamp, date2: Timestamp): number {
 }
 
 /**
- * Gets date key in YYYY-MM-DD format
+ * Gets date key in YYYY-MM-DD format for indexing and comparison
+ *
+ * @param timestamp - Firebase timestamp
+ * @returns Date string in ISO format (e.g., "2025-01-15")
  */
 export function getDateKey(timestamp: Timestamp): string {
   const date = timestamp.toDate();

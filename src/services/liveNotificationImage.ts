@@ -1,3 +1,14 @@
+/**
+ * Live Notification Image Service - Renders live session lists as images
+ *
+ * Uses Puppeteer to render the LiveNotificationCard React component as a PNG image
+ * showing all currently active study sessions. Displays up to 10 users with their
+ * activities, durations, and pause status. Maintains a reusable browser instance
+ * for performance.
+ *
+ * @module services/liveNotificationImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
@@ -11,6 +22,9 @@ interface LiveUser {
   isPaused: boolean;
 }
 
+/**
+ * Service for rendering live notification cards as images
+ */
 class LiveNotificationImageService {
   private browser: Browser | null = null;
 

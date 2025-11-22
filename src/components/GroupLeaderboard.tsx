@@ -1,5 +1,22 @@
+/**
+ * Group Leaderboard - Ranked display of top groups
+ *
+ * Displays the top groups ranked by level and activity. Shows group details including
+ * rank, level with color-coded shields, member capacity, and XP modifiers. Rendered as
+ * an image in Discord when users run the /group_leaderboard command.
+ *
+ * @module components/GroupLeaderboard
+ *
+ * @example
+ * <GroupLeaderboard
+ *   groups={[
+ *     { rank: 1, groupName: "Elite Learners", groupId: "ABC123", currentMembers: 5, maxMembers: 5, groupLevel: 25 }
+ *   ]}
+ * />
+ */
+
 import React from 'react';
-import { Trophy, Users } from 'lucide-react';
+import { Trophy, Users, Shield, Zap } from 'lucide-react';
 
 interface GroupLeaderboardEntry {
   rank: number;
@@ -14,7 +31,19 @@ interface GroupLeaderboardProps {
   groups: GroupLeaderboardEntry[];
 }
 
+/**
+ * Renders the group leaderboard interface
+ *
+ * @param groups - Array of top-ranked groups to display
+ * @returns Group leaderboard component
+ */
 export const GroupLeaderboard: React.FC<GroupLeaderboardProps> = ({ groups }) => {
+  /**
+   * Gets the appropriate trophy icon for top 3 ranks
+   *
+   * @param rank - Group's rank position (1-10)
+   * @returns Trophy icon component or null for ranks 4+
+   */
   const getRankIcon = (rank: number) => {
     if (rank === 1) {
       return <Trophy className="w-7 h-7 text-[#FFD700]" fill="#FFD700" />;
@@ -26,6 +55,12 @@ export const GroupLeaderboard: React.FC<GroupLeaderboardProps> = ({ groups }) =>
     return null;
   };
 
+  /**
+   * Determines shield color based on group level tier
+   *
+   * @param level - Group level (1-50+)
+   * @returns Hex color code for the shield (Bronze, Silver, Gold, Platinum, Diamond)
+   */
   const getShieldColor = (level: number) => {
     if (level <= 10) return '#CD7F32'; // Bronze
     if (level <= 20) return '#C0C0C0'; // Silver
@@ -35,18 +70,17 @@ export const GroupLeaderboard: React.FC<GroupLeaderboardProps> = ({ groups }) =>
   };
 
   return (
-    <div className="w-[700px] h-[700px] bg-[#131F24] flex flex-col p-8">
+    <div className="w-[700px] h-[650px] bg-[#131F24] flex flex-col px-8 py-6">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-8">
         <div className="flex items-center gap-3">
           <Trophy className="w-10 h-10 text-[#FFD700]" fill="#FFD700" />
           <h1 className="text-[#EFEFEF] text-4xl font-extrabold">Group Leaderboard</h1>
         </div>
-        <p className="text-[#AFAFAF] text-lg mt-2">Top groups ranked by level</p>
       </div>
 
       {/* Leaderboard */}
-      <div className="flex-1 space-y-3">
+      <div className="space-y-4">
         {groups.map((group) => (
           <div
             key={group.rank}
@@ -61,22 +95,26 @@ export const GroupLeaderboard: React.FC<GroupLeaderboardProps> = ({ groups }) =>
               )}
             </div>
 
-            {/* Group Level Badge */}
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center font-extrabold text-2xl text-white"
-              style={{
-                backgroundColor: getShieldColor(group.groupLevel),
-                boxShadow: `0 0 20px ${getShieldColor(group.groupLevel)}40`
-              }}
-            >
-              {group.groupLevel}
+            {/* Group Level with Shield */}
+            <div className="flex items-center gap-2">
+              <Shield
+                className="w-8 h-8"
+                fill={getShieldColor(group.groupLevel)}
+                style={{ color: getShieldColor(group.groupLevel) }}
+              />
+              <span className="text-2xl font-extrabold text-[#EFEFEF]">
+                {group.groupLevel}
+              </span>
             </div>
 
-            {/* Group Name */}
+            {/* Group Name and ID */}
             <div className="flex-1">
-              <h3 className="text-2xl font-bold text-[#EFEFEF] truncate max-w-[280px]">
+              <h3 className="text-2xl font-bold text-[#EFEFEF] truncate max-w-[250px]">
                 {group.groupName}
               </h3>
+              <p className="text-base text-[#AFAFAF] font-semibold">
+                #{group.groupId}
+              </p>
             </div>
 
             {/* Capacity */}
@@ -87,10 +125,11 @@ export const GroupLeaderboard: React.FC<GroupLeaderboardProps> = ({ groups }) =>
               </span>
             </div>
 
-            {/* Group ID */}
-            <div className="text-right">
-              <span className="text-xl font-semibold text-[#AFAFAF]">
-                #{group.groupId}
+            {/* XP Modifier */}
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
+              <span className="text-lg font-bold text-[#A78BFA]">
+                +{(group.groupLevel * 1).toFixed(1)}% XP
               </span>
             </div>
           </div>

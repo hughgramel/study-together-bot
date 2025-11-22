@@ -1,3 +1,29 @@
+/**
+ * Stats Overview - Detailed breakdown of user statistics
+ *
+ * Displays a comprehensive breakdown of user statistics in a grid layout. Shows metrics
+ * for different time periods (today, week, month, all-time) with optional highlighting
+ * of the current period. Supports hours, sessions, and XP metrics. Rendered as an image
+ * in Discord when users request detailed statistics.
+ *
+ * @module components/StatsOverview
+ *
+ * @example
+ * <StatsOverview
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   metric="hours"
+ *   timeframe="week"
+ *   currentValue={35}
+ *   previousValue={28}
+ *   breakdown={[
+ *     { label: "MON", value: 5 },
+ *     { label: "TUE", value: 6 }
+ *   ]}
+ *   highlightIndex={1}
+ * />
+ */
+
 import React from 'react';
 import { Flame, Clock, Zap, BookOpen, TrendingUp } from 'lucide-react';
 
@@ -12,6 +38,19 @@ interface StatsOverviewProps {
   highlightIndex?: number; // Index of the current day/week to highlight in blue
 }
 
+/**
+ * Renders a stats overview with metric breakdown
+ *
+ * @param username - User's display name
+ * @param avatarUrl - URL to user's Discord avatar (optional)
+ * @param metric - Type of metric to display (hours, sessions, xp)
+ * @param timeframe - Time period for stats (today, week, month, all-time)
+ * @param currentValue - Current period's value
+ * @param previousValue - Previous period's value (for comparison)
+ * @param breakdown - Array of labeled values for the grid breakdown
+ * @param highlightIndex - Index of current period to highlight in blue (optional)
+ * @returns Stats overview component
+ */
 export const StatsOverview: React.FC<StatsOverviewProps> = ({
   username,
   avatarUrl,
@@ -22,6 +61,11 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
   breakdown,
   highlightIndex,
 }) => {
+  /**
+   * Gets configuration for the selected metric including icon, color, and unit
+   *
+   * @returns Metric configuration object
+   */
   const getMetricInfo = () => {
     switch (metric) {
       case 'hours':
@@ -51,6 +95,11 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
     }
   };
 
+  /**
+   * Gets the display title for the selected timeframe
+   *
+   * @returns Timeframe title string
+   */
   const getTimeframeTitle = () => {
     switch (timeframe) {
       case 'today':

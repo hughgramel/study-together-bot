@@ -1,13 +1,29 @@
+/**
+ * Stats Image Service - Renders statistics charts as images
+ *
+ * Uses Puppeteer to render the StatsChart React component as a PNG image for
+ * Discord embeds. Creates bar charts showing user statistics over time (week,
+ * month, year) for different metrics (hours, XP, sessions). Maintains a reusable
+ * browser instance for performance.
+ *
+ * @module services/statsImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { StatsChart, DataPoint } from '../components/StatsChart';
 
+/**
+ * Service for rendering statistics charts as images
+ */
 export class StatsImageService {
   private browser: Browser | null = null;
 
   /**
-   * Pre-initialize the browser to avoid delays on first use
+   * Pre-initializes the browser instance to avoid delays on first use
+   *
+   * Should be called during bot startup to ensure browser is ready.
    */
   async warmup(): Promise<void> {
     console.log('[StatsImageService] Warming up browser...');

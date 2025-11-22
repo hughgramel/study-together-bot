@@ -124,7 +124,8 @@ export class StatsService {
     username: string,
     sessionDuration: number,
     activity?: string,
-    intensity?: number
+    intensity?: number,
+    groupXpBonus?: number
   ): Promise<{
     stats: UserStats;
     xpGained: number;
@@ -169,7 +170,12 @@ export class StatsService {
 
       // Apply intensity multiplier to total XP
       const baseXP = xpBreakdown.total;
-      const finalXP = Math.ceil(baseXP * xpMultiplier);
+      let finalXP = Math.ceil(baseXP * xpMultiplier);
+
+      // Apply group XP bonus if user is in a group
+      if (groupXpBonus && groupXpBonus > 0) {
+        finalXP = Math.ceil(finalXP * (1 + groupXpBonus));
+      }
 
       const newStats: UserStats = {
         username,
@@ -265,7 +271,12 @@ export class StatsService {
 
     // Apply intensity multiplier to total XP
     const baseXP = xpBreakdown.total;
-    const finalXP = Math.floor(baseXP * xpMultiplier);
+    let finalXP = Math.ceil(baseXP * xpMultiplier);
+
+    // Apply group XP bonus if user is in a group
+    if (groupXpBonus && groupXpBonus > 0) {
+      finalXP = Math.ceil(finalXP * (1 + groupXpBonus));
+    }
 
     // Award XP
     const xpResult = await this.xpService.awardXP(

@@ -1,8 +1,21 @@
+/**
+ * Daily Goal Service - Manages user daily goals and task tracking
+ *
+ * Handles creation, tracking, and completion of user daily goals. Supports different
+ * difficulty levels (easy, medium, hard) with corresponding XP rewards. Manages goal
+ * streaks, completion tracking, and daily goal reset logic.
+ *
+ * @module services/dailyGoal
+ */
+
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { DailyGoal, Goal } from '../types';
 import { getDateKey } from '../utils/formatters';
 import { randomUUID } from 'crypto';
 
+/**
+ * Service for managing user daily goals
+ */
 export class DailyGoalService {
   private db: Firestore;
 
@@ -11,7 +24,11 @@ export class DailyGoalService {
   }
 
   /**
-   * Gets a user's daily goal data
+   * Gets a user's daily goal data including active and completed goals
+   *
+   * @param userId - Discord user ID
+   * @returns User's daily goal data or null if no goals exist
+   * @throws Error if database query fails
    */
   async getDailyGoal(userId: string): Promise<DailyGoal | null> {
     try {
@@ -35,7 +52,14 @@ export class DailyGoalService {
   }
 
   /**
-   * Adds a new goal for a user
+   * Adds a new goal for a user with specified difficulty
+   *
+   * @param userId - Discord user ID
+   * @param username - Discord username
+   * @param goalText - Description of the goal
+   * @param difficulty - Goal difficulty level (easy, medium, hard)
+   * @returns Created goal object with unique ID
+   * @throws Error if database operation fails
    */
   async addGoal(
     userId: string,

@@ -1,13 +1,31 @@
+/**
+ * Level Up Image Service - Renders level-up celebration cards as images
+ *
+ * Uses Puppeteer to render the LevelUpCard React component as a PNG image for
+ * Discord embeds. Maintains a reusable browser instance for performance. Used when
+ * users level up to display celebration cards in Discord channels.
+ *
+ * @module services/levelUpImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import LevelUpCard from '../components/LevelUpCard';
 
+/**
+ * Service for rendering level-up celebration cards as images
+ */
 class LevelUpImageService {
   private browser: Browser | null = null;
 
   /**
-   * Initialize the browser instance (reusable for performance)
+   * Gets or creates a Puppeteer browser instance
+   *
+   * Reuses existing browser for performance, recreates if disconnected.
+   *
+   * @returns Active browser instance
+   * @private
    */
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected

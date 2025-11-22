@@ -1,7 +1,20 @@
+/**
+ * Event Service - Manages study events and group sessions
+ *
+ * Handles creation, management, and tracking of study events. Supports different study
+ * types (silent, conversation, pomodoro, custom), attendee management, RSVP tracking,
+ * and event notifications. Events can have max capacity, locations, and custom descriptions.
+ *
+ * @module services/events
+ */
+
 import { Firestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { StudyEvent } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
+/**
+ * Service for managing study events
+ */
 export class EventService {
   private db: Firestore;
 
@@ -10,7 +23,19 @@ export class EventService {
   }
 
   /**
-   * Creates a new study event
+   * Creates a new study event with the creator as first attendee
+   *
+   * @param serverId - Discord server ID
+   * @param creatorId - Discord user ID of event creator
+   * @param creatorUsername - Username of event creator
+   * @param title - Event title
+   * @param location - Event location (channel name, link, etc.)
+   * @param startTime - Event start time
+   * @param duration - Event duration in minutes (optional)
+   * @param studyType - Type of study session
+   * @param options - Optional parameters (description, maxAttendees, customType)
+   * @returns Created study event object
+   * @throws Error if database operation fails
    */
   async createEvent(
     serverId: string,

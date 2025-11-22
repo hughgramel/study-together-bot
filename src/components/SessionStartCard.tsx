@@ -1,3 +1,20 @@
+/**
+ * Session Start Card - Single-user session start notification
+ *
+ * Displays a compact notification when a user starts a study session. Features a green
+ * gradient theme with a live indicator and radio wave icon. Matches the dimensions of
+ * LevelUpCard and StreakCard (500x140px). Rendered in Discord when users start sessions.
+ *
+ * @module components/SessionStartCard
+ *
+ * @example
+ * <SessionStartCard
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   activity="Deep Work - Algorithms"
+ * />
+ */
+
 import React from 'react';
 import { Radio } from 'lucide-react';
 
@@ -8,9 +25,12 @@ interface SessionStartCardProps {
 }
 
 /**
- * Session start notification card component (single user)
- * Compact modern design with dark mode
- * Matches dimensions of LevelUpCard and StreakCard (500x140px)
+ * Renders a session start notification card
+ *
+ * @param username - User's display name (truncated to 10 chars if longer)
+ * @param avatarUrl - URL to user's Discord avatar
+ * @param activity - Activity description for the session
+ * @returns Session start card component
  */
 export default function SessionStartCard({
   username,

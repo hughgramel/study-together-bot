@@ -1,3 +1,27 @@
+/**
+ * Session Post - Strava-style session completion post
+ *
+ * Displays a social media-style post when users complete a study session. Shows user info,
+ * optional title and description, and a 2x2 grid of stats (duration, activity, XP gained,
+ * intensity). Features text truncation for long descriptions and supports custom timestamps.
+ * Rendered as an image in Discord feed channels after session completion.
+ *
+ * @module components/SessionPost
+ *
+ * @example
+ * <SessionPost
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   duration="2h 30m"
+ *   xpGained={250}
+ *   activity="Deep Work"
+ *   intensity={4}
+ *   title="Productive Morning Session"
+ *   description="Finished the entire chapter on algorithms!"
+ *   date="November 10 at 3:13 PM"
+ * />
+ */
+
 import React from 'react';
 import { Trophy, Zap, Target, Clock } from 'lucide-react';
 
@@ -13,6 +37,20 @@ interface SessionPostProps {
   date?: string; // Format: "November 10 at 3:13 PM"
 }
 
+/**
+ * Renders a session completion post card
+ *
+ * @param username - User's display name
+ * @param avatarUrl - URL to user's Discord avatar (optional)
+ * @param duration - Formatted session duration (e.g., "2h 30m")
+ * @param xpGained - Total XP earned in the session
+ * @param activity - Activity category selected for the session
+ * @param intensity - Session intensity rating (1-5)
+ * @param title - Optional custom title for the session
+ * @param description - Optional description/notes (max 8 lines displayed)
+ * @param date - Formatted timestamp (e.g., "November 10 at 3:13 PM")
+ * @returns Session post component
+ */
 export const SessionPost: React.FC<SessionPostProps> = ({
   username,
   avatarUrl,
@@ -24,7 +62,12 @@ export const SessionPost: React.FC<SessionPostProps> = ({
   description,
   date,
 }) => {
-  // Always use red for intensity/challenge (matching ProfileCard)
+  /**
+   * Gets the color gradient for intensity display
+   * Always returns red gradient for challenge/intensity theme
+   *
+   * @returns Tailwind CSS gradient classes
+   */
   const getIntensityColor = () => {
     return 'from-[#FF4444] to-[#CC0000]'; // Red for challenge/intensity
   };
@@ -108,7 +151,7 @@ export const SessionPost: React.FC<SessionPostProps> = ({
         {/* XP gained card */}
         <div className="bg-[#1F2B31] rounded-xl p-4 border-2 border-[#2E3D44]">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#FFD900] to-[#FFAA00] rounded-lg flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 bg-gradient-to-br from-[#CE82FF] to-[#A855F7] rounded-lg flex items-center justify-center flex-shrink-0">
               <Zap className="w-7 h-7 text-white" fill="white" strokeWidth={2.5} />
             </div>
             <div className="text-2xl font-extrabold text-[#EFEFEF] leading-none">

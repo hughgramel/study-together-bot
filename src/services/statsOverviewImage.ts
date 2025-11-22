@@ -1,8 +1,22 @@
+/**
+ * Stats Overview Image Service - Renders detailed statistics breakdowns as images
+ *
+ * Uses Puppeteer to render the StatsOverview React component as a PNG image for
+ * Discord embeds. Shows detailed metric breakdowns in a grid layout with highlighting
+ * for current periods. Supports hours, sessions, and XP metrics. Maintains a reusable
+ * browser instance for performance.
+ *
+ * @module services/statsOverviewImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { StatsOverview } from '../components/StatsOverview';
 
+/**
+ * Service for rendering statistics overview cards as images
+ */
 export class StatsOverviewImageService {
   private browser: Browser | null = null;
 

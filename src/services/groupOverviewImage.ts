@@ -1,8 +1,22 @@
+/**
+ * Group Overview Image Service - Renders group-related views as images
+ *
+ * Uses Puppeteer to render group-related React components (GroupOverview, GroupLeaderboard,
+ * FindGroups) as PNG images for Discord embeds. Handles:
+ * - Group overview with member leaderboard and stats
+ * - Global group leaderboard rankings
+ * - Group discovery/browse interface
+ * Maintains a reusable browser instance for performance.
+ *
+ * @module services/groupOverviewImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { GroupOverview } from '../components/GroupOverview';
 import { GroupLeaderboard } from '../components/GroupLeaderboard';
+import { FindGroups } from '../components/FindGroups';
 
 interface GroupMember {
   username: string;
@@ -18,6 +32,15 @@ interface GroupLeaderboardEntry {
   currentMembers: number;
   maxMembers: number;
   groupLevel: number;
+}
+
+interface FindGroupsEntry {
+  groupId: string;
+  groupName: string;
+  groupLevel: number;
+  currentMembers: number;
+  maxMembers: number;
+  xpModifier: number;
 }
 
 export class GroupOverviewImageService {
@@ -177,10 +200,10 @@ export class GroupOverviewImageService {
     const page = await browser.newPage();
 
     try {
-      // Set viewport to exact square dimensions
+      // Set viewport to exact dimensions
       await page.setViewport({
         width: 700,
-        height: 700,
+        height: 650,
         deviceScaleFactor: 1
       });
 
@@ -214,9 +237,9 @@ export class GroupOverviewImageService {
                 width: 700px;
                 max-width: 700px;
                 min-width: 700px;
-                height: 700px;
-                max-height: 700px;
-                min-height: 700px;
+                height: 650px;
+                max-height: 650px;
+                min-height: 650px;
                 overflow: hidden;
                 font-family: var(--font-main);
               }
@@ -224,9 +247,9 @@ export class GroupOverviewImageService {
                 width: 700px !important;
                 max-width: 700px !important;
                 min-width: 700px !important;
-                height: 700px !important;
-                max-height: 700px !important;
-                min-height: 700px !important;
+                height: 650px !important;
+                max-height: 650px !important;
+                min-height: 650px !important;
               }
             </style>
           </head>
@@ -251,7 +274,105 @@ export class GroupOverviewImageService {
           x: 0,
           y: 0,
           width: 700,
-          height: 700
+          height: 650
+        },
+      });
+
+      return screenshot as Buffer;
+    } finally {
+      await page.close();
+    }
+  }
+
+  /**
+   * Generate a find groups image
+   */
+  async generateFindGroupsImage(
+    groups: FindGroupsEntry[],
+    currentPage: number,
+    totalPages: number
+  ): Promise<Buffer> {
+    const browser = await this.getBrowser();
+    const page = await browser.newPage();
+
+    try {
+      // Set viewport to exact dimensions
+      await page.setViewport({
+        width: 700,
+        height: 650,
+        deviceScaleFactor: 1
+      });
+
+      // Render React component to HTML
+      const component = React.createElement(FindGroups, {
+        groups,
+        currentPage,
+        totalPages,
+      });
+
+      const html = ReactDOMServer.renderToStaticMarkup(component);
+
+      // Create full HTML page with Tailwind CDN
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+              :root {
+                --font-main: 'Nunito', sans-serif;
+              }
+              * {
+                box-sizing: border-box;
+                font-family: var(--font-main);
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                width: 700px;
+                max-width: 700px;
+                min-width: 700px;
+                height: 650px;
+                max-height: 650px;
+                min-height: 650px;
+                overflow: hidden;
+                font-family: var(--font-main);
+              }
+              body > div {
+                width: 700px !important;
+                max-width: 700px !important;
+                min-width: 700px !important;
+                height: 650px !important;
+                max-height: 650px !important;
+                min-height: 650px !important;
+              }
+            </style>
+          </head>
+          <body>
+            ${html}
+          </body>
+        </html>
+      `;
+
+      // Load the HTML
+      await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+
+      // Wait for content to render and fonts to load
+      await page.waitForSelector('body > div');
+      await page.evaluate('document.fonts.ready');
+
+      // Take screenshot with exact dimensions
+      const screenshot = await page.screenshot({
+        type: 'png',
+        omitBackground: false,
+        clip: {
+          x: 0,
+          y: 0,
+          width: 700,
+          height: 650
         },
       });
 

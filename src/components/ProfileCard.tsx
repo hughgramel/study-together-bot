@@ -1,6 +1,33 @@
+/**
+ * Profile Card - Comprehensive user profile and statistics display
+ *
+ * Displays a user's complete profile including avatar, level progress bar, XP, total hours,
+ * sessions, achievements, current streak, best streak, and group membership. Features a
+ * 2x3 grid layout with color-coded stat cards. Rendered as an image in Discord when users
+ * run the /profile command.
+ *
+ * @module components/ProfileCard
+ *
+ * @example
+ * <ProfileCard
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   streak={7}
+ *   xp={12500}
+ *   level={15}
+ *   totalSessions={42}
+ *   achievementCount={8}
+ *   longestStreak={14}
+ *   totalHours={125}
+ *   groupName="Elite Learners"
+ *   groupId="ABC123"
+ *   groupLevel={10}
+ * />
+ */
+
 import React from 'react';
 import { xpForLevel, levelProgress } from '../utils/xp';
-import { Flame, Zap, Award, BookOpen, Timer, User } from 'lucide-react';
+import { Flame, Zap, Award, BookOpen, Timer, User, Users } from 'lucide-react';
 
 interface ProfileCardProps {
   username: string;
@@ -12,8 +39,28 @@ interface ProfileCardProps {
   achievementCount: number;
   longestStreak: number;
   totalHours: number;
+  groupName?: string;
+  groupId?: string;
+  groupLevel?: number;
 }
 
+/**
+ * Renders a comprehensive user profile card
+ *
+ * @param username - User's display name (truncated to 10 chars if longer)
+ * @param avatarUrl - URL to user's Discord avatar (optional)
+ * @param streak - Current consecutive days streak
+ * @param xp - Total XP earned
+ * @param level - Current level calculated from XP
+ * @param totalSessions - Total number of completed sessions
+ * @param achievementCount - Number of achievements unlocked
+ * @param longestStreak - Best streak ever achieved
+ * @param totalHours - Total hours studied
+ * @param groupName - Name of user's group (optional)
+ * @param groupId - ID of user's group (optional)
+ * @param groupLevel - Level of user's group (optional)
+ * @returns Profile card component
+ */
 export const ProfileCard: React.FC<ProfileCardProps> = ({
   username,
   avatarUrl,
@@ -24,6 +71,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   achievementCount,
   longestStreak,
   totalHours,
+  groupName,
+  groupId,
+  groupLevel,
 }) => {
   // Calculate XP progress for the level bar
   const currentLevelXp = xpForLevel(level);
@@ -69,6 +119,24 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           <h2 className="text-[#EFEFEF] text-3xl font-extrabold">
             {username.length > 10 ? username.substring(0, 10) + '...' : username}
           </h2>
+          {groupName && (
+            <div className="flex items-center gap-2 mt-2">
+              <Users className="w-5 h-5 text-[#58CC02]" />
+              <span className="text-[#AFAFAF] text-lg font-semibold">
+                {groupName}
+              </span>
+              {groupId && (
+                <span className="text-[#6B7280] text-base font-normal">
+                  #{groupId}
+                </span>
+              )}
+              {groupLevel && (
+                <span className="text-[#58CC02] text-base font-bold ml-1">
+                  Lv. {groupLevel}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
