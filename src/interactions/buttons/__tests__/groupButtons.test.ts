@@ -68,7 +68,7 @@ describe('handleGroupButtons', () => {
       update: jest.fn().mockResolvedValue(undefined),
       editReply: jest.fn().mockResolvedValue(undefined),
       guildId: 'guild123',
-    };
+    } as Partial<ButtonInteraction>;
   });
 
   describe('Group Deletion Confirmation', () => {

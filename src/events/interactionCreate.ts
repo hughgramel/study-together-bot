@@ -12,6 +12,7 @@ import type { CommandContext } from '../commands/types';
 import { createLogger } from '../utils/logger';
 import { handleGroupButtons } from '../interactions/buttons/groupButtons';
 import { handleEndSessionModal } from '../interactions/modals/endSessionModal';
+import { handleManualSessionModal } from '../interactions/modals/manualSessionModal';
 
 const logger = createLogger('InteractionCreate');
 
@@ -71,6 +72,11 @@ export async function handleInteractionCreate(
   if (interaction.isModalSubmit()) {
     if (interaction.customId === 'endSessionModal') {
       await handleEndSessionModal(interaction, db, client);
+      return;
+    }
+
+    if (interaction.customId === 'manualSessionModal') {
+      await handleManualSessionModal(interaction, db, client);
       return;
     }
 

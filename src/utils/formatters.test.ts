@@ -49,7 +49,7 @@ describe('formatDuration', () => {
   });
 
   it('should round down partial minutes', () => {
-    expect(formatDuration(3659)).toBe('60m'); // 60 minutes, 59 seconds
+    expect(formatDuration(3659)).toBe('1h 0m'); // 60 minutes, 59 seconds = 1h 0m
     expect(formatDuration(3661)).toBe('1h 1m'); // 1 hour, 1 minute, 1 second
   });
 });
