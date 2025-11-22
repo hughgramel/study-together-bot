@@ -11,6 +11,7 @@ import { handleCommandError } from '../middleware/errorHandler';
 import type { CommandContext } from '../commands/types';
 import { createLogger } from '../utils/logger';
 import { handleGroupButtons } from '../interactions/buttons/groupButtons';
+import { handleEndSessionModal } from '../interactions/modals/endSessionModal';
 
 const logger = createLogger('InteractionCreate');
 
@@ -66,6 +67,16 @@ export async function handleInteractionCreate(
     // For now, other buttons will be handled by the legacy bot.ts code
   }
 
-  // TODO: Handle modals and selects
-  // For now, these will be handled by the legacy bot.ts code
+  // Handle modal submissions
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId === 'endSessionModal') {
+      await handleEndSessionModal(interaction, db, client);
+      return;
+    }
+
+    // TODO: Handle other modal types
+    logger.warn(`Unknown modal: ${interaction.customId}`);
+  }
+
+  // TODO: Handle other interaction types (selects, etc.)
 }
