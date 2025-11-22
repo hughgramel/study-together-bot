@@ -82,6 +82,18 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   const xpNeededForNextLevel = nextLevelXp - currentLevelXp;
   const progressPercent = levelProgress(xp);
 
+  /**
+   * Determines shield color based on group level tier
+   */
+  const getShieldColor = () => {
+    if (!groupLevel) return 'text-[#CD7F32]'; // Default bronze
+    if (groupLevel <= 10) return 'text-[#CD7F32]'; // Bronze
+    if (groupLevel <= 20) return 'text-[#C0C0C0]'; // Silver
+    if (groupLevel <= 30) return 'text-[#FFD700]'; // Gold
+    if (groupLevel <= 40) return 'text-[#00CED1]'; // Platinum
+    return 'text-[#B9F2FF]'; // Diamond
+  };
+
   return (
     <div className="w-[700px] h-[650px] bg-[#131F24] flex flex-col p-10 pb-6 relative">
       {/* Level Progress Bar - Top Right */}
@@ -121,10 +133,13 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           </h2>
           {groupName && groupLevel && (
             <div className="flex items-center gap-2 mt-2">
-              <Shield className="w-5 h-5 text-[#58CC02]" fill="#58CC02" />
-              <span className="text-[#58CC02] text-lg font-bold">
-                Level {groupLevel}
-              </span>
+              {/* Shield with level number inside */}
+              <div className="relative flex-shrink-0">
+                <Shield className={`w-7 h-7 ${getShieldColor()}`} fill="currentColor" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-extrabold text-[#131F24]">{groupLevel}</span>
+                </div>
+              </div>
               <span className="text-[#AFAFAF] text-lg font-semibold">
                 {groupName}
               </span>
