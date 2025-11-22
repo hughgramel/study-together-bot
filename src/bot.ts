@@ -43,6 +43,7 @@ import { liveNotificationImageService } from './services/liveNotificationImage';
 import { sessionStartImageService } from './services/sessionStartImage';
 import { streakImageService } from './services/streakImage';
 import { achievementUnlockImageService } from './services/achievementUnlockImage';
+import { groupOverviewImageService } from './services/groupOverviewImage';
 import { getAchievement, getAllAchievements } from './data/achievements';
 import { ServerConfig } from './types';
 import {
@@ -348,8 +349,16 @@ const commands = [
     .setDescription('View your stats as a graph'),
 
   new SlashCommandBuilder()
+    .setName('group_leaderboard')
+    .setDescription('View the top groups ranked by level'),
+
+  new SlashCommandBuilder()
     .setName('post')
     .setDescription('Preview what your session completion post will look like in the feed'),
+
+  new SlashCommandBuilder()
+    .setName('testgroup')
+    .setDescription('View group overview (UI mock-up)'),
 
 ].map((command) => command.toJSON());
 
@@ -2832,9 +2841,14 @@ client.on('interactionCreate', async (interaction) => {
         let topUsers: Array<{ userId: string; username: string; totalDuration: number; xp?: number }> = [];
 
         if (selectedTimeframe === 'all-time') {
-          // Get all-time top users by XP (from beginning of time) - filtered by server
-          const allTimeStart = Timestamp.fromDate(new Date(0)); // Unix epoch
-          topUsers = await sessionService.getTopUsers(allTimeStart, 20, guildId!);
+          // Get all-time top users by XP - filtered by server
+          const xpUsers = await statsService.getTopUsersByXP(20, guildId!);
+          topUsers = xpUsers.map(u => ({
+            userId: u.userId,
+            username: u.username,
+            totalDuration: u.totalDuration || 0,
+            xp: u.xp
+          }));
         } else {
           let startTime: Date;
           if (selectedTimeframe === 'daily') {
@@ -2869,13 +2883,12 @@ client.on('interactionCreate', async (interaction) => {
               try {
                 const discordUser = await client.users.fetch(u.userId);
                 const stats = await statsService.getUserStats(u.userId);
-                const totalDuration = selectedTimeframe === 'all-time' ? (stats?.totalDuration || 0) : u.totalDuration;
                 return {
                   userId: u.userId,
                   username: u.username,
                   avatarUrl: discordUser.displayAvatarURL({ size: 128, extension: 'png' }),
                   xp: stats?.xp || 0,
-                  totalDuration,
+                  totalDuration: u.totalDuration,
                   rank: index + 1,
                 };
               } catch (error) {
@@ -4471,6 +4484,74 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
 
+    // /group_leaderboard command - Display top groups ranked by level
+    if (commandName === 'group_leaderboard') {
+      await interaction.deferReply({ ephemeral: false });
+
+      try {
+        // Sample data for testing (TODO: Replace with real group data from Firestore)
+        const sampleGroups = [
+          {
+            rank: 1,
+            groupName: 'Study Warriors',
+            groupId: 'STUDY001',
+            currentMembers: 6,
+            maxMembers: 6,
+            groupLevel: 42,
+          },
+          {
+            rank: 2,
+            groupName: 'Code Crushers',
+            groupId: 'CODE789',
+            currentMembers: 5,
+            maxMembers: 6,
+            groupLevel: 38,
+          },
+          {
+            rank: 3,
+            groupName: 'Math Masters',
+            groupId: 'MATH456',
+            currentMembers: 4,
+            maxMembers: 6,
+            groupLevel: 35,
+          },
+          {
+            rank: 4,
+            groupName: 'Focus Squad',
+            groupId: 'FOCUS123',
+            currentMembers: 6,
+            maxMembers: 6,
+            groupLevel: 28,
+          },
+          {
+            rank: 5,
+            groupName: 'Deep Work Crew',
+            groupId: 'DEEP999',
+            currentMembers: 3,
+            maxMembers: 6,
+            groupLevel: 22,
+          },
+        ];
+
+        // Generate group leaderboard image
+        const imageBuffer = await groupOverviewImageService.generateGroupLeaderboardImage(sampleGroups);
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'group-leaderboard.png' });
+
+        // Send the image
+        await interaction.editReply({
+          files: [attachment],
+        });
+      } catch (error) {
+        console.error('Error generating group leaderboard:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate group leaderboard. Please try again later.',
+        });
+      }
+      return;
+    }
+
     // /post command - Preview session completion post
     if (commandName === 'post') {
       await interaction.deferReply({ ephemeral: false });
@@ -4523,6 +4604,77 @@ client.on('interactionCreate', async (interaction) => {
         console.error('Error generating post preview:', error);
         await interaction.editReply({
           content: '❌ Failed to generate post preview. Please try again later.',
+        });
+      }
+      return;
+    }
+
+    // /testgroup command - UI mock-up for group overview
+    if (commandName === 'testgroup') {
+      await interaction.deferReply({ ephemeral: false });
+
+      try {
+        // Sample group data
+        const groupRank = 1;
+        const groupName = 'group name';
+        const groupId = 'GRP123';
+        const currentMembers = 3;
+        const maxMembers = 6;
+        const groupLevel = 3;
+        const totalXpModifier = 0.003; // 0.3% when displayed as percentage
+        const currentLevelHours = 24; // Current hours towards next level
+        const nextLevelHours = 50; // Hours needed for next level
+        const nextLevelXpModifier = 0.004; // 0.4% at next level
+
+        // Sample leaderboard members
+        const members = [
+          {
+            rank: 1,
+            username: 'hgram',
+            hours: 10,
+            avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png'
+          },
+          {
+            rank: 2,
+            username: 'hameeth',
+            hours: 8,
+            avatarUrl: 'https://cdn.discordapp.com/embed/avatars/1.png'
+          },
+          {
+            rank: 3,
+            username: 'member3',
+            hours: 6,
+            avatarUrl: 'https://cdn.discordapp.com/embed/avatars/2.png'
+          },
+        ];
+
+        // Generate the group overview image
+        const imageBuffer = await groupOverviewImageService.generateGroupOverviewImage(
+          groupRank,
+          groupName,
+          groupId,
+          currentMembers,
+          maxMembers,
+          groupLevel,
+          totalXpModifier,
+          currentLevelHours,
+          nextLevelHours,
+          nextLevelXpModifier,
+          members
+        );
+
+        // Create attachment
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'group-overview.png' });
+
+        // Send the preview
+        await interaction.editReply({
+          content: '**Group Overview (UI Mock-up)**',
+          files: [attachment],
+        });
+      } catch (error) {
+        console.error('Error generating group overview:', error);
+        await interaction.editReply({
+          content: '❌ Failed to generate group overview. Please try again later.',
         });
       }
       return;
@@ -4624,9 +4776,14 @@ client.on('interactionCreate', async (interaction) => {
         let topUsers: Array<{ userId: string; username: string; totalDuration: number; xp?: number }> = [];
 
         if (timeframe === 'all-time') {
-          // Get all-time top users by XP (from beginning of time) - filtered by server
-          const allTimeStart = Timestamp.fromDate(new Date(0)); // Unix epoch
-          topUsers = await sessionService.getTopUsers(allTimeStart, 20, guildId!);
+          // Get all-time top users by XP - filtered by server
+          const xpUsers = await statsService.getTopUsersByXP(20, guildId!);
+          topUsers = xpUsers.map(u => ({
+            userId: u.userId,
+            username: u.username,
+            totalDuration: u.totalDuration || 0,
+            xp: u.xp
+          }));
         } else {
           // Get time-based leaderboard
           let startTime: Date;
@@ -4662,14 +4819,12 @@ client.on('interactionCreate', async (interaction) => {
               try {
                 const discordUser = await client.users.fetch(u.userId);
                 const stats = await statsService.getUserStats(u.userId);
-                // For all-time, use stats totalDuration, otherwise use from topUsers
-                const totalDuration = timeframe === 'all-time' ? (stats?.totalDuration || 0) : u.totalDuration;
                 return {
                   userId: u.userId,
                   username: u.username,
                   avatarUrl: discordUser.displayAvatarURL({ size: 128, extension: 'png' }),
                   xp: stats?.xp || 0,
-                  totalDuration,
+                  totalDuration: u.totalDuration,
                   rank: index + 1,
                 };
               } catch (error) {
