@@ -1221,17 +1221,16 @@ client.on('interactionCreate', async (interaction) => {
         // Update completed session with XP gained (for leaderboards)
         await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
 
-        // Update group stats if user is in a group
-        if (groupXpBonus > 0) {
-          try {
-            const userGroupData = await groupService.getUserGroup(user.id);
-            if (userGroupData) {
-              await groupService.updateGroupStats(userGroupData.group.groupId);
-            }
-          } catch (error) {
-            console.error('Error updating group stats:', error);
-            // Don't fail the session completion if group update fails
+        // Update group stats if user is in a group (always update, not just when bonus > 0)
+        try {
+          const userGroupData = await groupService.getUserGroup(user.id);
+          if (userGroupData) {
+            await groupService.updateGroupStats(userGroupData.group.groupId);
+            console.log(`[SESSION COMPLETE] Updated group stats for ${userGroupData.group.name}`);
           }
+        } catch (error) {
+          console.error('Error updating group stats:', error);
+          // Don't fail the session completion if group update fails
         }
 
         // Check for new achievements
@@ -1410,17 +1409,16 @@ client.on('interactionCreate', async (interaction) => {
         // Update completed session with XP gained (for leaderboards)
         await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
 
-        // Update group stats if user is in a group
-        if (groupXpBonus > 0) {
-          try {
-            const userGroupData = await groupService.getUserGroup(user.id);
-            if (userGroupData) {
-              await groupService.updateGroupStats(userGroupData.group.groupId);
-            }
-          } catch (error) {
-            console.error('Error updating group stats:', error);
-            // Don't fail the session completion if group update fails
+        // Update group stats if user is in a group (always update, not just when bonus > 0)
+        try {
+          const userGroupData = await groupService.getUserGroup(user.id);
+          if (userGroupData) {
+            await groupService.updateGroupStats(userGroupData.group.groupId);
+            console.log(`[SESSION COMPLETE] Updated group stats for ${userGroupData.group.name}`);
           }
+        } catch (error) {
+          console.error('Error updating group stats:', error);
+          // Don't fail the session completion if group update fails
         }
 
         // Check for new achievements

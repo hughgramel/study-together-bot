@@ -10,6 +10,7 @@ import { getCommand } from '../commands';
 import { handleCommandError } from '../middleware/errorHandler';
 import type { CommandContext } from '../commands/types';
 import { createLogger } from '../utils/logger';
+import { handleGroupButtons } from '../interactions/buttons/groupButtons';
 
 const logger = createLogger('InteractionCreate');
 
@@ -53,6 +54,18 @@ export async function handleInteractionCreate(
     }
   }
 
-  // TODO: Handle modals, buttons, and selects
+  // Handle button interactions
+  if (interaction.isButton()) {
+    // Handle group-related buttons
+    if (interaction.customId.startsWith('groupadmin_delete_')) {
+      await handleGroupButtons(interaction, db, client);
+      return;
+    }
+
+    // TODO: Handle other button types
+    // For now, other buttons will be handled by the legacy bot.ts code
+  }
+
+  // TODO: Handle modals and selects
   // For now, these will be handled by the legacy bot.ts code
 }

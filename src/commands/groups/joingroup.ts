@@ -92,11 +92,19 @@ export const command: Command = {
       // Add user to group
       await groupService.addMemberToGroup(groupId, user.id, user.username);
 
+      // Update group stats to recalculate total hours and level with new member
+      await groupService.updateGroupStats(groupId);
+
+      // Fetch updated group data to show correct stats
+      const updatedGroup = await groupService.getGroup(groupId);
+      const updatedLevel = updatedGroup?.level || group.level;
+      const updatedMemberCount = updatedGroup?.memberCount || (group.memberCount + 1);
+
       await interaction.editReply({
-        content: `✅ **Joined ${group.name}!**\n\nGroup ID: \`${group.groupId}\`\nMembers: ${group.memberCount + 1}/${group.maxMembers}\nLevel: ${group.level}\n\nView your group with \`/group\``,
+        content: `✅ **Joined ${group.name}!**\n\nGroup ID: \`${group.groupId}\`\nMembers: ${updatedMemberCount}/${group.maxMembers}\nLevel: ${updatedLevel}\n\nView your group with \`/group\``,
       });
 
-      logger.info(`User ${user.username} successfully joined group ${group.name} (${groupId})`);
+      logger.info(`User ${user.username} successfully joined group ${group.name} (${groupId}), group stats updated`);
     } catch (error) {
       logger.error('Error joining group:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

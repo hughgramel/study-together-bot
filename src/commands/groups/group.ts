@@ -182,30 +182,28 @@ export const command: Command = {
         member.rank = index + 1;
       });
 
-      // Get total all-time hours from database (updated by updateGroupStats)
+      // Always update group stats to ensure accurate data
+      logger.info(`[GROUP OVERVIEW] Member stats:`, memberStats.map(m => ({ username: m.username, hours: m.hours })));
+      logger.info('[GROUP OVERVIEW] Updating group stats to ensure accuracy...');
+
       let totalAllTimeHours = group?.totalHours || 0;
 
-      logger.info(`[GROUP OVERVIEW] Member stats:`, memberStats.map(m => ({ username: m.username, hours: m.hours })));
-      logger.info(`[GROUP OVERVIEW] Total all-time hours (from DB): ${totalAllTimeHours}`);
-
-      // If totalHours is 0, trigger a stats update to recalculate from member stats
-      if (totalAllTimeHours === 0 && members.length > 0) {
-        logger.info('[GROUP OVERVIEW] Total hours is 0, triggering stats update...');
-        try {
-          await groupService.updateGroupStats(groupId);
-          // Fetch updated group data
-          const updatedGroupDoc = await db
-            .collection('discord-data')
-            .doc('groups')
-            .collection('active')
-            .doc(groupId)
-            .get();
-          const updatedGroup = updatedGroupDoc.data();
-          totalAllTimeHours = updatedGroup?.totalHours || 0;
-          logger.info(`[GROUP OVERVIEW] Updated total hours: ${totalAllTimeHours}`);
-        } catch (error) {
-          logger.error('[GROUP OVERVIEW] Error updating group stats:', error);
-        }
+      try {
+        await groupService.updateGroupStats(groupId);
+        // Fetch updated group data
+        const updatedGroupDoc = await db
+          .collection('discord-data')
+          .doc('groups')
+          .collection('active')
+          .doc(groupId)
+          .get();
+        const updatedGroup = updatedGroupDoc.data();
+        totalAllTimeHours = updatedGroup?.totalHours || 0;
+        logger.info(`[GROUP OVERVIEW] Updated total hours: ${totalAllTimeHours}`);
+      } catch (error) {
+        logger.error('[GROUP OVERVIEW] Error updating group stats:', error);
+        // Fall back to database value if update fails
+        totalAllTimeHours = group?.totalHours || 0;
       }
 
       // Calculate group level based on all-time total hours
