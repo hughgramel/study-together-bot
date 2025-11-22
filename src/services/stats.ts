@@ -212,12 +212,13 @@ export class StatsService {
     let isStreakMilestone = false;
 
     if (isSameDay(stats.lastSessionAt, now)) {
-      // Same day - keep streak
+      // Same day - keep streak (no milestone, as streak didn't just increment)
       newStreak = stats.currentStreak;
+      isStreakMilestone = false;
     } else if (isYesterday(stats.lastSessionAt, now)) {
       // Yesterday - increment streak
       newStreak = stats.currentStreak + 1;
-      // Check for milestone
+      // Check for milestone - only trigger if we're hitting it for the first time
       if (newStreak === 7 || newStreak === 30) {
         isStreakMilestone = true;
       }
@@ -245,7 +246,7 @@ export class StatsService {
       } else {
         // Maintain or increment streak
         newStreak = stats.currentStreak + 1;
-        // Check for milestone
+        // Check for milestone - only trigger if we're hitting it for the first time
         if (newStreak === 7 || newStreak === 30) {
           isStreakMilestone = true;
         }
@@ -531,13 +532,70 @@ export class StatsService {
    * Gets top users sorted by XP (for XP leaderboards)
    * Returns array of users with their XP, level, and achievement count
    */
-  async getTopUsersByXP(limit: number = 20): Promise<Array<{
+  async getTopUsersByXP(limit: number = 20, serverId?: string): Promise<Array<{
     userId: string;
     username: string;
     xp: number;
     level: number;
     achievementCount: number;
+    totalDuration?: number;
   }>> {
+    // If server filtering is needed, we need to first get users who have sessions in this server
+    if (serverId) {
+      // Get all sessions for this server to find which users are active here
+      const sessionsSnapshot = await this.db
+        .collection('discord-data')
+        .doc('sessions')
+        .collection('completed')
+        .where('serverId', '==', serverId)
+        .get();
+
+      if (sessionsSnapshot.empty) {
+        return [];
+      }
+
+      // Get unique user IDs from sessions
+      const userIds = new Set<string>();
+      sessionsSnapshot.docs.forEach(doc => {
+        const session = doc.data();
+        userIds.add(session.userId);
+      });
+
+      // Fetch stats for these users
+      const userStatsPromises = Array.from(userIds).map(userId =>
+        this.db
+          .collection('discord-data')
+          .doc('userStats')
+          .collection('stats')
+          .doc(userId)
+          .get()
+      );
+
+      const userStatsDocs = await Promise.all(userStatsPromises);
+      const users = userStatsDocs
+        .filter(doc => doc.exists)
+        .map(doc => {
+          const data = doc.data() as UserStats;
+          const xp = data.xp || 0;
+          const level = calculateLevel(xp);
+          const achievementCount = (data.achievements || []).length;
+
+          return {
+            userId: doc.id,
+            username: data.username,
+            xp,
+            level,
+            achievementCount,
+            totalDuration: data.totalDuration || 0
+          };
+        })
+        .sort((a, b) => b.xp - a.xp)
+        .slice(0, limit);
+
+      return users;
+    }
+
+    // No server filter - use simple query
     const snapshot = await this.db
       .collection('discord-data')
       .doc('userStats')
@@ -561,7 +619,8 @@ export class StatsService {
         username: data.username,
         xp,
         level,
-        achievementCount
+        achievementCount,
+        totalDuration: data.totalDuration || 0
       };
     });
 
