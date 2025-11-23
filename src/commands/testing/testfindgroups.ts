@@ -32,6 +32,7 @@ export const command: Command = {
           xpModifier: 0.42,
           currentMembers: 5,
           maxMembers: 5,
+          ownerUsername: 'alice',
         },
         {
           groupId: 'CODE789',
@@ -40,6 +41,7 @@ export const command: Command = {
           xpModifier: 0.38,
           currentMembers: 5,
           maxMembers: 5,
+          ownerUsername: 'bob',
         },
         {
           groupId: 'MATH456',
@@ -48,6 +50,7 @@ export const command: Command = {
           xpModifier: 0.35,
           currentMembers: 4,
           maxMembers: 5,
+          ownerUsername: 'charlie',
         },
         {
           groupId: 'FOCUS123',
@@ -56,6 +59,7 @@ export const command: Command = {
           xpModifier: 0.28,
           currentMembers: 5,
           maxMembers: 5,
+          ownerUsername: 'diana',
         },
         {
           groupId: 'DEEP999',
@@ -64,6 +68,7 @@ export const command: Command = {
           xpModifier: 0.22,
           currentMembers: 3,
           maxMembers: 5,
+          ownerUsername: 'eve',
         },
         {
           groupId: 'GRIND555',
@@ -72,6 +77,7 @@ export const command: Command = {
           xpModifier: 0.18,
           currentMembers: 2,
           maxMembers: 5,
+          ownerUsername: 'frank',
         },
         {
           groupId: 'LEARN777',
@@ -80,6 +86,7 @@ export const command: Command = {
           xpModifier: 0.15,
           currentMembers: 4,
           maxMembers: 5,
+          ownerUsername: 'grace',
         },
         {
           groupId: 'HUSTLE88',
@@ -88,6 +95,7 @@ export const command: Command = {
           xpModifier: 0.12,
           currentMembers: 1,
           maxMembers: 5,
+          ownerUsername: 'henry',
         },
       ];
 
