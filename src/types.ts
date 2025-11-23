@@ -135,6 +135,9 @@ export interface UserStats {
   favoriteActivity?: string;           // Most common activity type
   peakLevel?: number;                  // Highest level ever reached
   firstAchievementUnlockedAt?: Timestamp; // When first achievement was unlocked
+
+  // User Preferences
+  lightMode?: boolean;                 // Whether user prefers light mode for generated images (default: false)
 }
 
 // ============================================================================

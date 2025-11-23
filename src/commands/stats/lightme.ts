@@ -1,23 +1,22 @@
 /**
- * /me Command
+ * /lightme Command
  *
- * Displays user's profile overview with stats, achievements, and group membership.
+ * Displays user's profile overview in light mode for testing and style refinement.
  */
 
 import { SlashCommandBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import type { Command } from '../types';
 import { StatsService } from '../../services/stats';
 import { GroupService } from '../../services/groups';
-import { ProfileImageService } from '../../services/profileImage';
 import { ProfileImageLightService } from '../../services/profileImageLight';
 import { createLogger } from '../../utils/logger';
 
-const logger = createLogger('MeCommand');
+const logger = createLogger('LightMeCommand');
 
 export const command: Command = {
   data: new SlashCommandBuilder()
-    .setName('me')
-    .setDescription('View your profile overview'),
+    .setName('lightme')
+    .setDescription('View your profile overview (Light Mode)'),
 
   async execute(interaction, context) {
     const { db } = context;
@@ -25,21 +24,16 @@ export const command: Command = {
 
     await interaction.deferReply({ ephemeral: false });
 
-    logger.info(`User ${user.username} (${user.id}) viewing profile`);
+    logger.info(`User ${user.username} (${user.id}) viewing light mode profile`);
 
     try {
       // Initialize services
       const statsService = new StatsService(db);
       const groupService = new GroupService(db);
+      const profileImageLightService = new ProfileImageLightService();
 
-      // Get user stats and check light mode preference
+      // Get user stats
       const stats = await statsService.getUserStats(user.id);
-      const useLightMode = stats?.lightMode || false;
-
-      // Choose appropriate image service based on preference
-      const profileImageService = useLightMode
-        ? new ProfileImageLightService()
-        : new ProfileImageService();
 
       // Get avatar URL
       const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
@@ -60,8 +54,8 @@ export const command: Command = {
         logger.info(`User ${user.id} not in a group`);
       }
 
-      // Generate profile image
-      const imageBuffer = await profileImageService.generateProfileImage(
+      // Generate light mode profile image
+      const imageBuffer = await profileImageLightService.generateProfileImage(
         user.username,
         stats,
         avatarUrl,
@@ -69,7 +63,7 @@ export const command: Command = {
       );
 
       // Create attachment
-      const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile.png' });
+      const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile-light.png' });
 
       // Create "View Graph" and "View Statistics" buttons
       const graphButton = new ButtonBuilder()
@@ -88,15 +82,16 @@ export const command: Command = {
 
       // Send the image with buttons
       await interaction.editReply({
+        content: '☀️ **Light Mode Preview**',
         files: [attachment],
         components: [buttonRow],
       });
 
-      logger.info(`Profile generated successfully for user ${user.id}`);
+      logger.info(`Light mode profile generated successfully for user ${user.id}`);
     } catch (error) {
-      logger.error('Error generating profile image', error);
+      logger.error('Error generating light mode profile image', error);
       await interaction.editReply({
-        content: '❌ Failed to generate profile image. Please try again later.',
+        content: '❌ Failed to generate light mode profile image. Please try again later.',
       });
     }
   },

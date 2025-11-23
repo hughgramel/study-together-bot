@@ -41,6 +41,8 @@ export async function loadCommands(): Promise<void> {
     '../commands/stats/leaderboard',
     '../commands/stats/live',
     '../commands/stats/graph',
+    '../commands/stats/lightme',
+    '../commands/stats/lightstats',
   ];
 
   // Goals commands
@@ -78,12 +80,14 @@ export async function loadCommands(): Promise<void> {
     '../commands/groups/findgroups',
     '../commands/groups/groupadmin',
     '../commands/groups/groupsettings',
+    '../commands/groups/lightgroup',
   ];
 
   // Utility commands
   const utilityCommands = [
     '../commands/utility/manual',
     '../commands/utility/help',
+    '../commands/utility/lightmode',
   ];
 
   // Combine all command paths

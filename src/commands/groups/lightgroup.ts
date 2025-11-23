@@ -1,24 +1,18 @@
 /**
- * /group Command
+ * /lightgroup Command
  *
- * View a group overview with member stats and progress.
- * Shows group rank, level, XP modifier, and member statistics.
+ * View a group overview in light mode (for testing and style refinement).
  */
 
 import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import type { Command } from '../types';
 import { GroupService, GroupMembership } from '../../services/groups';
-import { groupOverviewImageService } from '../../services/groupOverviewImage';
 import { groupOverviewImageLightService } from '../../services/groupOverviewImageLight';
-import { StatsService } from '../../services/stats';
 import { createLogger } from '../../utils/logger';
 
-const logger = createLogger('GroupCommand');
+const logger = createLogger('LightGroupCommand');
 
-/**
- * Group member with stats for display
- */
 interface GroupMemberWithStats {
   membership: GroupMembership;
   totalHours: number;
@@ -28,8 +22,8 @@ interface GroupMemberWithStats {
 
 export const command: Command = {
   data: new SlashCommandBuilder()
-    .setName('group')
-    .setDescription('View a group overview with member stats and progress')
+    .setName('lightgroup')
+    .setDescription('View a group overview (Light Mode)')
     .addUserOption(option =>
       option
         .setName('user')
@@ -57,15 +51,10 @@ export const command: Command = {
       const targetUser = interaction.options.getUser('user') || user;
       const targetUserId = targetUser.id;
 
-      logger.info(`User ${user.username} viewing group for ${targetUser.username}`);
+      logger.info(`User ${user.username} viewing light mode group for ${targetUser.username}`);
 
-      // Initialize services
+      // Initialize group service
       const groupService = new GroupService(db);
-      const statsService = new StatsService(db);
-
-      // Check user's light mode preference
-      const userStats = await statsService.getUserStats(user.id);
-      const useLightMode = userStats?.lightMode || false;
 
       // Get user's group membership
       const membershipDoc = await db
@@ -115,7 +104,7 @@ export const command: Command = {
       const maxMembers = group?.maxMembers || 5;
       const memberCount = group?.memberCount || 0;
 
-      // Update group stats to ensure fresh data
+      // Update group stats
       await groupService.updateGroupStats(groupId);
 
       // Get updated group data
@@ -132,7 +121,7 @@ export const command: Command = {
       // Get all group members
       const members = await groupService.getGroupMembers(groupId);
 
-      // Calculate group rank (query all groups sorted by level)
+      // Calculate group rank
       const allGroupsSnapshot = await db
         .collection('discord-data')
         .doc('groups')
@@ -149,22 +138,12 @@ export const command: Command = {
         groupRank++;
       }
 
-      // Get start of current week (Sunday at midnight)
-      const now = new Date();
-      const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - dayOfWeek);
-      startOfWeek.setHours(0, 0, 0, 0);
-      const weekStartTimestamp = Timestamp.fromDate(startOfWeek);
-
       // Get member stats with all-time hours
       const memberStatsPromises = members.map(async (member: GroupMemberWithStats) => {
         const userId = member.membership?.userId;
         const username = member.membership?.username || 'Unknown User';
 
-        // Skip if userId is missing
         if (!userId) {
-          logger.error('Member missing userId:', member);
           return {
             username,
             avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
@@ -182,7 +161,7 @@ export const command: Command = {
           logger.error(`Failed to fetch avatar for user ${userId}:`, error);
         }
 
-        // Get all-time total hours from user stats
+        // Get all-time total hours
         const statsDoc = await db
           .collection('discord-data')
           .doc('userStats')
@@ -200,7 +179,7 @@ export const command: Command = {
           username,
           avatarUrl,
           hours: totalHours,
-          rank: 0, // Will be assigned after sorting
+          rank: 0,
         };
       });
 
@@ -212,39 +191,18 @@ export const command: Command = {
         member.rank = index + 1;
       });
 
-      // Get total all-time hours from updated database
-      // Stats are kept up-to-date by: join/leave operations and session completions
+      // Get total all-time hours
       let totalAllTimeHours = updatedGroup?.totalHours || 0;
 
-      logger.info(`[GROUP OVERVIEW] Member stats:`, memberStats.map(m => ({ username: m.username, hours: m.hours })));
-      logger.info(`[GROUP OVERVIEW] Total all-time hours (from DB): ${totalAllTimeHours}`);
-
-      // Calculate group level based on all-time total hours
-      // Formula: 1 level per 25 hours (Math.floor(totalHours / 25) + 1)
+      // Calculate level and XP modifiers
       const calculatedLevel = Math.floor(totalAllTimeHours / 25) + 1;
-
-      logger.info(`[GROUP OVERVIEW] Calculated level: ${calculatedLevel}`);
-      logger.info(`[GROUP OVERVIEW] DB group level: ${groupLevel}`);
-
-      // Calculate XP modifier based on calculated level
-      // Formula: 1% per level, capped at 50% (e.g., level 10 = 10% bonus, level 50+ = 50% bonus)
       const totalXpModifier = Math.min(0.5, calculatedLevel * 0.01);
       const nextLevelXpModifier = Math.min(0.5, (calculatedLevel + 1) * 0.01);
+      const currentLevelHours = Math.round(totalAllTimeHours % 25);
+      const nextLevelHours = 25;
 
-      logger.info(`[GROUP OVERVIEW] XP modifier: ${totalXpModifier} (${(totalXpModifier * 100).toFixed(1)}%)`);
-
-      // Calculate hours needed for next level
-      // Formula: 25 hours per level
-      const currentLevelHours = Math.round(totalAllTimeHours % 25); // Hours into current level (rounded)
-      const nextLevelHours = 25; // Hours needed to reach next level
-
-      logger.info(`[GROUP OVERVIEW] Progress: ${currentLevelHours} of ${nextLevelHours} hours`);
-
-      // Choose appropriate image service based on user preference
-      const imageService = useLightMode ? groupOverviewImageLightService : groupOverviewImageService;
-
-      // Generate the group overview image
-      const imageBuffer = await imageService.generateGroupOverviewImage(
+      // Generate the light mode group overview image
+      const imageBuffer = await groupOverviewImageLightService.generateGroupOverviewImage(
         groupRank,
         groupName,
         groupIdDisplay,
@@ -259,19 +217,19 @@ export const command: Command = {
       );
 
       // Create attachment
-      const attachment = new AttachmentBuilder(imageBuffer, { name: 'group-overview.png' });
+      const attachment = new AttachmentBuilder(imageBuffer, { name: 'group-overview-light.png' });
 
-      // Send the group overview with join instructions
+      // Send the group overview
       await interaction.editReply({
-        content: `To join this group, use:\n\`/joingroup ${groupIdDisplay}\``,
+        content: `☀️ **Light Mode Preview**\nTo join this group, use: \`/joingroup ${groupIdDisplay}\``,
         files: [attachment],
       });
 
-      logger.info(`Group overview generated successfully for ${groupName}`);
+      logger.info(`Light mode group overview generated successfully for ${groupName}`);
     } catch (error) {
-      logger.error('Error generating group overview:', error);
+      logger.error('Error generating light mode group overview:', error);
       await interaction.editReply({
-        content: '❌ Failed to generate group overview. Please try again later.',
+        content: '❌ Failed to generate light mode group overview. Please try again later.',
       });
     }
   },

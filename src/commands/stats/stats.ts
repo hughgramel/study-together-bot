@@ -18,6 +18,7 @@ import type { Command } from '../types';
 import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
 import { StatsOverviewImageService } from '../../services/statsOverviewImage';
+import { StatsOverviewImageLightService } from '../../services/statsOverviewImageLight';
 import { getStartOfDayPacific, getStartOfMonthPacific } from '../../utils/timeHelpers';
 import { createLogger } from '../../utils/logger';
 
@@ -49,10 +50,15 @@ export const command: Command = {
     // Initialize services
     const statsService = new StatsService(db);
     const sessionService = new SessionService(db);
-    const statsOverviewImageService = new StatsOverviewImageService();
 
-    // Get user stats
+    // Get user stats and check light mode preference
     const stats = await statsService.getUserStats(user.id);
+    const useLightMode = stats?.lightMode || false;
+
+    // Choose appropriate image service based on preference
+    const statsOverviewImageService = useLightMode
+      ? new StatsOverviewImageLightService()
+      : new StatsOverviewImageService();
 
     if (!stats) {
       await interaction.reply({
