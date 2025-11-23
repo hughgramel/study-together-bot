@@ -16,6 +16,7 @@ import type { Command } from '../types';
 import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
 import { ProfileImageService } from '../../services/profileImage';
+import { ProfileImageLightService } from '../../services/profileImageLight';
 import { getStartOfDayPacific, getStartOfWeekPacific, getStartOfMonthPacific } from '../../utils/timeHelpers';
 import { createLogger } from '../../utils/logger';
 
@@ -59,7 +60,12 @@ export const command: Command = {
       // Initialize services
       const sessionService = new SessionService(db);
       const statsService = new StatsService(db);
-      const profileImageService = new ProfileImageService();
+
+      // Check user's light mode preference
+      const userStats = await statsService.getUserStats(user.id);
+      const useLightMode = userStats?.lightMode || false;
+
+      const profileImageService = useLightMode ? new ProfileImageLightService() : new ProfileImageService();
 
       // Get timeframe parameter (default to daily)
       const timeframe = (interaction.options.getString('timeframe') || 'daily') as 'daily' | 'weekly' | 'monthly' | 'all-time';

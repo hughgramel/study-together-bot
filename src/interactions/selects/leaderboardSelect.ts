@@ -15,6 +15,7 @@ import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
 import { ProfileImageService } from '../../services/profileImage';
+import { ProfileImageLightService } from '../../services/profileImageLight';
 import { getStartOfDayPacific, getStartOfWeekPacific, getStartOfMonthPacific } from '../../utils/timeHelpers';
 import { createLogger } from '../../utils/logger';
 
@@ -264,7 +265,12 @@ export async function handleLeaderboardImageTimeframeSelect(
   try {
     const sessionService = new SessionService(db);
     const statsService = new StatsService(db);
-    const profileImageService = new ProfileImageService();
+
+    // Check user's light mode preference
+    const userStats = await statsService.getUserStats(interaction.user.id);
+    const useLightMode = userStats?.lightMode || false;
+
+    const profileImageService = useLightMode ? new ProfileImageLightService() : new ProfileImageService();
 
     let topUsers: Array<{
       userId: string;
