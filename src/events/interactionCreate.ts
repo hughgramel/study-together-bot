@@ -25,6 +25,10 @@ import {
   handleViewGraphButton,
   handleViewStatsButton,
 } from '../interactions/buttons/statsButtons';
+import {
+  handleCompleteTaskButton,
+  handleCompleteAllTasksButton,
+} from '../interactions/buttons/taskButtons';
 import { handleGoalCompleteSelect } from '../interactions/selects/goalSelect';
 import { handleAchievementFilterSelect } from '../interactions/selects/achievementSelect';
 import {
@@ -135,6 +139,17 @@ export async function handleInteractionCreate(
 
     if (interaction.customId.startsWith('view_stats_')) {
       await handleViewStatsButton(interaction, db, client);
+      return;
+    }
+
+    // Handle task-related buttons
+    if (interaction.customId.startsWith('complete_task_')) {
+      await handleCompleteTaskButton(interaction, db, client);
+      return;
+    }
+
+    if (interaction.customId.startsWith('complete_all_tasks_')) {
+      await handleCompleteAllTasksButton(interaction, db, client);
       return;
     }
   }

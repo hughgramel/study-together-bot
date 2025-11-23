@@ -46,6 +46,7 @@ export async function loadCommands(): Promise<void> {
   // Goals commands
   const goalsCommands = [
     '../commands/goals/goal',
+    '../commands/goals/tasks',
   ];
 
   // Events commands
@@ -62,6 +63,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/admin/set-welcome-channel',
     '../commands/admin/setup-events-channel',
     '../commands/admin/setup-timezone',
+    '../commands/admin/setup-goal-channel',
   ];
 
   // Group commands
