@@ -4,8 +4,8 @@
  * Resumes a paused session timer.
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import { Timestamp } from 'firebase-admin/firestore';
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { Command } from '../types';
 import { SessionService } from '../../services/sessions';
 import { createLogger } from '../../utils/logger';
@@ -33,7 +33,7 @@ export const command: Command = {
         logger.warn(`User ${user.id} has no active session`);
         await interaction.reply({
           content: 'No active session to resume.',
-          ephemeral: false,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -42,7 +42,7 @@ export const command: Command = {
         logger.warn(`User ${user.id} session is not paused`);
         await interaction.reply({
           content: 'Session is not paused.',
-          ephemeral: false,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -56,20 +56,19 @@ export const command: Command = {
       await sessionService.updateActiveSession(user.id, {
         isPaused: false,
         pausedDuration: pausedDuration + pauseTime,
-        pausedAt: undefined as any, // Remove pausedAt field
+        pausedAt: FieldValue.delete() as any, // Remove pausedAt field
       });
 
       logger.info(`Session resumed for user ${user.id}`);
 
       await interaction.reply({
         content: '▶️ Session resumed. Keep up the great work!',
-        ephemeral: false,
       });
     } catch (error) {
       logger.error('Error resuming session:', error);
       await interaction.reply({
         content: 'Failed to resume session. Please try again later.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       }).catch(() => {
         // Ignore if reply fails
       });

@@ -74,15 +74,15 @@ export const FindGroups: React.FC<FindGroupsProps> = ({ groups, currentPage, tot
             className="rounded-xl p-4 border-2 bg-[#1F2B31] border-[#2E3D44] flex items-center gap-4"
           >
             {/* Group Level with Shield */}
-            <div className="flex items-center gap-2">
+            <div className="relative flex-shrink-0">
               <Shield
-                className="w-8 h-8"
+                className="w-12 h-12"
                 fill={getShieldColor(group.groupLevel)}
                 style={{ color: getShieldColor(group.groupLevel) }}
               />
-              <span className="text-2xl font-extrabold text-[#EFEFEF]">
-                {group.groupLevel}
-              </span>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xl font-extrabold text-white mt-0.5">{group.groupLevel}</span>
+              </div>
             </div>
 
             {/* Group Name and ID */}

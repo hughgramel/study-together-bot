@@ -19,7 +19,7 @@
 
 import React from 'react';
 import { calculateLevel } from '../utils/xp';
-import { Trophy, Medal, Award, Zap } from 'lucide-react';
+import { Trophy, Medal, Award, Zap, Shield } from 'lucide-react';
 
 interface LeaderboardEntry {
   userId: string;
@@ -115,6 +115,17 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
     return null;
   };
 
+  /**
+   * Determines shield color based on user level
+   */
+  const getShieldColor = (level: number) => {
+    if (level <= 10) return '#CD7F32'; // Bronze
+    if (level <= 20) return '#C0C0C0'; // Silver
+    if (level <= 30) return '#FFD700'; // Gold
+    if (level <= 40) return '#00CED1'; // Platinum
+    return '#B9F2FF'; // Diamond
+  };
+
   return (
     <div className="w-[700px] bg-[#131F24] flex flex-col p-8 pb-6">
       {/* Header */}
@@ -159,12 +170,23 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 />
               </div>
 
+              {/* Shield with Level */}
+              <div className="relative flex-shrink-0">
+                <Shield
+                  className="w-10 h-10"
+                  fill={getShieldColor(level)}
+                  style={{ color: getShieldColor(level) }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-base font-extrabold text-white mt-0.5">{level}</span>
+                </div>
+              </div>
+
               {/* Username */}
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {entry.username}
                 </h3>
-                <p className="text-base font-bold text-[#DBDEE1]">Level {level}</p>
               </div>
 
               {/* Stats */}
@@ -199,14 +221,23 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 />
               </div>
 
+              {/* Shield with Level */}
+              <div className="relative flex-shrink-0">
+                <Shield
+                  className="w-10 h-10"
+                  fill={getShieldColor(calculateLevel(currentUser.xp))}
+                  style={{ color: getShieldColor(calculateLevel(currentUser.xp)) }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-base font-extrabold text-white mt-0.5">{calculateLevel(currentUser.xp)}</span>
+                </div>
+              </div>
+
               {/* Username */}
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {currentUser.username} (You)
                 </h3>
-                <p className="text-base font-bold text-[#DBDEE1]">
-                  Level {calculateLevel(currentUser.xp)}
-                </p>
               </div>
 
               {/* Stats */}
