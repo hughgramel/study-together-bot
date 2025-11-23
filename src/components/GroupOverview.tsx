@@ -121,9 +121,9 @@ export const GroupOverview: React.FC<GroupOverviewProps> = ({
   const progressPercentage = (currentLevelHours / nextLevelHours) * 100;
 
   return (
-    <div className="w-[700px] h-[700px] bg-[#131F24] flex flex-col px-8 py-6 pb-1">
+    <div className="w-[700px] h-[700px] bg-[#131F24] flex flex-col px-8 py-8 pb-1">
       {/* Header with group name, ID, and capacity (no rank) */}
-      <div className="mb-8">
+      <div className="mb-6 mt-2">
         <div className="flex items-baseline gap-3">
           <h1 className="text-[#EFEFEF] text-5xl font-extrabold">{groupName}</h1>
           <span className="text-[#AFAFAF] text-2xl font-bold">#{groupId}</span>
@@ -132,7 +132,7 @@ export const GroupOverview: React.FC<GroupOverviewProps> = ({
       </div>
 
       {/* Group Leaderboard */}
-      <div className="mb-0 mt-4">
+      <div className="mb-0 mt-2">
         <div className="space-y-2">
           {members.map((member) => (
             <div
@@ -191,7 +191,7 @@ export const GroupOverview: React.FC<GroupOverviewProps> = ({
               {/* Empty username */}
               <div className="flex-1">
                 <h3 className="text-2xl font-bold text-[#AFAFAF] italic">
-                  (empty slot)
+                  Empty slot
                 </h3>
               </div>
 

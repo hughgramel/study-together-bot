@@ -49,9 +49,9 @@ export const GroupLeaderboardLight: React.FC<GroupLeaderboardLightProps> = ({ gr
   };
 
   return (
-    <div className="w-[700px] h-[650px] bg-white flex flex-col px-8 py-6">
+    <div className="w-[700px] h-[650px] bg-white flex flex-col px-8 py-8">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6 mt-2">
         <div className="flex items-center gap-3">
           <Trophy className="w-10 h-10 text-[#FFD700]" fill="#FFD700" />
           <h1 className="text-[#3C3C3C] text-4xl font-extrabold">Group Leaderboard</h1>
