@@ -27,6 +27,11 @@ import {
 } from '../interactions/buttons/statsButtons';
 import { handleGoalCompleteSelect } from '../interactions/selects/goalSelect';
 import { handleAchievementFilterSelect } from '../interactions/selects/achievementSelect';
+import {
+  handleLeaderboardTimeframeSelect,
+  handleLeaderboardImageTimeframeSelect,
+} from '../interactions/selects/leaderboardSelect';
+import { handleStatsMetricTimeframeSelect } from '../interactions/selects/statsSelect';
 import { handleEndSessionModal } from '../interactions/modals/endSessionModal';
 import { handleManualSessionModal } from '../interactions/modals/manualSessionModal';
 
@@ -141,7 +146,28 @@ export async function handleInteractionCreate(
       return;
     }
 
-    // TODO: Handle other select menu types
+    // Leaderboard timeframe select menu
+    if (interaction.customId === 'leaderboard_timeframe') {
+      await handleLeaderboardTimeframeSelect(interaction, db);
+      return;
+    }
+
+    // Leaderboard image timeframe select menu
+    if (interaction.customId === 'leaderboard_image_timeframe') {
+      await handleLeaderboardImageTimeframeSelect(interaction, db);
+      return;
+    }
+
+    // Stats metric/timeframe select menus
+    if (
+      interaction.customId.startsWith('stats-metric:') ||
+      interaction.customId.startsWith('stats-timeframe:')
+    ) {
+      await handleStatsMetricTimeframeSelect(interaction, db, client);
+      return;
+    }
+
+    // TODO: Handle other select menu types (stats_select_*, graph_metric_*, graph_timeframe_*)
     logger.warn(`Unknown select menu: ${interaction.customId}`);
   }
 

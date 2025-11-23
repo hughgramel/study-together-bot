@@ -14,7 +14,7 @@ import {
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
-import { LeaderboardImageService } from '../../services/leaderboardImage';
+import { ProfileImageService } from '../../services/profileImage';
 import { getStartOfDayPacific, getStartOfWeekPacific, getStartOfMonthPacific } from '../../utils/timeHelpers';
 import { createLogger } from '../../utils/logger';
 
@@ -263,47 +263,107 @@ export async function handleLeaderboardImageTimeframeSelect(
 
   try {
     const sessionService = new SessionService(db);
-    const leaderboardImageService = new LeaderboardImageService();
+    const statsService = new StatsService(db);
+    const profileImageService = new ProfileImageService();
 
-    let users: Array<{ userId: string; username: string; totalDuration: number }>;
-    let startTime: Date;
-    let title: string;
+    let topUsers: Array<{
+      userId: string;
+      username: string;
+      totalDuration: number;
+      xp?: number;
+    }> = [];
 
-    const today = getStartOfDayPacific();
-    const weekStart = getStartOfWeekPacific();
-    const monthStart = getStartOfMonthPacific();
-
-    if (selectedValue === 'daily') {
-      startTime = today;
-      title = 'Daily Leaderboard';
-      users = await sessionService.getTopUsers(Timestamp.fromDate(startTime), 10, guildId!);
-    } else if (selectedValue === 'weekly') {
-      startTime = weekStart;
-      title = 'Weekly Leaderboard';
-      users = await sessionService.getTopUsers(Timestamp.fromDate(startTime), 10, guildId!);
+    if (selectedValue === 'all-time') {
+      // Get all-time top users by XP - filtered by server
+      const xpUsers = await statsService.getTopUsersByXP(20, guildId!);
+      topUsers = xpUsers.map((u) => ({
+        userId: u.userId,
+        username: u.username,
+        totalDuration: u.totalDuration || 0,
+        xp: u.xp,
+      }));
     } else {
-      // monthly
-      startTime = monthStart;
-      title = 'Monthly Leaderboard';
-      users = await sessionService.getTopUsers(Timestamp.fromDate(startTime), 10, guildId!);
+      let startTime: Date;
+      if (selectedValue === 'daily') {
+        startTime = getStartOfDayPacific();
+      } else if (selectedValue === 'weekly') {
+        startTime = getStartOfWeekPacific();
+      } else {
+        startTime = getStartOfMonthPacific();
+      }
+
+      topUsers = await sessionService.getTopUsers(
+        Timestamp.fromDate(startTime),
+        20,
+        guildId!
+      );
     }
 
-    // Fetch user avatars
-    const usersWithAvatars = await Promise.all(
-      users.map(async (u) => {
-        const discordUser = await interaction.client.users.fetch(u.userId);
-        return {
-          ...u,
-          avatarUrl: discordUser.displayAvatarURL({ size: 128, extension: 'png' }),
+    // Prepare leaderboard entries
+    let entries: Array<{
+      userId: string;
+      username: string;
+      avatarUrl: string;
+      xp: number;
+      totalDuration: number;
+      rank: number;
+    }> = [];
+    let currentUserEntry = undefined;
+
+    if (topUsers.length > 0) {
+      // Get top 10
+      const top10 = topUsers.slice(0, 10);
+
+      // Check if current user is in top 10
+      const userPosition = topUsers.findIndex((u) => u.userId === interaction.user.id);
+
+      // Prepare leaderboard entries with avatars
+      entries = await Promise.all(
+        top10.map(async (u, index) => {
+          try {
+            const discordUser = await interaction.client.users.fetch(u.userId);
+            const stats = await statsService.getUserStats(u.userId);
+            return {
+              userId: u.userId,
+              username: u.username,
+              avatarUrl: discordUser.displayAvatarURL({ size: 128, extension: 'png' }),
+              xp: stats?.xp || 0,
+              totalDuration: u.totalDuration,
+              rank: index + 1,
+            };
+          } catch (error) {
+            logger.error(`Failed to fetch user ${u.userId}:`, error);
+            return {
+              userId: u.userId,
+              username: u.username,
+              avatarUrl: '',
+              xp: 0,
+              totalDuration: u.totalDuration,
+              rank: index + 1,
+            };
+          }
+        })
+      );
+
+      // Prepare current user entry if they're not in top 10
+      if (userPosition > 9) {
+        const userStats = await statsService.getUserStats(interaction.user.id);
+        currentUserEntry = {
+          userId: interaction.user.id,
+          username: interaction.user.username,
+          avatarUrl: interaction.user.displayAvatarURL({ size: 128, extension: 'png' }),
+          xp: userStats?.xp || 0,
+          totalDuration: topUsers[userPosition].totalDuration,
+          rank: userPosition + 1,
         };
-      })
-    );
+      }
+    }
 
     // Generate leaderboard image
-    const imageBuffer = await leaderboardImageService.generateLeaderboardImage(
-      title,
-      usersWithAvatars,
-      selectedValue
+    const imageBuffer = await profileImageService.generateLeaderboardImage(
+      selectedValue as 'daily' | 'weekly' | 'monthly' | 'all-time',
+      entries,
+      currentUserEntry
     );
 
     const attachment = new AttachmentBuilder(imageBuffer, {
@@ -317,24 +377,31 @@ export async function handleLeaderboardImageTimeframeSelect(
       .addOptions([
         {
           label: 'Daily',
-          description: 'Top 10 users by hours today',
+          description: "Today's top performers",
           value: 'daily',
           emoji: '📅',
           default: selectedValue === 'daily',
         },
         {
           label: 'Weekly',
-          description: 'Top 10 users by hours this week',
+          description: "This week's leaders",
           value: 'weekly',
           emoji: '📊',
           default: selectedValue === 'weekly',
         },
         {
           label: 'Monthly',
-          description: 'Top 10 users by hours this month',
+          description: "This month's champions",
           value: 'monthly',
           emoji: '🌟',
           default: selectedValue === 'monthly',
+        },
+        {
+          label: 'All Time',
+          description: 'Top performers of all time',
+          value: 'all-time',
+          emoji: '🏆',
+          default: selectedValue === 'all-time',
         },
       ]);
 
