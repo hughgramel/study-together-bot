@@ -72,6 +72,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/groups/group',
     '../commands/groups/creategroup',
     '../commands/groups/joingroup',
+    '../commands/groups/joinrandom',
     '../commands/groups/leavegroup',
     '../commands/groups/invitegroup',
     '../commands/groups/group_leaderboard',
