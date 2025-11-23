@@ -168,12 +168,10 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
               </div>
 
               {/* Stats */}
-              <div className="flex items-center gap-5 mr-2">
-                <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#EFEFEF] flex items-center justify-end gap-1.5">
-                    {entry.xp.toLocaleString()} <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
-                  </div>
-                  <div className="text-sm text-[#AFAFAF]">XP</div>
+              <div className="flex items-center gap-6 mr-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xl font-extrabold text-[#EFEFEF]">{entry.xp.toLocaleString()}</span>
+                  <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
                 </div>
                 <div className="text-right">
                   <div className="text-xl font-extrabold text-[#EFEFEF]">
@@ -217,12 +215,10 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
               </div>
 
               {/* Stats */}
-              <div className="flex items-center gap-5 mr-2">
-                <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#EFEFEF] flex items-center justify-end gap-1.5">
-                    {currentUser.xp.toLocaleString()} <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
-                  </div>
-                  <div className="text-sm text-[#AFAFAF]">XP</div>
+              <div className="flex items-center gap-6 mr-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xl font-extrabold text-[#EFEFEF]">{currentUser.xp.toLocaleString()}</span>
+                  <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
                 </div>
                 <div className="text-right">
                   <div className="text-xl font-extrabold text-[#EFEFEF]">
