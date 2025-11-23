@@ -128,6 +128,13 @@ export async function postSessionToFeed(
       files: [attachment],
     });
 
+    // Add heart reaction
+    try {
+      await message.react('❤️');
+    } catch (error) {
+      logger.warn('Failed to add reaction to feed post:', error);
+    }
+
     // Create post record in database
     const postService = new PostService(db);
     await postService.createSessionPost(

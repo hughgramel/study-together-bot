@@ -30,6 +30,12 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('group')
     .setDescription('View a group overview with member stats and progress')
+    .addStringOption(option =>
+      option
+        .setName('groupid')
+        .setDescription('Group ID to view (e.g., A1B2)')
+        .setRequired(false)
+    )
     .addUserOption(option =>
       option
         .setName('user')
@@ -53,12 +59,6 @@ export const command: Command = {
     await interaction.deferReply({ ephemeral: false });
 
     try {
-      // Get target user (defaults to command user)
-      const targetUser = interaction.options.getUser('user') || user;
-      const targetUserId = targetUser.id;
-
-      logger.info(`User ${user.username} viewing group for ${targetUser.username}`);
-
       // Initialize services
       const groupService = new GroupService(db);
       const statsService = new StatsService(db);
@@ -67,31 +67,56 @@ export const command: Command = {
       const userStats = await statsService.getUserStats(user.id);
       const useLightMode = userStats?.lightMode || false;
 
-      // Get user's group membership
-      const membershipDoc = await db
-        .collection('discord-data')
-        .doc('groupMembers')
-        .collection('memberships')
-        .doc(targetUserId)
-        .get();
+      let groupId: string | null = null;
 
-      if (!membershipDoc.exists) {
-        await interaction.editReply({
-          content: targetUser.id === user.id
-            ? '❌ You are not in a group yet. Create or join a group to get started!'
-            : `❌ ${targetUser.username} is not in a group.`,
-        });
-        return;
-      }
+      // Check if groupid option was provided
+      const groupIdOption = interaction.options.getString('groupid');
+      if (groupIdOption) {
+        // View specific group by ID
+        groupId = groupIdOption.toUpperCase();
+        logger.info(`User ${user.username} viewing group ${groupId}`);
 
-      const membership = membershipDoc.data();
-      const groupId = membership?.groupId;
+        // Verify group exists
+        const group = await groupService.getGroup(groupId);
+        if (!group) {
+          await interaction.editReply({
+            content: `❌ Group with ID "${groupId}" not found.`,
+          });
+          return;
+        }
+      } else {
+        // View group by user (defaults to command user)
+        const targetUser = interaction.options.getUser('user') || user;
+        const targetUserId = targetUser.id;
 
-      if (!groupId) {
-        await interaction.editReply({
-          content: '❌ Group data not found.',
-        });
-        return;
+        logger.info(`User ${user.username} viewing group for ${targetUser.username}`);
+
+        // Get user's group membership
+        const membershipDoc = await db
+          .collection('discord-data')
+          .doc('groupMembers')
+          .collection('memberships')
+          .doc(targetUserId)
+          .get();
+
+        if (!membershipDoc.exists) {
+          await interaction.editReply({
+            content: targetUser.id === user.id
+              ? '❌ You are not in a group yet. Create or join a group to get started!'
+              : `❌ ${targetUser.username} is not in a group.`,
+          });
+          return;
+        }
+
+        const membership = membershipDoc.data();
+        groupId = membership?.groupId;
+
+        if (!groupId) {
+          await interaction.editReply({
+            content: '❌ Group data not found.',
+          });
+          return;
+        }
       }
 
       // Get group data

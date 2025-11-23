@@ -84,8 +84,8 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
       <div className="mb-8">
         <div className="flex items-baseline gap-3">
           <h1 className="text-[#3C3C3C] text-5xl font-extrabold">{groupName}</h1>
-          <span className="text-[#888888] text-2xl font-bold">#{groupId}</span>
-          <span className="text-[#888888] text-2xl font-bold ml-1">{currentMembers}/{maxMembers}</span>
+          <span className="text-[#666666] text-3xl font-bold">#{groupId}</span>
+          <span className="text-[#666666] text-3xl font-bold ml-1">{currentMembers}/{maxMembers}</span>
         </div>
       </div>
 
@@ -138,7 +138,7 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
               className="rounded-xl p-3 border-2 border-dashed bg-[#F7F7F7] border-[#D7D7D7] flex items-center gap-4"
             >
               <div className="w-10 flex items-center justify-center">
-                <span className="text-2xl font-bold text-[#AFAFAF]">
+                <span className="text-2xl font-bold text-[#777777]">
                   {members.length + i + 1}
                 </span>
               </div>
@@ -148,8 +148,8 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
 
               {/* Empty username */}
               <div className="flex-1">
-                <h3 className="text-2xl font-bold text-[#AFAFAF] italic">
-                  (empty slot)
+                <h3 className="text-2xl font-bold text-[#888888] italic">
+                  Empty slot
                 </h3>
               </div>
 

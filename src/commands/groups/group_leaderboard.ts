@@ -8,7 +8,9 @@
 import { SlashCommandBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import type { Command } from '../types';
 import { GroupService } from '../../services/groups';
+import { StatsService } from '../../services/stats';
 import { groupOverviewImageService } from '../../services/groupOverviewImage';
+import { groupOverviewImageLightService } from '../../services/groupOverviewImageLight';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('GroupLeaderboardCommand');
@@ -35,8 +37,13 @@ export const command: Command = {
     try {
       logger.info(`Generating group leaderboard for server ${serverId}`);
 
-      // Initialize group service
+      // Initialize services
       const groupService = new GroupService(db);
+      const statsService = new StatsService(db);
+
+      // Get user's light mode preference
+      const stats = await statsService.getUserStats(interaction.user.id);
+      const useLightMode = stats?.lightMode || false;
 
       // Query all groups from Firestore ordered by level descending
       const groups = await groupService.getAllServerGroups(serverId);
@@ -67,7 +74,8 @@ export const command: Command = {
       }));
 
       // Generate group leaderboard image
-      const imageBuffer = await groupOverviewImageService.generateGroupLeaderboardImage(pageGroups);
+      const imageService = useLightMode ? groupOverviewImageLightService : groupOverviewImageService;
+      const imageBuffer = await imageService.generateGroupLeaderboardImage(pageGroups);
 
       // Create attachment
       const attachment = new AttachmentBuilder(imageBuffer, { name: 'group-leaderboard.png' });
