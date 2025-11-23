@@ -54,7 +54,6 @@ export const command: Command = {
       const groupService = new GroupService(db);
       const userGroupData = await groupService.getUserGroup(user.id);
       const groupName = userGroupData?.group.name;
-      const groupLevel = userGroupData?.group.level;
 
       // Generate the session post image
       const postImageService = new PostImageService();
@@ -68,8 +67,7 @@ export const command: Command = {
         sampleTitle,
         sampleDescription,
         sampleDate,
-        groupName,
-        groupLevel
+        groupName
       );
 
       // Create attachment

@@ -100,7 +100,6 @@ export async function postSessionToFeed(
     const groupService = new GroupService(db);
     const userGroupData = await groupService.getUserGroup(userId);
     const groupName = userGroupData?.group.name;
-    const groupLevel = userGroupData?.group.level;
 
     // Generate session post image
     const imageBuffer = await postImageService.generateSessionPostImage(
@@ -113,8 +112,7 @@ export async function postSessionToFeed(
       title,
       description,
       dateStr,
-      groupName,
-      groupLevel
+      groupName
     );
 
     // Create attachment
