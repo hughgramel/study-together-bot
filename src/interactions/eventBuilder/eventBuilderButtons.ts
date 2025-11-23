@@ -15,6 +15,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   TextChannel,
+  MessageFlags,
 } from 'discord.js';
 import { Firestore } from 'firebase-admin/firestore';
 import { eventBuilders } from '../../commands/events/createevent';
@@ -42,7 +43,7 @@ export async function handleEventBuilderButtons(
   if (!builderState || builderState.userId !== user.id) {
     await interaction.reply({
       content: '❌ This event builder has expired or does not belong to you.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -64,7 +65,7 @@ export async function handleEventBuilderButtons(
     if (!builderState.title || !builderState.location || !builderState.startTime) {
       await interaction.reply({
         content: '❌ Please fill in all required fields (Title, Location, Time).',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -199,7 +200,7 @@ export async function handleEventBuilderButtons(
       logger.error('Error creating event:', error);
       await interaction.followUp({
         content: '❌ An error occurred while creating the event. Please try again.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
     return;

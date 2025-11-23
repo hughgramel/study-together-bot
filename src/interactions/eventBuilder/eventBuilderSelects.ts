@@ -14,6 +14,7 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  MessageFlags,
 } from 'discord.js';
 import { eventBuilders, EventBuilderState } from '../../commands/events/createevent';
 import { createLogger } from '../../utils/logger';
@@ -175,7 +176,7 @@ export async function handleEventBuilderStudyTypeSelect(
   if (!builderState || builderState.userId !== interaction.user.id) {
     await interaction.reply({
       content: '❌ This event builder has expired or does not belong to you.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -226,7 +227,7 @@ export async function handleEventBuilderStudyTypeSelect(
     logger.error('Error updating event builder study type:', error);
     await interaction.followUp({
       content: '❌ An error occurred. Please try again.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 }

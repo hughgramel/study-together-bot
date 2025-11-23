@@ -11,6 +11,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
+  MessageFlags,
 } from 'discord.js';
 import { eventBuilders, EventBuilderState } from '../../commands/events/createevent';
 import { createLogger } from '../../utils/logger';
@@ -256,7 +257,7 @@ export async function handleEventBuilderModals(
   if (!builderState || builderState.userId !== interaction.user.id) {
     await interaction.reply({
       content: '❌ This event builder has expired or does not belong to you.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -278,7 +279,7 @@ export async function handleEventBuilderModals(
         await interaction.followUp({
           content:
             '❌ Invalid date/time format. Please use formats like:\n- `2025-01-20 18:00`\n- `tomorrow 6pm`\n- `today 14:30`',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -292,7 +293,7 @@ export async function handleEventBuilderModals(
       if (isNaN(duration) || duration <= 0) {
         await interaction.followUp({
           content: '❌ Invalid duration. Please enter a positive number (in minutes).',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -307,7 +308,7 @@ export async function handleEventBuilderModals(
           await interaction.followUp({
             content:
               '❌ Invalid max attendees. Please enter a positive number or leave blank for unlimited.',
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           return;
         }
@@ -338,7 +339,7 @@ export async function handleEventBuilderModals(
     logger.error('Error updating event builder:', error);
     await interaction.followUp({
       content: '❌ An error occurred. Please try again.',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 }
