@@ -105,9 +105,22 @@ export const command: Command = {
       const group = groupDoc.data();
       const groupName = group?.name || 'Unknown Group';
       const groupIdDisplay = group?.groupId || groupId;
-      const groupLevel = group?.level || 1;
       const maxMembers = group?.maxMembers || 5;
       const memberCount = group?.memberCount || 0;
+
+      // Update group stats to ensure fresh data
+      await groupService.updateGroupStats(groupId);
+
+      // Get updated group data
+      const updatedGroupDoc = await db
+        .collection('discord-data')
+        .doc('groups')
+        .collection('active')
+        .doc(groupId)
+        .get();
+
+      const updatedGroup = updatedGroupDoc.data();
+      const groupLevel = updatedGroup?.level || 1;
 
       // Get all group members
       const members = await groupService.getGroupMembers(groupId);
@@ -192,9 +205,9 @@ export const command: Command = {
         member.rank = index + 1;
       });
 
-      // Get total all-time hours from database
+      // Get total all-time hours from updated database
       // Stats are kept up-to-date by: join/leave operations and session completions
-      let totalAllTimeHours = group?.totalHours || 0;
+      let totalAllTimeHours = updatedGroup?.totalHours || 0;
 
       logger.info(`[GROUP OVERVIEW] Member stats:`, memberStats.map(m => ({ username: m.username, hours: m.hours })));
       logger.info(`[GROUP OVERVIEW] Total all-time hours (from DB): ${totalAllTimeHours}`);
