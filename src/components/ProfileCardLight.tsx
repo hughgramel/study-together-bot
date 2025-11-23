@@ -87,8 +87,8 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
           </div>
           {/* XP Boost */}
           <div className="flex items-center gap-1.5">
-            <Zap className="w-5 h-5 text-[#CE82FF]" fill="#CE82FF" />
-            <span className="text-[#CE82FF] text-xl font-bold">+{userLevelBonus.toFixed(1)}%</span>
+            <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
+            <span className="text-[#A78BFA] text-xl font-extrabold">+{userLevelBonus.toFixed(1)}%</span>
           </div>
           {/* XP Progress - pushed to the right */}
           <span className="text-[#555555] text-xl font-semibold ml-auto">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
