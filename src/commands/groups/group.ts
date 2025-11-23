@@ -251,8 +251,9 @@ export const command: Command = {
       // Create attachment
       const attachment = new AttachmentBuilder(imageBuffer, { name: 'group-overview.png' });
 
-      // Send the group overview
+      // Send the group overview with join instructions
       await interaction.editReply({
+        content: `To join this group, use:\n\`/joingroup ${groupIdDisplay}\``,
         files: [attachment],
       });
 

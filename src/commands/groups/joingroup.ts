@@ -36,7 +36,7 @@ export const command: Command = {
       return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: false });
 
     try {
       const groupId = interaction.options.getString('group_id', true).toUpperCase();

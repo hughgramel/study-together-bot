@@ -70,6 +70,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/groups/creategroup',
     '../commands/groups/joingroup',
     '../commands/groups/leavegroup',
+    '../commands/groups/invitegroup',
     '../commands/groups/group_leaderboard',
     '../commands/groups/findgroups',
     '../commands/groups/groupadmin',

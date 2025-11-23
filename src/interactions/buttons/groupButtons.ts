@@ -115,4 +115,140 @@ export async function handleGroupButtons(
     });
     return;
   }
+
+  // Group invitation accept
+  if (interaction.customId.startsWith('group_invite_accept:')) {
+    const parts = interaction.customId.split(':');
+    const groupId = parts[1];
+    const inviterId = parts[2];
+
+    await interaction.deferUpdate();
+
+    try {
+      // Check if user is already in a group
+      const membershipDoc = await db
+        .collection('discord-data')
+        .doc('groupMembers')
+        .collection('memberships')
+        .doc(user.id)
+        .get();
+
+      if (membershipDoc.exists) {
+        await interaction.editReply({
+          content: '❌ You are already in a group. Leave your current group before accepting this invitation.',
+          components: [],
+        });
+        return;
+      }
+
+      // Get group data
+      const groupDoc = await db
+        .collection('discord-data')
+        .doc('groups')
+        .collection('active')
+        .doc(groupId)
+        .get();
+
+      if (!groupDoc.exists) {
+        await interaction.editReply({
+          content: '❌ This group no longer exists.',
+          components: [],
+        });
+        return;
+      }
+
+      const group = groupDoc.data();
+      const groupName = group?.name || 'Unknown Group';
+      const maxMembers = group?.maxMembers || 5;
+      const memberCount = group?.memberCount || 0;
+
+      // Check if group is full
+      if (memberCount >= maxMembers) {
+        await interaction.editReply({
+          content: `❌ This group is now full (${memberCount}/${maxMembers} members).`,
+          components: [],
+        });
+        return;
+      }
+
+      // Add user to group
+      await groupService.addMemberToGroup(groupId, user.id, user.username);
+
+      const groupLevel = group?.level || 1;
+      const xpBonus = Math.min(50, groupLevel * 1);
+
+      await interaction.editReply({
+        content: `✅ **You joined ${groupName}!**\n\nYou now get a **+${xpBonus}% XP bonus** on all your study sessions!\n\nUse \`/group\` to view your group stats.`,
+        components: [],
+      });
+
+      // Notify the inviter
+      try {
+        const inviter = await client.users.fetch(inviterId);
+        await inviter.send(
+          `✅ **${user.username}** accepted your invitation and joined **${groupName}**!`
+        ).catch(() => {
+          logger.warn(`Could not DM user ${inviterId} about accepted invitation`);
+        });
+      } catch (error) {
+        logger.warn(`Could not fetch user ${inviterId} for invitation acceptance notification`);
+      }
+
+      logger.info(`${user.username} accepted invitation to group ${groupName} (${groupId})`);
+    } catch (error) {
+      logger.error('Error accepting group invitation:', error);
+      await interaction.editReply({
+        content: '❌ Failed to join group. Please try again later.',
+        components: [],
+      });
+    }
+    return;
+  }
+
+  // Group invitation decline
+  if (interaction.customId.startsWith('group_invite_decline:')) {
+    const parts = interaction.customId.split(':');
+    const groupId = parts[1];
+    const inviterId = parts[2];
+
+    await interaction.deferUpdate();
+
+    try {
+      // Get group name for the message
+      const groupDoc = await db
+        .collection('discord-data')
+        .doc('groups')
+        .collection('active')
+        .doc(groupId)
+        .get();
+
+      const groupName = groupDoc.exists ? groupDoc.data()?.name || 'Unknown Group' : 'Unknown Group';
+
+      await interaction.editReply({
+        content: `❌ You declined the invitation to join **${groupName}**.`,
+        components: [],
+      });
+
+      // Notify the inviter
+      try {
+        const inviter = await client.users.fetch(inviterId);
+        await inviter.send(
+          `❌ **${user.username}** declined your invitation to join **${groupName}**.`
+        ).catch(() => {
+          logger.warn(`Could not DM user ${inviterId} about declined invitation`);
+        });
+      } catch (error) {
+        logger.warn(`Could not fetch user ${inviterId} for invitation decline notification`);
+      }
+
+      logger.info(`${user.username} declined invitation to group ${groupName} (${groupId})`);
+    } catch (error) {
+      logger.error('Error declining group invitation:', error);
+      await interaction.editReply({
+        content: '❌ Failed to process your response. Please try again later.',
+        components: [],
+      });
+    }
+    return;
+  }
 }
