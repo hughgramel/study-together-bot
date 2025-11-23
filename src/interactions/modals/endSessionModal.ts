@@ -149,11 +149,15 @@ export async function handleEndSessionModal(
 
     const durationStr = formatDuration(duration);
 
+    // Calculate total bonus percentage for display
+    const totalBonusPercent = Math.round((groupXpBonus + userLevelBonus) * 100);
+    const bonusText = totalBonusPercent > 0 ? ` (+${totalBonusPercent}% bonus)` : '';
+
     let xpMessage = '';
     if (statsUpdate.leveledUp) {
-      xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n⚡ +${statsUpdate.xpGained} XP earned`;
+      xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n⚡ +${statsUpdate.xpGained} XP earned${bonusText}`;
     } else {
-      xpMessage = `\n\n⚡ +${statsUpdate.xpGained} XP earned`;
+      xpMessage = `\n\n⚡ +${statsUpdate.xpGained} XP earned${bonusText}`;
     }
 
     await interaction.editReply({
