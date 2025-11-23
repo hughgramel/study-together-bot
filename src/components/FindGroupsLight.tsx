@@ -16,7 +16,6 @@ interface FindGroupsEntry {
   currentMembers: number;
   maxMembers: number;
   xpModifier: number;
-  ownerUsername: string;
 }
 
 interface FindGroupsLightProps {
@@ -71,16 +70,9 @@ export const FindGroupsLight: React.FC<FindGroupsLightProps> = ({ groups, curren
               <h3 className="text-2xl font-bold text-[#3C3C3C] truncate max-w-[250px]">
                 {group.groupName}
               </h3>
-              <div className="flex items-center gap-2">
-                <div className="bg-white border-2 border-[#E5E5E5] rounded-full px-2.5 py-0.5 flex items-center gap-1.5 flex-shrink-0">
-                  <span className="text-sm font-bold text-[#3C3C3C]">
-                    @{group.ownerUsername}
-                  </span>
-                </div>
-                <p className="text-xl text-[#666666] font-semibold">
-                  #{group.groupId}
-                </p>
-              </div>
+              <p className="text-xl text-[#666666] font-semibold">
+                #{group.groupId}
+              </p>
             </div>
 
             {/* Stats */}

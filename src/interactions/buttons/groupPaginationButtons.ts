@@ -24,7 +24,6 @@ interface GroupSummary {
   currentMembers: number;
   maxMembers: number;
   xpModifier: number;
-  ownerUsername: string;
 }
 
 // Pagination state for findgroups
@@ -206,7 +205,6 @@ export async function handleGroupLeaderboardPagination(
         currentMembers: g.memberCount,
         maxMembers: g.maxMembers,
         xpModifier: g.level * 0.01, // 1% per level
-        ownerUsername: g.ownerUsername,
       }));
 
       // Cache the results
@@ -241,7 +239,6 @@ export async function handleGroupLeaderboardPagination(
       currentMembers: group.currentMembers,
       maxMembers: group.maxMembers,
       groupLevel: group.groupLevel,
-      ownerUsername: group.ownerUsername,
     }));
 
     // Check user's light mode preference

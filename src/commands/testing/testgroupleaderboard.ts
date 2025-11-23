@@ -32,7 +32,6 @@ export const command: Command = {
           currentMembers: 5,
           maxMembers: 5,
           groupLevel: 42,
-          ownerUsername: 'alice',
         },
         {
           rank: 2,
@@ -41,7 +40,6 @@ export const command: Command = {
           currentMembers: 5,
           maxMembers: 5,
           groupLevel: 38,
-          ownerUsername: 'bob',
         },
         {
           rank: 3,
@@ -50,7 +48,6 @@ export const command: Command = {
           currentMembers: 4,
           maxMembers: 5,
           groupLevel: 35,
-          ownerUsername: 'charlie',
         },
         {
           rank: 4,
@@ -59,7 +56,6 @@ export const command: Command = {
           currentMembers: 5,
           maxMembers: 5,
           groupLevel: 28,
-          ownerUsername: 'diana',
         },
         {
           rank: 5,
@@ -68,7 +64,6 @@ export const command: Command = {
           currentMembers: 3,
           maxMembers: 5,
           groupLevel: 22,
-          ownerUsername: 'eve',
         },
         {
           rank: 6,
@@ -77,7 +72,6 @@ export const command: Command = {
           currentMembers: 4,
           maxMembers: 5,
           groupLevel: 19,
-          ownerUsername: 'frank',
         },
         {
           rank: 7,
@@ -86,7 +80,6 @@ export const command: Command = {
           currentMembers: 5,
           maxMembers: 5,
           groupLevel: 17,
-          ownerUsername: 'grace',
         },
         {
           rank: 8,
@@ -95,7 +88,6 @@ export const command: Command = {
           currentMembers: 3,
           maxMembers: 5,
           groupLevel: 15,
-          ownerUsername: 'henry',
         },
         {
           rank: 9,
@@ -104,7 +96,6 @@ export const command: Command = {
           currentMembers: 5,
           maxMembers: 5,
           groupLevel: 12,
-          ownerUsername: 'iris',
         },
         {
           rank: 10,
@@ -113,7 +104,6 @@ export const command: Command = {
           currentMembers: 2,
           maxMembers: 5,
           groupLevel: 10,
-          ownerUsername: 'jack',
         },
         {
           rank: 11,
@@ -122,7 +112,6 @@ export const command: Command = {
           currentMembers: 4,
           maxMembers: 5,
           groupLevel: 8,
-          ownerUsername: 'karen',
         },
         {
           rank: 12,
@@ -131,7 +120,6 @@ export const command: Command = {
           currentMembers: 3,
           maxMembers: 5,
           groupLevel: 5,
-          ownerUsername: 'leo',
         },
       ];
 

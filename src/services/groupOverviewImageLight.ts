@@ -27,7 +27,6 @@ interface GroupLeaderboardEntry {
   currentMembers: number;
   maxMembers: number;
   groupLevel: number;
-  ownerUsername: string;
 }
 
 interface FindGroupsEntry {
@@ -37,7 +36,6 @@ interface FindGroupsEntry {
   currentMembers: number;
   maxMembers: number;
   xpModifier: number;
-  ownerUsername: string;
 }
 
 export class GroupOverviewImageLightService {

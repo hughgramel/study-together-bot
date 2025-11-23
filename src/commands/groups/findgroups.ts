@@ -25,7 +25,6 @@ interface GroupSummary {
   currentMembers: number;
   maxMembers: number;
   xpModifier: number;
-  ownerUsername: string;
 }
 
 export const command: Command = {
@@ -71,7 +70,6 @@ export const command: Command = {
             currentMembers: data.memberCount || 0,
             maxMembers: data.maxMembers || 5,
             xpModifier: data.level ? data.level * 0.01 : 0, // 1% per level
-            ownerUsername: data.ownerUsername || 'Unknown',
           };
         })
         .filter((group) => group.currentMembers < group.maxMembers)

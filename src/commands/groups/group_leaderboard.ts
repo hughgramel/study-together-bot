@@ -71,7 +71,6 @@ export const command: Command = {
         currentMembers: group.memberCount,
         maxMembers: group.maxMembers,
         groupLevel: group.level,
-        ownerUsername: group.ownerUsername,
       }));
 
       // Generate group leaderboard image
