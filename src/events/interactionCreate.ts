@@ -17,6 +17,12 @@ import {
   handleEventListJoinButton,
   handleEventListLeaveButton,
 } from '../interactions/buttons/eventButtons';
+import {
+  handleViewGraphButton,
+  handleViewStatsButton,
+} from '../interactions/buttons/statsButtons';
+import { handleGoalCompleteSelect } from '../interactions/selects/goalSelect';
+import { handleAchievementFilterSelect } from '../interactions/selects/achievementSelect';
 import { handleEndSessionModal } from '../interactions/modals/endSessionModal';
 import { handleManualSessionModal } from '../interactions/modals/manualSessionModal';
 
@@ -91,8 +97,37 @@ export async function handleInteractionCreate(
       return;
     }
 
+    // Handle stats-related buttons
+    if (interaction.customId.startsWith('view_graph_')) {
+      await handleViewGraphButton(interaction, db, client);
+      return;
+    }
+
+    if (interaction.customId.startsWith('view_stats_')) {
+      await handleViewStatsButton(interaction, db, client);
+      return;
+    }
+
     // TODO: Handle other button types
     // For now, other buttons will be handled by the legacy bot.ts code
+  }
+
+  // Handle select menu interactions
+  if (interaction.isStringSelectMenu()) {
+    // Goal completion select menu
+    if (interaction.customId.startsWith('goal_complete:')) {
+      await handleGoalCompleteSelect(interaction, db);
+      return;
+    }
+
+    // Achievement filter select menu
+    if (interaction.customId.startsWith('achievement_filter:')) {
+      await handleAchievementFilterSelect(interaction, db);
+      return;
+    }
+
+    // TODO: Handle other select menu types
+    logger.warn(`Unknown select menu: ${interaction.customId}`);
   }
 
   // Handle modal submissions
