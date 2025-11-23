@@ -46,6 +46,7 @@ export async function loadCommands(): Promise<void> {
   // Goals commands
   const goalsCommands = [
     '../commands/goals/goal',
+    '../commands/goals/task',
     '../commands/goals/tasks',
   ];
 
