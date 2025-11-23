@@ -16,17 +16,22 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('lightmode')
     .setDescription('Toggle light mode for generated images')
-    .addBooleanOption(option =>
+    .addStringOption(option =>
       option
         .setName('enabled')
         .setDescription('Enable or disable light mode')
         .setRequired(true)
+        .addChoices(
+          { name: 'On', value: 'on' },
+          { name: 'Off', value: 'off' }
+        )
     ),
 
   async execute(interaction, context) {
     const { db } = context;
     const user = interaction.user;
-    const enabled = interaction.options.getBoolean('enabled', true);
+    const enabledStr = interaction.options.getString('enabled', true);
+    const enabled = enabledStr === 'on';
 
     logger.info(`User ${user.username} (${user.id}) setting light mode to ${enabled}`);
 
