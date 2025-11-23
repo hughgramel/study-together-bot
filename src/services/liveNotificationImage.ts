@@ -13,6 +13,9 @@ import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import LiveNotificationCard from '../components/LiveNotificationCard';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('LiveNotificationImageService');
 
 interface LiveUser {
   username: string;
@@ -34,7 +37,7 @@ class LiveNotificationImageService {
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected
     if (this.browser && !this.browser.connected) {
-      console.log('[LiveNotificationImageService] Browser disconnected, recreating...');
+      logger.info('Browser disconnected, recreating...');
       try {
         await this.browser.close();
       } catch (e) {
@@ -44,7 +47,7 @@ class LiveNotificationImageService {
     }
 
     if (!this.browser) {
-      console.log('[LiveNotificationImageService] Launching new browser instance...');
+      logger.info('Launching new browser instance...');
       this.browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -55,7 +58,7 @@ class LiveNotificationImageService {
         ],
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       });
-      console.log('[LiveNotificationImageService] Browser launched successfully');
+      logger.info('Browser launched successfully');
     }
 
     return this.browser;

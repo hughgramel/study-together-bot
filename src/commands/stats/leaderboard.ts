@@ -90,12 +90,12 @@ export const command: Command = {
         topUsers = await sessionService.getTopUsers(Timestamp.fromDate(startTime), 20, guildId);
       }
 
-      // TEMPORARY: Use sample data if no real users (for testing)
+      // Prepare leaderboard entries for image generation
       let entries: Array<{ userId: string; username: string; avatarUrl: string; xp: number; totalDuration: number; rank: number }> = [];
       let currentUserEntry = undefined;
 
       if (topUsers.length === 0) {
-        // No real data, pass empty arrays - component will use sample data
+        // No real data available - pass empty arrays, image generator will handle gracefully
         entries = [];
         currentUserEntry = undefined;
       } else {

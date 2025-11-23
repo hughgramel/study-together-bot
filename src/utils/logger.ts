@@ -39,7 +39,7 @@ export class Logger {
   /**
    * Format log message with timestamp and context
    */
-  private format(level: LogLevel, message: string, data?: any): string {
+  private format(level: LogLevel, message: string, data?: unknown): string {
     const timestamp = new Date().toISOString();
     const color = colors[level];
     const reset = colors.RESET;
@@ -50,7 +50,7 @@ export class Logger {
   /**
    * Debug log - verbose information for development
    */
-  debug(message: string, data?: any): void {
+  debug(message: string, data?: unknown): void {
     if (process.env.NODE_ENV !== 'production') {
       console.log(this.format(LogLevel.DEBUG, message, data));
     }
@@ -59,21 +59,21 @@ export class Logger {
   /**
    * Info log - general informational messages
    */
-  info(message: string, data?: any): void {
+  info(message: string, data?: unknown): void {
     console.log(this.format(LogLevel.INFO, message, data));
   }
 
   /**
    * Warn log - warning messages for potential issues
    */
-  warn(message: string, data?: any): void {
+  warn(message: string, data?: unknown): void {
     console.warn(this.format(LogLevel.WARN, message, data));
   }
 
   /**
    * Error log - error messages with optional error object
    */
-  error(message: string, error?: Error | any): void {
+  error(message: string, error?: Error | unknown): void {
     const errorData = error instanceof Error
       ? { message: error.message, stack: error.stack }
       : error;

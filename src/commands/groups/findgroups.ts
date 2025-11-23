@@ -13,6 +13,18 @@ import { storeFindGroupsState } from '../../interactions/buttons/groupPagination
 
 const logger = createLogger('FindGroupsCommand');
 
+/**
+ * Simplified group data for display
+ */
+interface GroupSummary {
+  groupId: string;
+  groupName: string;
+  groupLevel: number;
+  currentMembers: number;
+  maxMembers: number;
+  xpModifier: number;
+}
+
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('findgroups')
@@ -45,8 +57,8 @@ export const command: Command = {
         .where('isPublic', '==', true)
         .get();
 
-      // Filter groups with available space and transform to FindGroupsEntry format
-      const availableGroups = groupsSnapshot.docs
+      // Filter groups with available space and transform to GroupSummary format
+      const availableGroups: GroupSummary[] = groupsSnapshot.docs
         .map(doc => {
           const data = doc.data();
           return {
@@ -58,8 +70,8 @@ export const command: Command = {
             xpModifier: data.level ? data.level * 0.01 : 0, // 1% per level
           };
         })
-        .filter((group: any) => group.currentMembers < group.maxMembers)
-        .sort((a: any, b: any) => b.groupLevel - a.groupLevel); // Sort by level descending
+        .filter((group) => group.currentMembers < group.maxMembers)
+        .sort((a, b) => b.groupLevel - a.groupLevel); // Sort by level descending
 
       if (availableGroups.length === 0) {
         await interaction.editReply({

@@ -385,10 +385,10 @@ export async function handleAnalyticsCommand(
     }
 
     await interaction.editReply({ embeds: [embed] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Analytics] Dashboard error:', error);
     await interaction.editReply({
-      content: `Failed to generate analytics report: ${error.message}`,
+      content: `Failed to generate analytics report: ${error instanceof Error ? error.message : 'Unknown error'}`,
     });
   }
 }

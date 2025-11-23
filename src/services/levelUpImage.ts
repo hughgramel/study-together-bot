@@ -12,6 +12,9 @@ import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import LevelUpCard from '../components/LevelUpCard';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('LevelUpImageService');
 
 /**
  * Service for rendering level-up celebration cards as images
@@ -30,7 +33,7 @@ class LevelUpImageService {
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected
     if (this.browser && !this.browser.connected) {
-      console.log('[LevelUpImageService] Browser disconnected, recreating...');
+      logger.info('Browser disconnected, recreating...');
       try {
         await this.browser.close();
       } catch (e) {
@@ -40,7 +43,7 @@ class LevelUpImageService {
     }
 
     if (!this.browser) {
-      console.log('[LevelUpImageService] Launching new browser instance...');
+      logger.info('Launching new browser instance...');
       this.browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -51,7 +54,7 @@ class LevelUpImageService {
         ],
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       });
-      console.log('[LevelUpImageService] Browser launched successfully');
+      logger.info('Browser launched successfully');
     }
 
     return this.browser;

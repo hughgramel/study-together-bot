@@ -12,10 +12,22 @@ import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('GroupPaginationButtons');
 
+/**
+ * Simplified group data for pagination display
+ */
+interface GroupSummary {
+  groupId: string;
+  groupName: string;
+  groupLevel: number;
+  currentMembers: number;
+  maxMembers: number;
+  xpModifier: number;
+}
+
 // Pagination state for findgroups
 interface GroupPaginationState {
   userId: string;
-  groups: any[];
+  groups: GroupSummary[];
   currentPage: number;
   messageId: string;
 }
@@ -24,7 +36,7 @@ const findGroupsPaginations = new Map<string, GroupPaginationState>();
 // Pagination state for group_leaderboard (server-based)
 interface LeaderboardPaginationState {
   serverId: string;
-  groups: any[];
+  groups: GroupSummary[];
   lastUpdated: number;
 }
 const leaderboardPaginations = new Map<string, LeaderboardPaginationState>();
@@ -165,7 +177,7 @@ export async function handleGroupLeaderboardPagination(
     await interaction.deferUpdate();
 
     // Get or fetch groups for this server
-    let groups: any[];
+    let groups: GroupSummary[];
     const cacheKey = serverId;
     const cachedState = leaderboardPaginations.get(cacheKey);
 
@@ -175,7 +187,17 @@ export async function handleGroupLeaderboardPagination(
     } else {
       // Fetch fresh data
       const groupService = new GroupService(db);
-      groups = await groupService.getAllServerGroups(serverId);
+      const allGroups = await groupService.getAllServerGroups(serverId);
+
+      // Convert Group[] to GroupSummary[]
+      groups = allGroups.map(g => ({
+        groupId: g.groupId,
+        groupName: g.name,
+        groupLevel: g.level,
+        currentMembers: g.memberCount,
+        maxMembers: g.maxMembers,
+        xpModifier: g.level * 0.01, // 1% per level
+      }));
 
       // Cache the results
       leaderboardPaginations.set(cacheKey, {
@@ -204,11 +226,11 @@ export async function handleGroupLeaderboardPagination(
     const endIdx = Math.min((page + 1) * pageSize, groups.length);
     const pageGroups = groups.slice(startIdx, endIdx).map((group, index) => ({
       rank: startIdx + index + 1,
-      groupName: group.name,
+      groupName: group.groupName,
       groupId: group.groupId,
-      currentMembers: group.memberCount,
+      currentMembers: group.currentMembers,
       maxMembers: group.maxMembers,
-      groupLevel: group.level,
+      groupLevel: group.groupLevel,
     }));
 
     // Generate group leaderboard image

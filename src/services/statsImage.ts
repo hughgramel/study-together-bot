@@ -13,6 +13,9 @@ import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { StatsChart, DataPoint } from '../components/StatsChart';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('StatsImageService');
 
 /**
  * Service for rendering statistics charts as images
@@ -26,9 +29,9 @@ export class StatsImageService {
    * Should be called during bot startup to ensure browser is ready.
    */
   async warmup(): Promise<void> {
-    console.log('[StatsImageService] Warming up browser...');
+    logger.info('Warming up browser...');
     await this.getBrowser();
-    console.log('[StatsImageService] Browser ready');
+    logger.info('Browser ready');
   }
 
   /**
@@ -37,7 +40,7 @@ export class StatsImageService {
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected
     if (this.browser && !this.browser.connected) {
-      console.log('[StatsImageService] Browser disconnected, recreating...');
+      logger.info('Browser disconnected, recreating...');
       try {
         await this.browser.close();
       } catch (e) {
@@ -47,7 +50,7 @@ export class StatsImageService {
     }
 
     if (!this.browser) {
-      console.log('[StatsImageService] Launching new browser instance...');
+      logger.info('Launching new browser instance...');
       this.browser = await puppeteer.launch({
         headless: true,
         args: [

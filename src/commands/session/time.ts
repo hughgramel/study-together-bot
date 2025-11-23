@@ -25,36 +25,43 @@ export const command: Command = {
 
     logger.info(`User ${user.username} (${user.id}) checking session time`);
 
-    // Initialize session service
-    const sessionService = new SessionService(db);
+    try {
+      // Initialize session service
+      const sessionService = new SessionService(db);
 
-    const session = await sessionService.getActiveSession(user.id);
+      const session = await sessionService.getActiveSession(user.id);
 
-    if (!session) {
-      logger.warn(`User ${user.id} has no active session`);
+      if (!session) {
+        logger.warn(`User ${user.id} has no active session`);
+        await interaction.editReply({
+          content: 'No active session. Use /start {activity} to begin tracking!',
+        });
+        return;
+      }
+
+      const elapsed = calculateDuration(
+        session.startTime,
+        session.pausedDuration,
+        session.isPaused ? session.pausedAt : undefined
+      );
+
+      const elapsedStr = formatDuration(elapsed);
+      const pauseStatus = session.isPaused ? '⏸️ Paused' : '▶️ Active';
+
+      logger.info(`Session time for user ${user.id}: ${elapsedStr} (${pauseStatus})`);
+
       await interaction.editReply({
-        content: 'No active session. Use /start {activity} to begin tracking!',
-      });
-      return;
-    }
-
-    const elapsed = calculateDuration(
-      session.startTime,
-      session.pausedDuration,
-      session.isPaused ? session.pausedAt : undefined
-    );
-
-    const elapsedStr = formatDuration(elapsed);
-    const pauseStatus = session.isPaused ? '⏸️ Paused' : '▶️ Active';
-
-    logger.info(`Session time for user ${user.id}: ${elapsedStr} (${pauseStatus})`);
-
-    await interaction.editReply({
-      content: `**Current Session**
+        content: `**Current Session**
 
 **Status:** ${pauseStatus}
 **Activity:** ${session.activity}
 **Elapsed Time:** ${elapsedStr}`,
-    });
+      });
+    } catch (error) {
+      logger.error('Error checking session time:', error);
+      await interaction.editReply({
+        content: 'Failed to retrieve session information. Please try again later.',
+      });
+    }
   },
 };

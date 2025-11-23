@@ -111,7 +111,7 @@ export interface UserStats {
   consecutiveWeekendStreak?: number;  // Current streak of consecutive weekends with both Sat+Sun sessions
   fullWeeksCompleted?: number;        // Weeks with sessions on all 7 days
   bestMonthDaysCount?: number;        // Highest number of days studied in any single month
-  newRecordUnlocked?: boolean;        // Temporary flag indicating user beat their personal best
+  newRecordUnlocked?: boolean;        // Flag indicating user beat their personal best (triggers new_record achievement)
   weekdayTracking?: {                 // Map of week key -> array of days with sessions (0-6)
     [weekKey: string]: number[];      // Example: { '2025-W03': [0, 1, 6] } = Sun, Mon, Sat
   };

@@ -12,6 +12,9 @@ import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { DailyGoal, Goal } from '../types';
 import { getDateKey } from '../utils/formatters';
 import { randomUUID } from 'crypto';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('DailyGoalService');
 
 /**
  * Service for managing user daily goals
@@ -46,7 +49,7 @@ export class DailyGoalService {
 
       return doc.data() as DailyGoal;
     } catch (error) {
-      console.error('Error getting daily goal:', error);
+      logger.error('Error getting daily goal:', error);
       throw error;
     }
   }
@@ -106,7 +109,7 @@ export class DailyGoalService {
 
       return newGoal;
     } catch (error) {
-      console.error('Error adding goal:', error);
+      logger.error('Error adding goal:', error);
       throw error;
     }
   }
@@ -158,7 +161,7 @@ export class DailyGoalService {
 
       return { goal, xpAwarded };
     } catch (error) {
-      console.error('Error completing goal:', error);
+      logger.error('Error completing goal:', error);
       throw error;
     }
   }
@@ -175,7 +178,7 @@ export class DailyGoalService {
 
       return (dailyGoal.goals || []).filter((g) => !g.isCompleted);
     } catch (error) {
-      console.error('Error getting active goals:', error);
+      logger.error('Error getting active goals:', error);
       throw error;
     }
   }
@@ -192,7 +195,7 @@ export class DailyGoalService {
 
       return dailyGoal.goals || [];
     } catch (error) {
-      console.error('Error getting all goals:', error);
+      logger.error('Error getting all goals:', error);
       throw error;
     }
   }
@@ -252,7 +255,7 @@ export class DailyGoalService {
 
       return dailyGoalData;
     } catch (error) {
-      console.error('Error setting daily goal:', error);
+      logger.error('Error setting daily goal:', error);
       throw error;
     }
   }
@@ -270,7 +273,7 @@ export class DailyGoalService {
       const dateKey = getDateKey(date);
       return dailyGoal.goalsByDay[dateKey] || null;
     } catch (error) {
-      console.error('Error getting goal for date:', error);
+      logger.error('Error getting goal for date:', error);
       throw error;
     }
   }

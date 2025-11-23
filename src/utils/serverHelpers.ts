@@ -104,13 +104,14 @@ export async function postSessionStartToFeed(
     await textChannel.send({
       files: [attachment],
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Log detailed error for debugging
-    if (error.code === 50001) {
+    const discordError = error as { code?: number };
+    if (discordError.code === 50001) {
       logger.error(
         `Bot lacks access to feed channel. Please ensure the bot has 'View Channel' permission.`
       );
-    } else if (error.code === 50013) {
+    } else if (discordError.code === 50013) {
       logger.error(
         `Bot lacks permissions in feed channel. Please ensure the bot has 'Send Messages' and 'Embed Links' permissions.`
       );

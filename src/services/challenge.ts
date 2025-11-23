@@ -1,6 +1,9 @@
 import { Firestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { WeeklyChallenge, UserStats } from '../types';
 import { calculateLevel } from '../utils/xp';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('WeeklyChallengeService');
 
 /**
  * Weekly Challenge Service - Manages weekly XP challenges and leaderboards
@@ -90,7 +93,7 @@ export class WeeklyChallengeService {
     };
 
     await challengeRef.set(newChallenge);
-    console.log(`[CHALLENGE] Created new weekly challenge for ${weekKey}`);
+    logger.info(`Created new weekly challenge for ${weekKey}`);
 
     return newChallenge;
   }
@@ -175,7 +178,7 @@ export class WeeklyChallengeService {
         completedBy: FieldValue.arrayUnion(userId)
       });
 
-      console.log(`[CHALLENGE] User ${userId} completed weekly challenge! Awarded ${bonusXpAwarded} bonus XP`);
+      logger.info(`User ${userId} completed weekly challenge! Awarded ${bonusXpAwarded} bonus XP`);
     }
 
     // Update weekly leaderboard

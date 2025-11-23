@@ -8,11 +8,21 @@
 import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import type { Command } from '../types';
-import { GroupService } from '../../services/groups';
+import { GroupService, GroupMembership } from '../../services/groups';
 import { groupOverviewImageService } from '../../services/groupOverviewImage';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('GroupCommand');
+
+/**
+ * Group member with stats for display
+ */
+interface GroupMemberWithStats {
+  membership: GroupMembership;
+  totalHours: number;
+  totalSessions: number;
+  currentStreak: number;
+}
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -128,7 +138,7 @@ export const command: Command = {
       const weekStartTimestamp = Timestamp.fromDate(startOfWeek);
 
       // Get member stats with all-time hours
-      const memberStatsPromises = members.map(async (member: any) => {
+      const memberStatsPromises = members.map(async (member: GroupMemberWithStats) => {
         const userId = member.membership?.userId;
         const username = member.membership?.username || 'Unknown User';
 

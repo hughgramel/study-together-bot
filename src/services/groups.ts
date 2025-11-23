@@ -14,6 +14,9 @@
  */
 
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('GroupService');
 
 /**
  * Group record - represents a study group
@@ -130,7 +133,7 @@ export class GroupService {
         }
 
         attempts++;
-        console.log(`[GROUP CREATE] ID collision detected (${groupId}), retry ${attempts}/${maxAttempts}`);
+        logger.info(`ID collision detected (${groupId}), retry ${attempts}/${maxAttempts}`);
       }
 
       if (attempts === maxAttempts) {
@@ -178,11 +181,11 @@ export class GroupService {
         .doc(ownerId)
         .set(membership);
 
-      console.log(`[GROUP CREATE] Created group ${groupId!} (${name}) by ${ownerUsername}`);
+      logger.info(`Created group ${groupId!} (${name}) by ${ownerUsername}`);
 
       return group;
     } catch (error) {
-      console.error('[GROUP CREATE] Error creating group:', error);
+      logger.error('Error creating group:', error);
       throw new Error('Failed to create group');
     }
   }
@@ -205,7 +208,7 @@ export class GroupService {
 
       return doc.data() as Group;
     } catch (error) {
-      console.error('[GROUP GET] Error getting group:', error);
+      logger.error('Error getting group:', error);
       return null;
     }
   }
@@ -245,7 +248,7 @@ export class GroupService {
 
       return { membership, group };
     } catch (error) {
-      console.error('[GROUP GET USER] Error getting user group:', error);
+      logger.error('Error getting user group:', error);
       return null;
     }
   }
@@ -316,9 +319,9 @@ export class GroupService {
         });
       });
 
-      console.log(`[GROUP ADD MEMBER] Added ${username} to group ${groupId}`);
+      logger.info(`Added ${username} to group ${groupId}`);
     } catch (error) {
-      console.error('[GROUP ADD MEMBER] Error adding member:', error);
+      logger.error('Error adding member:', error);
       throw error;
     }
   }
@@ -387,17 +390,17 @@ export class GroupService {
         }
       });
 
-      console.log(`[GROUP REMOVE MEMBER] Removed user ${userId} from group ${groupId}`);
+      logger.info(`Removed user ${userId} from group ${groupId}`);
 
       if (wasAutoDeleted) {
-        console.log(`[GROUP AUTO-DELETE] Deleted group ${groupId} (${groupName}) - no members remaining`);
+        logger.info(`Deleted group ${groupId} (${groupName}) - no members remaining`);
       } else {
         // Recalculate group stats (total hours and level) now that member is removed
         await this.updateGroupStats(groupId);
-        console.log(`[GROUP REMOVE MEMBER] Recalculated stats for group ${groupId} after member removal`);
+        logger.info(`Recalculated stats for group ${groupId} after member removal`);
       }
     } catch (error) {
-      console.error('[GROUP REMOVE MEMBER] Error removing member:', error);
+      logger.error('Error removing member:', error);
       throw error;
     }
   }
@@ -453,9 +456,9 @@ export class GroupService {
         await groupRef.delete();
       }
 
-      console.log(`[GROUP DELETE] Deleted group ${groupId} and ${membershipsSnapshot.size} memberships`);
+      logger.info(`Deleted group ${groupId} and ${membershipsSnapshot.size} memberships`);
     } catch (error) {
-      console.error('[GROUP DELETE] Error deleting group:', error);
+      logger.error('Error deleting group:', error);
       throw new Error('Failed to delete group');
     }
   }
@@ -482,7 +485,7 @@ export class GroupService {
 
       return snapshot.docs.map((doc) => doc.data() as Group);
     } catch (error) {
-      console.error('[GROUP GET PUBLIC] Error getting public groups:', error);
+      logger.error('Error getting public groups:', error);
       return [];
     }
   }
@@ -508,7 +511,7 @@ export class GroupService {
         .get();
 
       if (membershipsSnapshot.empty) {
-        console.log(`[GROUP UPDATE STATS] No members found for group ${groupId}`);
+        logger.info(`No members found for group ${groupId}`);
         return;
       }
 
@@ -550,9 +553,9 @@ export class GroupService {
           updatedAt: Timestamp.now(),
         });
 
-      console.log(`[GROUP UPDATE STATS] Updated group ${groupId}: ${totalHours.toFixed(1)}h, level ${newLevel}`);
+      logger.info(`Updated group ${groupId}: ${totalHours.toFixed(1)}h, level ${newLevel}`);
     } catch (error) {
-      console.error('[GROUP UPDATE STATS] Error updating group stats:', error);
+      logger.error('Error updating group stats:', error);
       throw error;
     }
   }
@@ -625,9 +628,9 @@ export class GroupService {
         });
       });
 
-      console.log(`[GROUP TRANSFER] Transferred ownership of ${groupId} to ${newOwnerUsername}`);
+      logger.info(`Transferred ownership of ${groupId} to ${newOwnerUsername}`);
     } catch (error) {
-      console.error('[GROUP TRANSFER] Error transferring ownership:', error);
+      logger.error('Error transferring ownership:', error);
       throw error;
     }
   }
@@ -640,7 +643,7 @@ export class GroupService {
       const group = await this.getGroup(groupId);
       return group?.ownerId === userId;
     } catch (error) {
-      console.error('[GROUP CHECK OWNER] Error checking ownership:', error);
+      logger.error('Error checking ownership:', error);
       return false;
     }
   }
@@ -658,7 +661,7 @@ export class GroupService {
 
       return group.memberCount < group.maxMembers;
     } catch (error) {
-      console.error('[GROUP CHECK SPACE] Error checking space:', error);
+      logger.error('Error checking space:', error);
       return false;
     }
   }
@@ -720,7 +723,7 @@ export class GroupService {
       // Sort by total hours descending
       return members.sort((a, b) => b.totalHours - a.totalHours);
     } catch (error) {
-      console.error('[GROUP GET MEMBERS] Error getting group members:', error);
+      logger.error('Error getting group members:', error);
       return [];
     }
   }
@@ -745,7 +748,7 @@ export class GroupService {
 
       return snapshot.docs.map((doc) => doc.data() as Group);
     } catch (error) {
-      console.error('[GROUP GET ALL SERVER] Error getting server groups:', error);
+      logger.error('Error getting server groups:', error);
       return [];
     }
   }
@@ -797,9 +800,9 @@ export class GroupService {
         .doc(groupId)
         .update(updateData);
 
-      console.log(`[GROUP UPDATE SETTINGS] Updated settings for group ${groupId}`);
+      logger.info(`Updated settings for group ${groupId}`);
     } catch (error) {
-      console.error('[GROUP UPDATE SETTINGS] Error updating settings:', error);
+      logger.error('Error updating settings:', error);
       throw error;
     }
   }

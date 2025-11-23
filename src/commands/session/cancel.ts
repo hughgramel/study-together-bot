@@ -22,28 +22,38 @@ export const command: Command = {
 
     logger.info(`User ${user.username} (${user.id}) cancelling session`);
 
-    // Initialize session service
-    const sessionService = new SessionService(db);
+    try {
+      // Initialize session service
+      const sessionService = new SessionService(db);
 
-    const session = await sessionService.getActiveSession(user.id);
+      const session = await sessionService.getActiveSession(user.id);
 
-    if (!session) {
-      logger.warn(`User ${user.id} has no active session to cancel`);
+      if (!session) {
+        logger.warn(`User ${user.id} has no active session to cancel`);
+        await interaction.reply({
+          content: 'No active session to cancel.',
+          ephemeral: false,
+        });
+        return;
+      }
+
+      await sessionService.deleteActiveSession(user.id);
+
+      logger.info(`Session cancelled for user ${user.id}`);
+
       await interaction.reply({
-        content: 'No active session to cancel.',
+        content:
+          '❌ Session cancelled. No stats were updated and nothing was posted to the feed.',
         ephemeral: false,
       });
-      return;
+    } catch (error) {
+      logger.error('Error cancelling session:', error);
+      await interaction.reply({
+        content: 'Failed to cancel session. Please try again later.',
+        ephemeral: true,
+      }).catch(() => {
+        // Ignore if reply fails
+      });
     }
-
-    await sessionService.deleteActiveSession(user.id);
-
-    logger.info(`Session cancelled for user ${user.id}`);
-
-    await interaction.reply({
-      content:
-        '❌ Session cancelled. No stats were updated and nothing was posted to the feed.',
-      ephemeral: false,
-    });
   },
 };

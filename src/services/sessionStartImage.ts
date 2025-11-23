@@ -12,6 +12,9 @@ import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import SessionStartCard from '../components/SessionStartCard';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('SessionStartImageService');
 
 /**
  * Service for rendering session start notification cards as images
@@ -25,7 +28,7 @@ class SessionStartImageService {
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected
     if (this.browser && !this.browser.connected) {
-      console.log('[SessionStartImageService] Browser disconnected, recreating...');
+      logger.info('Browser disconnected, recreating...');
       try {
         await this.browser.close();
       } catch (e) {
@@ -35,7 +38,7 @@ class SessionStartImageService {
     }
 
     if (!this.browser) {
-      console.log('[SessionStartImageService] Launching new browser instance...');
+      logger.info('Launching new browser instance...');
       this.browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -46,7 +49,7 @@ class SessionStartImageService {
         ],
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       });
-      console.log('[SessionStartImageService] Browser launched successfully');
+      logger.info('Browser launched successfully');
     }
 
     return this.browser;

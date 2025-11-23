@@ -23,46 +23,56 @@ export const command: Command = {
 
     logger.info(`User ${user.username} (${user.id}) resuming session`);
 
-    // Initialize session service
-    const sessionService = new SessionService(db);
+    try {
+      // Initialize session service
+      const sessionService = new SessionService(db);
 
-    const session = await sessionService.getActiveSession(user.id);
+      const session = await sessionService.getActiveSession(user.id);
 
-    if (!session) {
-      logger.warn(`User ${user.id} has no active session`);
+      if (!session) {
+        logger.warn(`User ${user.id} has no active session`);
+        await interaction.reply({
+          content: 'No active session to resume.',
+          ephemeral: false,
+        });
+        return;
+      }
+
+      if (!session.isPaused) {
+        logger.warn(`User ${user.id} session is not paused`);
+        await interaction.reply({
+          content: 'Session is not paused.',
+          ephemeral: false,
+        });
+        return;
+      }
+
+      // Calculate paused duration
+      const pausedDuration = session.pausedDuration || 0;
+      const pauseTime = session.pausedAt
+        ? (Timestamp.now().toMillis() - session.pausedAt.toMillis()) / 1000
+        : 0;
+
+      await sessionService.updateActiveSession(user.id, {
+        isPaused: false,
+        pausedDuration: pausedDuration + pauseTime,
+        pausedAt: undefined as any, // Remove pausedAt field
+      });
+
+      logger.info(`Session resumed for user ${user.id}`);
+
       await interaction.reply({
-        content: 'No active session to resume.',
+        content: '▶️ Session resumed. Keep up the great work!',
         ephemeral: false,
       });
-      return;
-    }
-
-    if (!session.isPaused) {
-      logger.warn(`User ${user.id} session is not paused`);
+    } catch (error) {
+      logger.error('Error resuming session:', error);
       await interaction.reply({
-        content: 'Session is not paused.',
-        ephemeral: false,
+        content: 'Failed to resume session. Please try again later.',
+        ephemeral: true,
+      }).catch(() => {
+        // Ignore if reply fails
       });
-      return;
     }
-
-    // Calculate paused duration
-    const pausedDuration = session.pausedDuration || 0;
-    const pauseTime = session.pausedAt
-      ? (Timestamp.now().toMillis() - session.pausedAt.toMillis()) / 1000
-      : 0;
-
-    await sessionService.updateActiveSession(user.id, {
-      isPaused: false,
-      pausedDuration: pausedDuration + pauseTime,
-      pausedAt: undefined as any, // Remove pausedAt field
-    });
-
-    logger.info(`Session resumed for user ${user.id}`);
-
-    await interaction.reply({
-      content: '▶️ Session resumed. Keep up the great work!',
-      ephemeral: false,
-    });
   },
 };

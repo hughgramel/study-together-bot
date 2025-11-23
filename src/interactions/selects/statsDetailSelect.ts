@@ -18,6 +18,7 @@ import { SessionService } from '../../services/sessions';
 import { StatsOverviewImageService } from '../../services/statsOverviewImage';
 import { getStartOfDayPacific, getStartOfMonthPacific } from '../../utils/timeHelpers';
 import { createLogger } from '../../utils/logger';
+import { CompletedSession } from '../../types';
 
 const logger = createLogger('StatsDetailSelect');
 
@@ -115,7 +116,7 @@ export async function handleStatsDetailSelect(
       Timestamp.fromDate(startTime)
     );
 
-    let previousSessions: any[] = [];
+    let previousSessions: CompletedSession[] = [];
     if (timeframe !== 'all-time') {
       const allPreviousSessions = await sessionService.getCompletedSessions(
         user.id,
@@ -263,7 +264,7 @@ export async function handleStatsDetailSelect(
         Timestamp.fromDate(monthStart)
       );
 
-      const calculateValue = (sessions: any[]) => {
+      const calculateValue = (sessions: CompletedSession[]) => {
         if (metric === 'hours') {
           return Math.round(sessions.reduce((sum, s) => sum + s.duration, 0) / 3600);
         } else if (metric === 'sessions') {
