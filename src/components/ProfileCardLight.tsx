@@ -96,15 +96,8 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
           <h2 className="text-[#3C3C3C] text-3xl font-extrabold">
             {username.length > 10 ? username.substring(0, 10) + '...' : username}
           </h2>
-          {groupName && groupLevel && (
-            <div className="flex items-center gap-2 mt-2">
-              {/* Shield with level number inside */}
-              <div className="relative flex-shrink-0">
-                <Shield className={`w-7 h-7 ${getShieldColor()}`} fill="currentColor" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-extrabold text-white">{groupLevel}</span>
-                </div>
-              </div>
+          {groupName && (
+            <div className="mt-2">
               <span className="text-[#666666] text-lg font-semibold">
                 {groupName}
               </span>

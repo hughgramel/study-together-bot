@@ -154,7 +154,7 @@ export const LeaderboardCardLight: React.FC<LeaderboardCardLightProps> = ({
                   style={{ color: getShieldColor(level) }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-base font-extrabold text-white mt-0.5">{level}</span>
+                  <span className="text-base font-extrabold text-[#1a1a1a] mt-0.5">{level}</span>
                 </div>
               </div>
 
@@ -205,7 +205,7 @@ export const LeaderboardCardLight: React.FC<LeaderboardCardLightProps> = ({
                   style={{ color: getShieldColor(calculateLevel(currentUser.xp)) }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-base font-extrabold text-white mt-0.5">{calculateLevel(currentUser.xp)}</span>
+                  <span className="text-base font-extrabold text-[#1a1a1a] mt-0.5">{calculateLevel(currentUser.xp)}</span>
                 </div>
               </div>
 

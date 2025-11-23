@@ -81,7 +81,7 @@ export const FindGroups: React.FC<FindGroupsProps> = ({ groups, currentPage, tot
                 style={{ color: getShieldColor(group.groupLevel) }}
               />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xl font-extrabold text-white mt-0.5">{group.groupLevel}</span>
+                <span className="text-xl font-extrabold text-[#1a1a1a] mt-0.5">{group.groupLevel}</span>
               </div>
             </div>
 
