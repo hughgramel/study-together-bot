@@ -64,8 +64,8 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
       {/* Level Progress Bar - Top Right */}
       <div className="absolute top-11 right-16 w-80">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-[#3C3C3C] text-xl font-bold">Level {level}</span>
-          <span className="text-[#555555] text-lg font-semibold">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
+          <span className="text-[#3C3C3C] text-2xl font-bold">Level {level}</span>
+          <span className="text-[#555555] text-xl font-semibold">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
         </div>
         <div className="h-5 bg-[#E5E5E5] rounded-full overflow-hidden border-2 border-[#D7D7D7]">
           <div

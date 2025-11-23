@@ -99,8 +99,8 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       {/* Level Progress Bar - Top Right */}
       <div className="absolute top-11 right-16 w-80">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-[#EFEFEF] text-xl font-bold">Level {level}</span>
-          <span className="text-[#DBDEE1] text-lg font-semibold">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
+          <span className="text-[#EFEFEF] text-2xl font-bold">Level {level}</span>
+          <span className="text-[#DBDEE1] text-xl font-semibold">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
         </div>
         <div className="h-5 bg-[#1F2B31] rounded-full overflow-hidden border border-[#2E3D44]">
           <div
