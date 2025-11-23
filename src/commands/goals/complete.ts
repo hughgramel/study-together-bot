@@ -10,6 +10,8 @@ import type { Command } from '../types';
 import { TaskService } from '../../services/tasks';
 import { XPService } from '../../services/xp';
 import { GroupService } from '../../services/groups';
+import { StatsService } from '../../services/stats';
+import { calculateUserLevelBonus } from '../../utils/xp';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('CompleteCommand');
@@ -86,6 +88,7 @@ export const command: Command = {
         const taskService = new TaskService(db);
         const xpService = new XPService(db);
         const groupService = new GroupService(db);
+        const statsService = new StatsService(db);
 
         // Get user's active goals
         const activeTasks = await taskService.getActiveTasks(user.id);
@@ -128,19 +131,23 @@ export const command: Command = {
           return;
         }
 
+        // Calculate user level bonus
+        const userStats = await statsService.getUserStats(user.id);
+        const userLevelBonus = (userStats && userStats.xp) ? calculateUserLevelBonus(userStats.xp) : 0;
+
         // Calculate group bonus
         let groupXpBonus = 0;
-        let finalXP = baseXP;
+        let finalXP = Math.ceil(baseXP * (1 + userLevelBonus));
 
         try {
           const userGroupData = await groupService.getUserGroup(user.id);
           if (userGroupData) {
             groupXpBonus = groupService.calculateXpModifier(userGroupData.group.level);
-            finalXP = Math.ceil(baseXP * (1 + groupXpBonus));
+            finalXP = Math.ceil(finalXP * (1 + groupXpBonus));
           }
         } catch (error) {
-          // User not in a group, use base XP
-          logger.info(`User ${user.id} not in a group, using base XP`);
+          // User not in a group, use base XP with user level bonus only
+          logger.info(`User ${user.id} not in a group, using base XP with user level bonus`);
         }
 
         // Award XP
@@ -155,8 +162,15 @@ export const command: Command = {
         message += completedTasks.map((task) => `• ${task.description}`).join('\n');
         message += `\n\n**+${finalXP} XP**`;
 
-        if (groupXpBonus > 0) {
-          message += ` (${baseXP} base + ${Math.round(groupXpBonus * 100)}% group bonus)`;
+        if (userLevelBonus > 0 || groupXpBonus > 0) {
+          const bonuses = [];
+          if (userLevelBonus > 0) {
+            bonuses.push(`${Math.round(userLevelBonus * 1000) / 10}% level`);
+          }
+          if (groupXpBonus > 0) {
+            bonuses.push(`${Math.round(groupXpBonus * 100)}% group`);
+          }
+          message += ` (${baseXP} base + ${bonuses.join(' + ')} bonus)`;
         }
 
         if (xpResult.leveledUp) {

@@ -59,13 +59,39 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
     return 'text-[#B9F2FF]'; // Diamond
   };
 
+  // Calculate user level XP bonus (0.1% per level)
+  const userLevelBonus = level * 0.1;
+
+  /**
+   * Determines shield color based on user level tier
+   */
+  const getUserShieldColor = () => {
+    if (level <= 20) return 'text-[#CD7F32]'; // Bronze
+    if (level <= 40) return 'text-[#C0C0C0]'; // Silver
+    if (level <= 60) return 'text-[#FFD700]'; // Gold
+    if (level <= 80) return 'text-[#00CED1]'; // Platinum
+    return 'text-[#B9F2FF]'; // Diamond
+  };
+
   return (
     <div className="w-[700px] h-[650px] bg-white flex flex-col p-10 pb-6 relative">
-      {/* Level Progress Bar - Top Right */}
+      {/* Level Shield and XP Boost - Top Left of Progress Bar */}
       <div className="absolute top-11 right-16 w-80">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-[#3C3C3C] text-2xl font-bold">Level {level}</span>
-          <span className="text-[#555555] text-xl font-semibold">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
+        <div className="flex items-center gap-3 mb-2">
+          {/* Level Shield */}
+          <div className="relative flex-shrink-0">
+            <Shield className={`w-12 h-12 ${getUserShieldColor()}`} fill="currentColor" />
+            <span className="absolute inset-0 flex items-center justify-center text-black text-lg font-extrabold" style={{ paddingTop: '2px' }}>
+              {level}
+            </span>
+          </div>
+          {/* XP Boost */}
+          <div className="flex items-center gap-1.5">
+            <Zap className="w-5 h-5 text-[#CE82FF]" fill="#CE82FF" />
+            <span className="text-[#CE82FF] text-xl font-bold">+{userLevelBonus.toFixed(1)}%</span>
+          </div>
+          {/* XP Progress - pushed to the right */}
+          <span className="text-[#555555] text-xl font-semibold ml-auto">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
         </div>
         <div className="h-5 bg-[#E5E5E5] rounded-full overflow-hidden border-2 border-[#D7D7D7]">
           <div

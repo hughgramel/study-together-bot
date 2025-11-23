@@ -101,6 +101,24 @@ export function levelProgress(currentXp: number): number {
 }
 
 /**
+ * Calculate user level XP bonus (0.1% per level)
+ * This bonus is applied to all XP earned from sessions and goals
+ *
+ * @param currentXp - Current total XP
+ * @returns User level bonus as a decimal (e.g., 0.019 for 1.9% at level 19)
+ *
+ * @example
+ * calculateUserLevelBonus(0)     // Returns 0.001 (level 1 = 0.1% bonus)
+ * calculateUserLevelBonus(3162)  // Returns 0.01 (level 10 = 1% bonus)
+ * calculateUserLevelBonus(8944)  // Returns 0.019 (level 19 = 1.9% bonus)
+ */
+export function calculateUserLevelBonus(currentXp: number): number {
+  const level = calculateLevel(currentXp);
+  // 0.1% per level = level * 0.001
+  return level * 0.001;
+}
+
+/**
  * Award XP to a user and calculate level-up information
  * This is a pure function - it doesn't modify any data, just calculates the result
  *

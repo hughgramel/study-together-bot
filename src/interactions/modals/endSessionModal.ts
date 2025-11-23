@@ -14,7 +14,7 @@ import { GroupService } from '../../services/groups';
 import { AchievementService } from '../../services/achievements';
 import { getAchievement } from '../../data/achievements';
 import { calculateDuration, formatDuration } from '../../utils/formatters';
-import { calculateLevel } from '../../utils/xp';
+import { calculateLevel, calculateUserLevelBonus } from '../../utils/xp';
 import {
   postSessionToFeed,
   postLevelUpToFeed,
@@ -97,6 +97,10 @@ export async function handleEndSessionModal(
       intensity,
     });
 
+    // Calculate user level XP bonus
+    const userStats = await statsService.getUserStats(user.id);
+    const userLevelBonus = (userStats && userStats.xp) ? calculateUserLevelBonus(userStats.xp) : 0;
+
     // Check if user is in a group to apply XP bonus
     let groupXpBonus = 0;
     try {
@@ -111,14 +115,15 @@ export async function handleEndSessionModal(
       logger.error('Error fetching group for XP bonus:', error);
     }
 
-    // Update stats and award XP (with group bonus)
+    // Update stats and award XP (with user level and group bonuses)
     const statsUpdate = await statsService.updateUserStats(
       user.id,
       user.username,
       duration,
       session.activity,
       intensity,
-      groupXpBonus
+      groupXpBonus,
+      userLevelBonus
     );
 
     // Update completed session with XP gained (for leaderboards)
