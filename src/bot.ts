@@ -36,8 +36,15 @@ async function main(): Promise<void> {
     logger.info('Firebase initialized');
 
     // Initialize browser pool for image generation
-    await browserPool.warmup();
-    logger.info('Browser pool initialized');
+    // Can be skipped during development with SKIP_BROWSER_WARMUP=true
+    if (process.env.SKIP_BROWSER_WARMUP !== 'true') {
+      await browserPool.warmup();
+      logger.info('Browser pool initialized');
+    } else {
+      logger.info(
+        'Browser warmup skipped (SKIP_BROWSER_WARMUP=true) - browser will launch on-demand'
+      );
+    }
 
     // Create Discord client
     const client = createDiscordClient();

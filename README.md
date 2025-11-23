@@ -25,9 +25,14 @@ cp .env.example .env
 # Add: DISCORD_BOT_TOKEN, DISCORD_CLIENT_ID, FIREBASE_PROJECT_ID
 # Place: firebase-service-account.json in project root
 
-# 3. Run the bot
+# 3. Test Puppeteer (especially on Windows)
+npm run test:puppeteer
+
+# 4. Run the bot
 npm run dev
 ```
+
+**Windows users**: If you encounter Puppeteer issues, see [WINDOWS_SETUP.md](./WINDOWS_SETUP.md) for detailed setup instructions.
 
 ### For Production
 

@@ -13,6 +13,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:puppeteer": "ts-node scripts/test-puppeteer.ts",
     "test:groups": "ts-node src/commands/groups/__tests__/creategroup.test.ts && ts-node src/commands/groups/__tests__/joingroup.test.ts && ts-node src/commands/groups/__tests__/leavegroup.test.ts && ts-node src/commands/groups/__tests__/groupadmin.test.ts && ts-node src/commands/groups/__tests__/group.test.ts",
     "test:groups:integration": "ts-node src/__tests__/groups.integration.test.ts",
     "test:groups:all": "npm run test:groups && npm run test:groups:integration",

@@ -16,3 +16,6 @@ dist/
 *.backup[0-9]
 *.vc_backup
 *~
+
+# Test files
+test-screenshot.png

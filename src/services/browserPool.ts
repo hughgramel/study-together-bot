@@ -61,54 +61,109 @@ class BrowserPoolService {
 
   /**
    * Launch a new browser instance with optimized settings for Railway/production
+   * Supports both Windows and Unix-based systems
    */
   private async launchBrowser(): Promise<Browser> {
-    console.log('[BrowserPool] Launching new browser instance...');
+    const isWindows = process.platform === 'win32';
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--disable-dev-tools',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process', // Critical for Railway - prevents thread exhaustion
-        '--disable-background-networking',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-breakpad',
-        '--disable-component-extensions-with-background-pages',
-        '--disable-features=TranslateUI',
-        '--disable-ipc-flooding-protection',
-        '--disable-renderer-backgrounding',
-        '--metrics-recording-only',
-        '--mute-audio',
-      ],
-      // Set timeout to prevent hanging
-      timeout: 30000,
-    });
+    console.log(
+      `[BrowserPool] Launching browser on ${process.platform} (${isProduction ? 'production' : 'development'})`
+    );
 
-    console.log('[BrowserPool] Browser launched successfully');
+    // Base args that work on all platforms
+    const baseArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-extensions',
+      '--disable-dev-tools',
+      '--no-first-run',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-extensions-with-background-pages',
+      '--disable-features=TranslateUI',
+      '--disable-ipc-flooding-protection',
+      '--disable-renderer-backgrounding',
+      '--metrics-recording-only',
+      '--mute-audio',
+    ];
 
-    // Set up cleanup on process termination
-    process.once('SIGINT', () => this.cleanup());
-    process.once('SIGTERM', () => this.cleanup());
+    // Add platform-specific args
+    const platformArgs = isWindows
+      ? [
+          // Windows-specific args
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--disable-site-isolation-trials',
+        ]
+      : [
+          // Unix-specific args
+          '--no-zygote',
+        ];
 
-    return browser;
+    // Only use single-process in production (Railway) to prevent thread exhaustion
+    // On Windows development, avoid single-process as it can cause crashes
+    const processArgs =
+      isProduction && !isWindows ? ['--single-process'] : [];
+
+    try {
+      // Get executable path for debugging
+      const executablePath = isWindows
+        ? process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath()
+        : puppeteer.executablePath();
+
+      console.log(`[BrowserPool] Chrome executable: ${executablePath}`);
+      console.log(
+        `[BrowserPool] Launch args: ${[...baseArgs, ...platformArgs, ...processArgs].join(' ')}`
+      );
+
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [...baseArgs, ...platformArgs, ...processArgs],
+        // Set timeout to prevent hanging
+        timeout: 30000,
+        // On Windows, explicitly handle executable path if needed
+        ...(isWindows && {
+          executablePath,
+        }),
+      });
+
+      console.log(`[BrowserPool] Browser launched successfully`);
+
+      // Set up cleanup on process termination
+      process.once('SIGINT', () => this.cleanup());
+      process.once('SIGTERM', () => this.cleanup());
+
+      return browser;
+    } catch (error) {
+      console.error('[BrowserPool] Failed to launch browser:', error);
+      throw error;
+    }
   }
 
   /**
    * Pre-warm the browser during bot startup
+   * Makes startup slower but catches browser issues early
+   * If warmup fails, browser will be launched on-demand instead
    */
   async warmup(): Promise<void> {
     console.log('[BrowserPool] Warming up browser...');
-    await this.getBrowser();
-    console.log('[BrowserPool] Browser ready');
+
+    try {
+      await this.getBrowser();
+      console.log('[BrowserPool] Browser ready');
+    } catch (error) {
+      console.error('[BrowserPool] Browser warmup failed:', error);
+      console.log(
+        '[BrowserPool] Bot will continue - browser will launch on-demand when needed'
+      );
+      // Don't throw - allow bot to start even if browser warmup fails
+      // Browser will be launched on-demand when image generation is needed
+    }
   }
 
   /**
