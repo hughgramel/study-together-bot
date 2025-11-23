@@ -164,21 +164,16 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {entry.username}
                 </h3>
-                <p className="text-sm text-[#AFAFAF]">Level {level}</p>
+                <p className="text-base font-bold text-[#DBDEE1]">Level {level}</p>
               </div>
 
               {/* Stats */}
               <div className="flex items-center gap-6 mr-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xl font-extrabold text-[#EFEFEF]">{entry.xp.toLocaleString()}</span>
-                  <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
+                  <Zap className="w-5 h-5 text-[#A78BFA] -mt-0.5" fill="#A78BFA" />
                 </div>
-                <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#EFEFEF]">
-                    {hours}h
-                  </div>
-                  <div className="text-sm text-[#AFAFAF]">Time</div>
-                </div>
+                <span className="text-xl font-extrabold text-[#EFEFEF]">{hours}h</span>
               </div>
             </div>
           );
@@ -209,7 +204,7 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {currentUser.username} (You)
                 </h3>
-                <p className="text-sm text-[#AFAFAF]">
+                <p className="text-base font-bold text-[#DBDEE1]">
                   Level {calculateLevel(currentUser.xp)}
                 </p>
               </div>
@@ -218,14 +213,9 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
               <div className="flex items-center gap-6 mr-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xl font-extrabold text-[#EFEFEF]">{currentUser.xp.toLocaleString()}</span>
-                  <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
+                  <Zap className="w-5 h-5 text-[#A78BFA] -mt-0.5" fill="#A78BFA" />
                 </div>
-                <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#EFEFEF]">
-                    {Math.floor(currentUser.totalDuration / 3600)}h
-                  </div>
-                  <div className="text-sm text-[#AFAFAF]">Time</div>
-                </div>
+                <span className="text-xl font-extrabold text-[#EFEFEF]">{Math.floor(currentUser.totalDuration / 3600)}h</span>
               </div>
             </div>
           </>
