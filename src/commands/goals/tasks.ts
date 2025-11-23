@@ -43,35 +43,44 @@ export const command: Command = {
         return;
       }
 
-      // Create embed showing tasks
+      // Build task list as description
+      const taskList = activeTasks
+        .map((task, index) => `**${index + 1}.** ${task.description}`)
+        .join('\n\n');
+
       const embed = new EmbedBuilder()
         .setColor(0x0080ff)
         .setTitle('📋 Your Active Tasks')
-        .setDescription(
-          activeTasks.map((task, index) => `${index + 1}. ${task.description}`).join('\n')
-        )
+        .setDescription(taskList)
         .setFooter({ text: `${activeTasks.length} active task${activeTasks.length !== 1 ? 's' : ''}` });
 
-      // Create buttons for completing tasks
+      // Create rows with one button per task (placed on the same line)
       // Discord limits: 5 buttons per row, 5 rows max (25 buttons total)
-      const buttons: ButtonBuilder[] = [];
       const rows: ActionRowBuilder<ButtonBuilder>[] = [];
 
-      // Show up to 20 tasks (4 rows of 5 buttons)
-      const maxTasks = Math.min(activeTasks.length, 20);
+      // Show up to 25 tasks (5 rows of 5 buttons max)
+      const maxTasks = Math.min(activeTasks.length, 25);
 
+      // Create individual task buttons
       for (let i = 0; i < maxTasks; i++) {
         const task = activeTasks[i];
         const button = new ButtonBuilder()
           .setCustomId(`complete_task_${task.id}`)
-          .setLabel(`${i + 1}`)
+          .setLabel(`Complete ${i + 1}`)
           .setStyle(ButtonStyle.Secondary)
           .setEmoji('✅');
 
-        buttons.push(button);
+        // Add to current row or create new row
+        const currentRowIndex = Math.floor(i / 5);
+
+        if (!rows[currentRowIndex]) {
+          rows[currentRowIndex] = new ActionRowBuilder<ButtonBuilder>();
+        }
+
+        rows[currentRowIndex].addComponents(button);
       }
 
-      // Add "Complete All" button if there are multiple tasks
+      // Add "Complete All" button on the last row if there are multiple tasks
       if (activeTasks.length > 1) {
         const completeAllButton = new ButtonBuilder()
           .setCustomId(`complete_all_tasks_${user.id}`)
@@ -79,15 +88,14 @@ export const command: Command = {
           .setStyle(ButtonStyle.Success)
           .setEmoji('✅');
 
-        buttons.push(completeAllButton);
-      }
-
-      // Organize buttons into rows (5 per row)
-      for (let i = 0; i < buttons.length; i += 5) {
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          buttons.slice(i, i + 5)
-        );
-        rows.push(row);
+        // Try to add to last row, or create new row if last row is full
+        const lastRowIndex = rows.length - 1;
+        if (rows[lastRowIndex] && rows[lastRowIndex].components.length < 5) {
+          rows[lastRowIndex].addComponents(completeAllButton);
+        } else if (rows.length < 5) {
+          // Create new row for Complete All button
+          rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(completeAllButton));
+        }
       }
 
       await interaction.reply({
