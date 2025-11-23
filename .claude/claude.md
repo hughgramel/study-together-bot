@@ -16,13 +16,33 @@ A Discord bot for collaborative productivity tracking with Strava-style social f
 
 ```
 src/
-├── bot.ts                 # Main entry point, command handlers, interactions
-├── services/
+├── bot.ts                 # Main entry point (89 lines - modular architecture)
+├── commands/              # Slash commands organized by category
+│   ├── session/          # Session management (start, stop, pause, unpause, time, cancel)
+│   ├── stats/            # Statistics (stats, me, live, leaderboard, etc.)
+│   ├── groups/           # Group features (creategroup, joingroup, group, etc.)
+│   ├── goals/            # Goal tracking
+│   ├── events/           # Event management
+│   ├── admin/            # Administrative commands
+│   ├── utility/          # Utility commands (help, manual)
+│   └── index.ts          # Command loader and registry
+├── interactions/          # Discord interaction handlers
+│   ├── buttons/          # Button click handlers
+│   ├── modals/           # Modal submission handlers
+│   └── selects/          # Select menu handlers
+├── services/              # Business logic layer
 │   ├── sessions.ts       # Session CRUD (active & completed sessions)
-│   └── stats.ts          # User statistics and leaderboard queries
-├── utils/
-│   └── formatters.ts     # Duration/time formatting utilities
-└── types.ts              # TypeScript interfaces
+│   ├── stats.ts          # User statistics and leaderboard queries
+│   ├── groups.ts         # Group management and leveling
+│   ├── achievements.ts   # Achievement system
+│   ├── posts.ts          # Feed post generation
+│   └── *Image.ts         # Puppeteer-based image generation services
+├── components/            # React components for image generation
+├── config/                # Firebase and Discord configuration
+├── events/                # Discord event handlers
+├── middleware/            # Error handling and logging middleware
+├── utils/                 # Utility functions and formatters
+└── types.ts               # TypeScript interfaces
 ```
 
 ## Key Features
@@ -33,14 +53,29 @@ src/
 4. **Leaderboards**: `/leaderboard` - Interactive leaderboard with daily/weekly/monthly/all-time selector
 5. **Social Feed**: Strava-style embeds with reactions and comment threads
 6. **Streak Tracking**: Current and longest streaks with fire emojis
+7. **Study Groups**: Create/join groups with XP bonuses, group leveling, and leaderboards
+   - Group XP bonus: 1% per level (max 50% at level 50)
+   - Groups level up every 25 combined hours
+   - Public/private groups with 5-member capacity
+   - Commands: `/creategroup`, `/joingroup`, `/leavegroup`, `/group`, `/groupleaderboard`, `/groupadmin`, `/groupsettings`
+8. **Achievements**: Unlock achievements for milestones and special accomplishments
+9. **Goals**: Set and track daily study goals
+10. **Events**: Create and participate in study events
 
 ## Database Schema
 
 Firebase Firestore structure:
 - `discord-data/activeSessions/sessions/{userId}` - Active sessions
 - `discord-data/sessions/completed/{sessionId}` - Completed sessions
-- `discord-data/userStats/stats/{userId}` - User statistics
+- `discord-data/userStats/stats/{userId}` - User statistics (includes XP, level, achievements)
 - `discord-data/serverConfig/configs/{serverId}` - Server settings
+- `discord-data/groups/active/{groupId}` - Active study groups
+- `discord-data/groupMembers/memberships/{userId}` - Group membership records
+- `discord-data/dailyGoals/goals/{userId}` - User daily goals
+- `discord-data/events/active/{eventId}` - Active events
+- `discord-data/eventParticipants/participants/{eventId}/users/{userId}` - Event participants
+
+See DATABASE_SCHEMA.md for complete schema with field definitions and examples.
 
 ## Development Guidelines
 
@@ -114,10 +149,12 @@ Before deploying changes:
 ## Common Tasks
 
 ### Adding a new command
-1. Add `SlashCommandBuilder` to `commands` array
-2. Add command handler in `interactionCreate` event
-3. Use existing patterns for replies and error handling
-4. Update README with new command
+1. Create a new file in the appropriate `src/commands/` subdirectory
+2. Export a `SlashCommandBuilder` with command definition and handler
+3. Add the command path to the appropriate array in `src/commands/index.ts`
+4. Use existing patterns for replies and error handling
+5. Add tests in a `__tests__/` subdirectory
+6. Update documentation in `docs/COMMANDS.md`
 
 ### Modifying embeds
 - Keep consistent with existing design language
@@ -133,16 +170,17 @@ Before deploying changes:
 
 Potential features to consider:
 - Pomodoro timer integration
-- Team/group sessions
-- XP/leveling system
 - Session categories/tags
 - Export data functionality
 - Mobile app notifications
+- Group challenges and competitions
+- Group chat/announcements
+- Custom achievement creation
 
 ## Known Issues
 
 - Deprecation warning for `ready` event (use `clientReady` in Discord.js v15)
-- Leaderboards currently use fake data for testing (lines 675-810)
+  - Non-critical, will need to update when upgrading to Discord.js v15
 
 ## Deployment Rules
 
