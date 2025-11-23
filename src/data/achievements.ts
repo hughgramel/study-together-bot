@@ -1,9 +1,9 @@
-import { AchievementDefinition } from '../types';
-
 /**
- * Achievement Definitions - All unlockable achievements available in the system
+ * Achievement Definitions - All unlockable achievements in the bot
  *
- * Focus areas: Hours, Streaks, Levels, Study Habits (early morning, weekends, long sessions)
+ * Defines all achievements that users can unlock through study activities. Achievements
+ * are organized by category and award XP bonuses when unlocked. Covers milestones,
+ * study hours, streaks, session intensity, study habits, and level progression.
  *
  * Categories:
  * - milestone: First session achievement
@@ -12,8 +12,25 @@ import { AchievementDefinition } from '../types';
  * - intensity: Long session achievements
  * - schedule: Time-based and weekend achievements
  * - level: XP level milestones
+ *
+ * @module data/achievements
  */
 
+import { AchievementDefinition } from '../types';
+
+/**
+ * Array of all achievement definitions available in the system
+ *
+ * Each achievement has:
+ * - Unique ID for tracking
+ * - Display name and emoji
+ * - Description shown to users
+ * - Category for organization
+ * - XP reward on unlock
+ * - Unlock condition (type, threshold, field)
+ * - Rarity tier (common, uncommon, rare, epic, legendary)
+ * - Order for display sorting
+ */
 export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   // ===== MILESTONE (First Session Only) =====
   {

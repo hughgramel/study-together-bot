@@ -1,5 +1,8 @@
 import { Firestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { SessionPost } from '../types';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('PostService');
 
 /**
  * Post Service - Manages session post tracking for social features
@@ -71,7 +74,7 @@ export class PostService {
       .doc(messageId)
       .set(postData);
 
-    console.log(`[POST] Created session post ${messageId} for user ${userId}`);
+    logger.info(`Created session post ${messageId} for user ${userId}`);
   }
 
   /**
@@ -150,7 +153,7 @@ export class PostService {
       cheers: FieldValue.arrayUnion(cheerData)
     });
 
-    console.log(`[POST] Added cheer from ${userId} to post ${messageId}`);
+    logger.info(`Added cheer from ${userId} to post ${messageId}`);
   }
 
 

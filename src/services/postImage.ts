@@ -1,18 +1,40 @@
+/**
+ * Post Image Service - Renders session posts as images
+ *
+ * Uses Puppeteer to render the SessionPost React component as a PNG image for
+ * Discord feed channels. Creates Strava-style session completion posts with
+ * user info, stats, and optional title/description. Maintains a reusable browser
+ * instance for performance.
+ *
+ * @module services/postImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { SessionPost } from '../components/SessionPost';
+import { createLogger } from '../utils/logger';
 
+const logger = createLogger('PostImageService');
+
+/**
+ * Service for rendering session post cards as images
+ */
 export class PostImageService {
   private browser: Browser | null = null;
 
   /**
-   * Initialize the browser instance (reusable for performance)
+   * Gets or creates a Puppeteer browser instance
+   *
+   * Reuses existing browser for performance, recreates if disconnected.
+   *
+   * @returns Active browser instance
+   * @private
    */
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected
     if (this.browser && !this.browser.connected) {
-      console.log('[PostImageService] Browser disconnected, recreating...');
+      logger.info('Browser disconnected, recreating...');
       try {
         await this.browser.close();
       } catch (e) {
@@ -22,7 +44,7 @@ export class PostImageService {
     }
 
     if (!this.browser) {
-      console.log('[PostImageService] Launching new browser instance...');
+      logger.info('Launching new browser instance...');
       this.browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -48,7 +70,9 @@ export class PostImageService {
     avatarUrl?: string,
     title?: string,
     description?: string,
-    date?: string
+    date?: string,
+    groupName?: string,
+    groupLevel?: number
   ): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
@@ -72,6 +96,8 @@ export class PostImageService {
         title,
         description,
         date,
+        groupName,
+        groupLevel,
       });
 
       const html = ReactDOMServer.renderToStaticMarkup(component);

@@ -1,3 +1,13 @@
+/**
+ * Emoji to Icon Utility - Maps emojis to Lucide React icons
+ *
+ * Provides consistent icon rendering across platforms by mapping emoji strings
+ * to Lucide React icon components. Used for achievements, milestones, and other
+ * emoji-based UI elements that need to render reliably in Discord embeds.
+ *
+ * @module utils/emojiToIcon
+ */
+
 import React from 'react';
 import {
   Target, Timer, Award, Flame, Clock, Moon, Sunrise, Zap,
@@ -7,7 +17,9 @@ import {
 
 /**
  * Maps emoji strings to Lucide React icon components
- * Used for rendering achievement icons consistently across platforms
+ *
+ * Used for rendering achievement icons consistently across platforms.
+ * Covers common categories: milestones, time, streaks, study, progress, and tiers.
  */
 export const emojiToIcon: Record<string, LucideIcon> = {
   // Milestone & General
@@ -50,15 +62,21 @@ export const emojiToIcon: Record<string, LucideIcon> = {
 };
 
 /**
- * Get icon component for a given emoji
- * Falls back to Award icon if emoji not found
+ * Gets the Lucide icon component for a given emoji
+ *
+ * @param emoji - Emoji string to lookup (e.g., "🏆", "🔥")
+ * @returns Lucide icon component (defaults to Award if not found)
  */
 export function getIconForEmoji(emoji: string): LucideIcon {
   return emojiToIcon[emoji] || Award;
 }
 
 /**
- * Render icon component with standard styling
+ * Renders an achievement icon component with standard styling
+ *
+ * @param emoji - Emoji string to render as icon
+ * @param className - Tailwind CSS classes for styling (default: "w-6 h-6")
+ * @returns React element with the appropriate icon component
  */
 export function renderAchievementIcon(
   emoji: string,

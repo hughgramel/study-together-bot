@@ -1,6 +1,33 @@
+/**
+ * Profile Card - Comprehensive user profile and statistics display
+ *
+ * Displays a user's complete profile including avatar, level progress bar, XP, total hours,
+ * sessions, achievements, current streak, best streak, and group membership. Features a
+ * 2x3 grid layout with color-coded stat cards. Rendered as an image in Discord when users
+ * run the /profile command.
+ *
+ * @module components/ProfileCard
+ *
+ * @example
+ * <ProfileCard
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   streak={7}
+ *   xp={12500}
+ *   level={15}
+ *   totalSessions={42}
+ *   achievementCount={8}
+ *   longestStreak={14}
+ *   totalHours={125}
+ *   groupName="Elite Learners"
+ *   groupId="ABC123"
+ *   groupLevel={10}
+ * />
+ */
+
 import React from 'react';
 import { xpForLevel, levelProgress } from '../utils/xp';
-import { Flame, Zap, Award, BookOpen, Timer, User } from 'lucide-react';
+import { Flame, Zap, Award, BookOpen, Timer, User, Shield } from 'lucide-react';
 
 interface ProfileCardProps {
   username: string;
@@ -12,8 +39,28 @@ interface ProfileCardProps {
   achievementCount: number;
   longestStreak: number;
   totalHours: number;
+  groupName?: string;
+  groupId?: string;
+  groupLevel?: number;
 }
 
+/**
+ * Renders a comprehensive user profile card
+ *
+ * @param username - User's display name (truncated to 10 chars if longer)
+ * @param avatarUrl - URL to user's Discord avatar (optional)
+ * @param streak - Current consecutive days streak
+ * @param xp - Total XP earned
+ * @param level - Current level calculated from XP
+ * @param totalSessions - Total number of completed sessions
+ * @param achievementCount - Number of achievements unlocked
+ * @param longestStreak - Best streak ever achieved
+ * @param totalHours - Total hours studied
+ * @param groupName - Name of user's group (optional)
+ * @param groupId - ID of user's group (optional)
+ * @param groupLevel - Level of user's group (optional)
+ * @returns Profile card component
+ */
 export const ProfileCard: React.FC<ProfileCardProps> = ({
   username,
   avatarUrl,
@@ -24,6 +71,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   achievementCount,
   longestStreak,
   totalHours,
+  groupName,
+  groupId,
+  groupLevel,
 }) => {
   // Calculate XP progress for the level bar
   const currentLevelXp = xpForLevel(level);
@@ -31,6 +81,18 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   const xpInCurrentLevel = xp - currentLevelXp;
   const xpNeededForNextLevel = nextLevelXp - currentLevelXp;
   const progressPercent = levelProgress(xp);
+
+  /**
+   * Determines shield color based on group level tier
+   */
+  const getShieldColor = () => {
+    if (!groupLevel) return 'text-[#CD7F32]'; // Default bronze
+    if (groupLevel <= 10) return 'text-[#CD7F32]'; // Bronze
+    if (groupLevel <= 20) return 'text-[#C0C0C0]'; // Silver
+    if (groupLevel <= 30) return 'text-[#FFD700]'; // Gold
+    if (groupLevel <= 40) return 'text-[#00CED1]'; // Platinum
+    return 'text-[#B9F2FF]'; // Diamond
+  };
 
   return (
     <div className="w-[700px] h-[650px] bg-[#131F24] flex flex-col p-10 pb-6 relative">
@@ -69,6 +131,20 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           <h2 className="text-[#EFEFEF] text-3xl font-extrabold">
             {username.length > 10 ? username.substring(0, 10) + '...' : username}
           </h2>
+          {groupName && groupLevel && (
+            <div className="flex items-center gap-2 mt-2">
+              {/* Shield with level number inside */}
+              <div className="relative flex-shrink-0">
+                <Shield className={`w-7 h-7 ${getShieldColor()}`} fill="currentColor" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-extrabold text-[#131F24]">{groupLevel}</span>
+                </div>
+              </div>
+              <span className="text-[#AFAFAF] text-lg font-semibold">
+                {groupName}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

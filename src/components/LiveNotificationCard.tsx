@@ -1,3 +1,22 @@
+/**
+ * Live Notification Card - Real-time display of active study sessions
+ *
+ * Displays a list of users currently in active study sessions. Shows up to 10 users
+ * with their avatar, activity, duration, and pause status. Features a dynamic "and n more"
+ * footer when there are more than 10 active users. Rendered in Discord embeds for live
+ * session notifications.
+ *
+ * @module components/LiveNotificationCard
+ *
+ * @example
+ * <LiveNotificationCard
+ *   users={[
+ *     { username: "Alice", avatarUrl: "...", activity: "Math homework", duration: "45m", isPaused: false }
+ *   ]}
+ *   totalCount={15}
+ * />
+ */
+
 import React from 'react';
 import { Radio, Pause, Circle } from 'lucide-react';
 
@@ -15,9 +34,11 @@ interface LiveNotificationCardProps {
 }
 
 /**
- * Live session notification card component
- * Compact modern design with dark mode
- * Shows up to 10 users with "and n more" footer if needed
+ * Renders a live session notification card with active users
+ *
+ * @param users - Array of active users to display (up to 10)
+ * @param totalCount - Total number of active users (for "and n more" footer)
+ * @returns Live notification card component with dynamic height
  */
 export default function LiveNotificationCard({
   users,

@@ -1,8 +1,21 @@
+/**
+ * Streak Image Service - Renders streak milestone cards as images
+ *
+ * Uses Puppeteer to render the StreakCard React component as a PNG image for
+ * Discord embeds. Displays celebration cards when users reach streak milestones
+ * (3, 7, 14, 30+ days). Maintains a reusable browser instance for performance.
+ *
+ * @module services/streakImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import StreakCard from '../components/StreakCard';
 
+/**
+ * Service for rendering streak milestone celebration cards as images
+ */
 class StreakImageService {
   private browser: Browser | null = null;
 

@@ -1,5 +1,8 @@
 import { Firestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { ActiveSession, CompletedSession } from '../types';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('SessionService');
 
 export class SessionService {
   private db: Firestore;
@@ -127,12 +130,12 @@ export class SessionService {
     };
 
     // Log session creation for debugging
-    console.log(`[SESSION CREATE] User: ${session.username} (${session.userId})`);
-    console.log(`[SESSION CREATE] Duration: ${session.duration}s (${(session.duration / 3600).toFixed(2)}h)`);
-    console.log(`[SESSION CREATE] Activity: ${session.activity}`);
-    console.log(`[SESSION CREATE] Start: ${session.startTime.toDate().toISOString()}`);
-    console.log(`[SESSION CREATE] End: ${session.endTime.toDate().toISOString()}`);
-    console.log(`[SESSION CREATE] Title: ${session.title}`);
+    logger.info(`User: ${session.username} (${session.userId})`);
+    logger.info(`Duration: ${session.duration}s (${(session.duration / 3600).toFixed(2)}h)`);
+    logger.info(`Activity: ${session.activity}`);
+    logger.info(`Start: ${session.startTime.toDate().toISOString()}`);
+    logger.info(`End: ${session.endTime.toDate().toISOString()}`);
+    logger.info(`Title: ${session.title}`);
 
     const docRef = await this.db
       .collection('discord-data')
@@ -140,7 +143,7 @@ export class SessionService {
       .collection('completed')
       .add(completedSession);
 
-    console.log(`[SESSION CREATE] Created session ${docRef.id}`);
+    logger.info(`Created session ${docRef.id}`);
 
     return docRef.id;
   }
@@ -191,7 +194,7 @@ export class SessionService {
     limit: number = 10,
     serverId?: string
   ): Promise<Array<{ userId: string; username: string; totalDuration: number; sessionCount: number }>> {
-    console.log(`[GET TOP USERS] Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}, serverId: ${serverId || 'all'}`);
+    logger.info(`Fetching sessions since ${since.toDate().toISOString()}, limit: ${limit}, serverId: ${serverId || 'all'}`);
 
     // Build query - filter by server if provided (much more efficient!)
     let query = this.db
@@ -206,10 +209,10 @@ export class SessionService {
 
     const snapshot = await query.get();
 
-    console.log(`[GET TOP USERS] Found ${snapshot.size} sessions${serverId ? ` in server ${serverId}` : ' across all servers'}`);
+    logger.info(`Found ${snapshot.size} sessions${serverId ? ` in server ${serverId}` : ' across all servers'}`);
 
     if (snapshot.empty) {
-      console.log(`[GET TOP USERS] No sessions found`);
+      logger.info(`No sessions found`);
       return [];
     }
 
@@ -244,7 +247,7 @@ export class SessionService {
       .sort((a, b) => b.totalDuration - a.totalDuration)
       .slice(0, limit);
 
-    console.log(`[GET TOP USERS] Returning top ${users.length} users`);
+    logger.info(`Returning top ${users.length} users`);
     return users;
   }
 }

@@ -1,3 +1,14 @@
+/**
+ * Profile Image Service - Renders user profiles and leaderboards as images
+ *
+ * Uses Puppeteer to render ProfileCard and LeaderboardCard React components as PNG
+ * images for Discord embeds. Supports rendering user profiles with stats and
+ * competitive leaderboards for different timeframes. Maintains a reusable browser
+ * instance for performance.
+ *
+ * @module services/profileImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
@@ -15,11 +26,16 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
+/**
+ * Service for rendering profile cards and leaderboards as images
+ */
 export class ProfileImageService {
   private browser: Browser | null = null;
 
   /**
-   * Pre-initialize the browser to avoid delays on first use
+   * Pre-initializes the browser instance to avoid delays on first use
+   *
+   * Should be called during bot startup to ensure browser is ready.
    */
   async warmup(): Promise<void> {
     console.log('[ProfileImageService] Warming up browser...');
@@ -63,7 +79,12 @@ export class ProfileImageService {
   async generateProfileImage(
     username: string,
     stats: UserStats | null,
-    avatarUrl?: string
+    avatarUrl?: string,
+    groupInfo?: {
+      groupName: string;
+      groupId: string;
+      groupLevel: number;
+    }
   ): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
@@ -92,6 +113,9 @@ export class ProfileImageService {
         achievementCount,
         longestStreak,
         totalHours,
+        groupName: groupInfo?.groupName,
+        groupId: groupInfo?.groupId,
+        groupLevel: groupInfo?.groupLevel,
       });
 
       const html = ReactDOMServer.renderToStaticMarkup(component);

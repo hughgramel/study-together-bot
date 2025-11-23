@@ -1,3 +1,22 @@
+/**
+ * Leaderboard Card - Competitive ranking display for users
+ *
+ * Displays ranked users with their XP, hours, and levels for different timeframes
+ * (daily, weekly, monthly, all-time). Features gold/silver/bronze trophy icons for
+ * top 3 positions and highlights the current user if they're in the leaderboard.
+ * Rendered as an image in Discord when users run the /leaderboard command.
+ *
+ * @module components/LeaderboardCard
+ *
+ * @example
+ * <LeaderboardCard
+ *   timeframe="weekly"
+ *   entries={leaderboardData}
+ *   currentUser={userEntry}
+ *   currentUserId="123456789"
+ * />
+ */
+
 import React from 'react';
 import { calculateLevel } from '../utils/xp';
 import { Trophy, Medal, Award } from 'lucide-react';
@@ -18,6 +37,15 @@ interface LeaderboardCardProps {
   currentUserId?: string; // Current user ID for highlighting
 }
 
+/**
+ * Renders the leaderboard interface with ranked users
+ *
+ * @param timeframe - Time period for the leaderboard (daily, weekly, monthly, all-time)
+ * @param entries - Array of top-ranked users (typically top 10)
+ * @param currentUser - Current user's entry if they're not in top 10 (optional)
+ * @param currentUserId - ID of the user who requested the leaderboard for highlighting (optional)
+ * @returns Leaderboard component
+ */
 export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
   timeframe,
   entries: originalEntries,
@@ -70,6 +98,12 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
     'all-time': 'All-Time Leaderboard',
   };
 
+  /**
+   * Gets the appropriate trophy icon for top 3 ranks
+   *
+   * @param rank - User's rank position (1-10+)
+   * @returns Trophy icon component or null for ranks 4+
+   */
   const getRankIcon = (rank: number) => {
     if (rank === 1) {
       return <Trophy className="w-7 h-7 text-[#FFD700]" fill="#FFD700" />;

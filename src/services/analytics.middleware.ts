@@ -44,9 +44,9 @@ export class AnalyticsMiddleware {
     try {
       // Execute the command handler
       await handler();
-    } catch (error: any) {
+    } catch (error: unknown) {
       success = false;
-      errorMessage = error.message || 'Unknown error';
+      errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
       // Re-throw the error so the bot can handle it
       throw error;
@@ -129,14 +129,16 @@ export function createTrackedHandler(
  * @param threshold - Time in ms above which to log warning (default: 3000ms)
  */
 export function monitorPerformance(threshold: number = 3000) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return function (
-    target: any,
+    target: any, // target object - difficult to type in decorator
     propertyName: string,
     descriptor: PropertyDescriptor
   ) {
     const method = descriptor.value;
 
-    descriptor.value = async function (...args: any[]) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    descriptor.value = async function (...args: any[]) { // args are unknown - spread to decorated method
       const startTime = Date.now();
       const result = await method.apply(this, args);
       const duration = Date.now() - startTime;

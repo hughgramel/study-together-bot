@@ -1,3 +1,21 @@
+/**
+ * Level Up Card - Celebration card for leveling up
+ *
+ * Displays a compact celebration card when users reach a new level. Features a modern
+ * dark mode design with purple gradient theme and shows progress to the next level.
+ * Rendered in Discord embeds when users level up after completing sessions.
+ *
+ * @module components/LevelUpCard
+ *
+ * @example
+ * <LevelUpCard
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   newLevel={10}
+ *   hoursToNext={5}
+ * />
+ */
+
 import React from 'react';
 import { Zap } from 'lucide-react';
 
@@ -9,8 +27,13 @@ interface LevelUpCardProps {
 }
 
 /**
- * Level-up celebration card component
- * Compact modern design with dark mode
+ * Renders a level-up celebration card
+ *
+ * @param username - User's display name (truncated to 10 chars if longer)
+ * @param avatarUrl - URL to user's Discord avatar
+ * @param newLevel - The new level the user just reached
+ * @param hoursToNext - Estimated hours until the next level
+ * @returns Level-up celebration card component
  */
 export default function LevelUpCard({
   username,

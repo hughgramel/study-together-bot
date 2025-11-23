@@ -1,3 +1,25 @@
+/**
+ * Stats Chart - Bar chart visualization for user statistics
+ *
+ * Displays a bar chart showing user statistics over time (week, month, year). Supports
+ * different metrics including hours, XP, sessions, and total hours. Features interactive
+ * hover effects, Y-axis labels, and highlights the current period. Rendered as an image
+ * in Discord when users run stats commands with chart view.
+ *
+ * @module components/StatsChart
+ *
+ * @example
+ * <StatsChart
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   metric="hours"
+ *   timeframe="week"
+ *   data={chartData}
+ *   currentValue={8.5}
+ *   previousValue={7.2}
+ * />
+ */
+
 import React from 'react';
 import { TrendingUp, Calendar, Zap, Timer } from 'lucide-react';
 
@@ -16,6 +38,18 @@ interface StatsChartProps {
   previousValue: number;
 }
 
+/**
+ * Renders a bar chart for user statistics
+ *
+ * @param username - User's display name
+ * @param avatarUrl - URL to user's Discord avatar (optional)
+ * @param metric - Type of metric to display (hours, xp, sessions, totalHours)
+ * @param timeframe - Time period for the chart (week, month, year)
+ * @param data - Array of data points with labels and values
+ * @param currentValue - Value for the current period (today/this week/this month)
+ * @param previousValue - Value for the previous period (for change calculation)
+ * @returns Stats chart component
+ */
 export const StatsChart: React.FC<StatsChartProps> = ({
   username,
   avatarUrl,
@@ -31,7 +65,9 @@ export const StatsChart: React.FC<StatsChartProps> = ({
     : 0;
   const isPositive = change >= 0;
 
-  // Get max value for scaling
+  /**
+   * Calculates the maximum value from data for chart scaling
+   */
   const maxValue = Math.max(...data.map(d => d.value), 1);
 
   // Get metric details
@@ -82,7 +118,12 @@ export const StatsChart: React.FC<StatsChartProps> = ({
     year: 'This Month',
   }[timeframe];
 
-  // Format value based on metric
+  /**
+   * Formats values for display based on metric type
+   *
+   * @param value - Numeric value to format
+   * @returns Formatted string
+   */
   const formatValue = (value: number) => {
     if (metric === 'hours' || metric === 'totalHours') {
       return value.toFixed(1);

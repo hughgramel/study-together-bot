@@ -1,7 +1,21 @@
+/**
+ * Live Notification Image Service - Renders live session lists as images
+ *
+ * Uses Puppeteer to render the LiveNotificationCard React component as a PNG image
+ * showing all currently active study sessions. Displays up to 10 users with their
+ * activities, durations, and pause status. Maintains a reusable browser instance
+ * for performance.
+ *
+ * @module services/liveNotificationImage
+ */
+
 import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import LiveNotificationCard from '../components/LiveNotificationCard';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('LiveNotificationImageService');
 
 interface LiveUser {
   username: string;
@@ -11,6 +25,9 @@ interface LiveUser {
   isPaused: boolean;
 }
 
+/**
+ * Service for rendering live notification cards as images
+ */
 class LiveNotificationImageService {
   private browser: Browser | null = null;
 
@@ -20,7 +37,7 @@ class LiveNotificationImageService {
   private async getBrowser(): Promise<Browser> {
     // Check if browser exists and is still connected
     if (this.browser && !this.browser.connected) {
-      console.log('[LiveNotificationImageService] Browser disconnected, recreating...');
+      logger.info('Browser disconnected, recreating...');
       try {
         await this.browser.close();
       } catch (e) {
@@ -30,7 +47,7 @@ class LiveNotificationImageService {
     }
 
     if (!this.browser) {
-      console.log('[LiveNotificationImageService] Launching new browser instance...');
+      logger.info('Launching new browser instance...');
       this.browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -41,7 +58,7 @@ class LiveNotificationImageService {
         ],
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       });
-      console.log('[LiveNotificationImageService] Browser launched successfully');
+      logger.info('Browser launched successfully');
     }
 
     return this.browser;

@@ -1,6 +1,7 @@
 node_modules/
 .env
 firebase-service-account.json
+firebase-service-account-new.json
 firebase-config.js
 dist/
 *.log
@@ -9,3 +10,9 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Backup files
+*.backup
+*.backup[0-9]
+*.vc_backup
+*~

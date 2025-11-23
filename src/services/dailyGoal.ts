@@ -1,8 +1,24 @@
+/**
+ * Daily Goal Service - Manages user daily goals and task tracking
+ *
+ * Handles creation, tracking, and completion of user daily goals. Supports different
+ * difficulty levels (easy, medium, hard) with corresponding XP rewards. Manages goal
+ * streaks, completion tracking, and daily goal reset logic.
+ *
+ * @module services/dailyGoal
+ */
+
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { DailyGoal, Goal } from '../types';
 import { getDateKey } from '../utils/formatters';
 import { randomUUID } from 'crypto';
+import { createLogger } from '../utils/logger';
 
+const logger = createLogger('DailyGoalService');
+
+/**
+ * Service for managing user daily goals
+ */
 export class DailyGoalService {
   private db: Firestore;
 
@@ -11,7 +27,11 @@ export class DailyGoalService {
   }
 
   /**
-   * Gets a user's daily goal data
+   * Gets a user's daily goal data including active and completed goals
+   *
+   * @param userId - Discord user ID
+   * @returns User's daily goal data or null if no goals exist
+   * @throws Error if database query fails
    */
   async getDailyGoal(userId: string): Promise<DailyGoal | null> {
     try {
@@ -29,13 +49,20 @@ export class DailyGoalService {
 
       return doc.data() as DailyGoal;
     } catch (error) {
-      console.error('Error getting daily goal:', error);
+      logger.error('Error getting daily goal:', error);
       throw error;
     }
   }
 
   /**
-   * Adds a new goal for a user
+   * Adds a new goal for a user with specified difficulty
+   *
+   * @param userId - Discord user ID
+   * @param username - Discord username
+   * @param goalText - Description of the goal
+   * @param difficulty - Goal difficulty level (easy, medium, hard)
+   * @returns Created goal object with unique ID
+   * @throws Error if database operation fails
    */
   async addGoal(
     userId: string,
@@ -82,7 +109,7 @@ export class DailyGoalService {
 
       return newGoal;
     } catch (error) {
-      console.error('Error adding goal:', error);
+      logger.error('Error adding goal:', error);
       throw error;
     }
   }
@@ -134,7 +161,7 @@ export class DailyGoalService {
 
       return { goal, xpAwarded };
     } catch (error) {
-      console.error('Error completing goal:', error);
+      logger.error('Error completing goal:', error);
       throw error;
     }
   }
@@ -151,7 +178,7 @@ export class DailyGoalService {
 
       return (dailyGoal.goals || []).filter((g) => !g.isCompleted);
     } catch (error) {
-      console.error('Error getting active goals:', error);
+      logger.error('Error getting active goals:', error);
       throw error;
     }
   }
@@ -168,7 +195,7 @@ export class DailyGoalService {
 
       return dailyGoal.goals || [];
     } catch (error) {
-      console.error('Error getting all goals:', error);
+      logger.error('Error getting all goals:', error);
       throw error;
     }
   }
@@ -228,7 +255,7 @@ export class DailyGoalService {
 
       return dailyGoalData;
     } catch (error) {
-      console.error('Error setting daily goal:', error);
+      logger.error('Error setting daily goal:', error);
       throw error;
     }
   }
@@ -246,7 +273,7 @@ export class DailyGoalService {
       const dateKey = getDateKey(date);
       return dailyGoal.goalsByDay[dateKey] || null;
     } catch (error) {
-      console.error('Error getting goal for date:', error);
+      logger.error('Error getting goal for date:', error);
       throw error;
     }
   }

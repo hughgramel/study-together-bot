@@ -1,7 +1,35 @@
+/**
+ * Type Definitions - Centralized TypeScript interfaces for the Study Together Bot
+ *
+ * This file contains all TypeScript type definitions used throughout the bot.
+ * Organized by functional area for easy navigation. All Firebase data models,
+ * configuration types, and domain objects are defined here.
+ *
+ * Sections:
+ * - Session Management: Active and completed session tracking
+ * - User Statistics: User progress, XP, achievements, and analytics
+ * - Server Configuration: Per-server settings
+ * - Achievements System: Achievement definitions and tracking
+ * - Social Features: Posts, reactions, and weekly challenges
+ * - Goals System: Daily goals and task tracking
+ * - Events System: Scheduled study events and RSVPs
+ * - Groups System: Study groups and membership
+ *
+ * @module types
+ */
+
 import { Timestamp } from 'firebase-admin/firestore';
+
+// ============================================================================
+// SESSION MANAGEMENT
+// ============================================================================
 
 /**
  * Active session record - one per user maximum
+ *
+ * Tracks a user's currently running study session. Only one active session
+ * can exist per user at a time. Supports pause/unpause functionality and
+ * intensity ratings for XP multipliers.
  */
 export interface ActiveSession {
   userId: string;           // Discord user ID
@@ -17,6 +45,9 @@ export interface ActiveSession {
 
 /**
  * Completed session record
+ *
+ * Permanent record of a finished study session. Created when users run /stop.
+ * Used for statistics, achievements, leaderboards, and social feed posts.
  */
 export interface CompletedSession {
   userId: string;           // Discord user ID
@@ -33,8 +64,16 @@ export interface CompletedSession {
   xpGained?: number;        // XP earned from this session (for leaderboards)
 }
 
+// ============================================================================
+// USER STATISTICS
+// ============================================================================
+
 /**
  * User statistics - one per user
+ *
+ * Comprehensive tracking of user progress, achievements, and study patterns.
+ * Updated after each session completion. Includes XP, achievements, streaks,
+ * time-of-day analytics, and social engagement metrics.
  */
 export interface UserStats {
   username: string;         // Discord username (updated on each session)
@@ -72,7 +111,7 @@ export interface UserStats {
   consecutiveWeekendStreak?: number;  // Current streak of consecutive weekends with both Sat+Sun sessions
   fullWeeksCompleted?: number;        // Weeks with sessions on all 7 days
   bestMonthDaysCount?: number;        // Highest number of days studied in any single month
-  newRecordUnlocked?: boolean;        // Temporary flag indicating user beat their personal best
+  newRecordUnlocked?: boolean;        // Flag indicating user beat their personal best (triggers new_record achievement)
   weekdayTracking?: {                 // Map of week key -> array of days with sessions (0-6)
     [weekKey: string]: number[];      // Example: { '2025-W03': [0, 1, 6] } = Sun, Mon, Sat
   };
@@ -98,8 +137,15 @@ export interface UserStats {
   firstAchievementUnlockedAt?: Timestamp; // When first achievement was unlocked
 }
 
+// ============================================================================
+// SERVER CONFIGURATION
+// ============================================================================
+
 /**
  * Server configuration - one per Discord server
+ *
+ * Stores per-server settings configured by admins. Includes channel IDs
+ * for feed posts, welcome messages, events, and timezone preferences.
  */
 export interface ServerConfig {
   feedChannelId?: string;   // Discord channel ID for feed posts
@@ -110,8 +156,16 @@ export interface ServerConfig {
   setupBy: string;          // Discord user ID of admin who set it up
 }
 
+// ============================================================================
+// ACHIEVEMENTS SYSTEM
+// ============================================================================
+
 /**
  * Achievement definition - defines an unlockable achievement
+ *
+ * Template for achievements users can unlock. Defines unlock conditions,
+ * XP rewards, rarity tiers, and display information. All achievement
+ * definitions are stored in src/data/achievements.ts.
  */
 export interface AchievementDefinition {
   id: string;               // Unique achievement identifier (e.g., 'first_steps', 'centurion')
@@ -129,8 +183,15 @@ export interface AchievementDefinition {
   order: number;            // Display sort order (lower = shown first)
 }
 
+// ============================================================================
+// SOCIAL FEATURES
+// ============================================================================
+
 /**
- * Session post - tracks session feed posts for social features (Phase 2)
+ * Session post - tracks session feed posts for social features
+ *
+ * Represents a Strava-style post in the feed channel after session completion.
+ * Tracks reactions, cheers, and engagement metrics for social features.
  */
 export interface SessionPost {
   messageId: string;        // Discord message ID (document ID)
@@ -156,7 +217,10 @@ export interface SessionPost {
 }
 
 /**
- * Weekly challenge - tracks weekly XP goals and leaderboards (Phase 2)
+ * Weekly challenge - tracks weekly XP goals and leaderboards
+ *
+ * Weekly community challenge with XP targets. Tracks participants,
+ * completions, and top earners for competitive leaderboards.
  */
 export interface WeeklyChallenge {
   weekKey: string;          // ISO week format (e.g., '2025-W03')
@@ -175,8 +239,15 @@ export interface WeeklyChallenge {
   }>;
 }
 
+// ============================================================================
+// GOALS SYSTEM
+// ============================================================================
+
 /**
  * Individual goal item
+ *
+ * A single goal/task with difficulty level and completion tracking.
+ * Awards XP based on difficulty when completed.
  */
 export interface Goal {
   id: string;                // Unique goal ID (UUID)
@@ -190,6 +261,9 @@ export interface Goal {
 
 /**
  * Daily goal - tracks user's goals
+ *
+ * Container for a user's daily goals. Users can have multiple active
+ * goals tracked at once with different difficulty levels.
  */
 export interface DailyGoal {
   userId: string;           // Discord user ID
@@ -201,8 +275,16 @@ export interface DailyGoal {
   };
 }
 
+// ============================================================================
+// EVENTS SYSTEM
+// ============================================================================
+
 /**
  * Study event - scheduled group study sessions
+ *
+ * Scheduled study event with RSVP tracking. Supports different study types
+ * (silent, conversation, pomodoro, custom), location details, capacity limits,
+ * and attendee management.
  */
 export interface StudyEvent {
   eventId: string;          // Unique event ID (UUID)
@@ -237,4 +319,52 @@ export interface StudyEvent {
   channelId?: string;       // Discord channel ID where posted
   isCancelled?: boolean;    // Whether event has been cancelled
   cancelledAt?: Timestamp;  // When event was cancelled
+}
+
+// ============================================================================
+// GROUPS SYSTEM
+// ============================================================================
+
+/**
+ * Group - represents a study group with multiple members
+ *
+ * Study group with up to 5 members. Groups earn XP bonuses based on their
+ * level (calculated from total member hours). Can be public or private.
+ * Member information is stored separately in GroupMembership records.
+ *
+ * NOTE: This interface is re-exported from services/groups.ts where it is
+ * actually implemented. Kept here for backward compatibility and centralized
+ * type definitions.
+ */
+export interface Group {
+  groupId: string;          // Unique group ID (e.g., 'GP-A1B2')
+  name: string;             // Group name
+  ownerId: string;          // Discord user ID of group owner
+  ownerUsername: string;    // Discord username of owner
+  serverId: string;         // Discord server ID
+  isPublic: boolean;        // Whether group is publicly visible/joinable
+  maxMembers: number;       // Maximum number of members (default: 5)
+  memberCount: number;      // Current number of members
+  totalHours: number;       // Total study hours across all members
+  level: number;            // Group level (calculated from total hours)
+  createdAt: Timestamp;     // When group was created
+  updatedAt: Timestamp;     // Last stats update
+}
+
+/**
+ * Group membership - one per user (for quick lookup)
+ *
+ * Denormalized record for fast user -> group lookups. Each user can only
+ * be in one group at a time. Tracks ownership status and join date.
+ *
+ * NOTE: This interface is re-exported from services/groups.ts where it is
+ * actually implemented. Kept here for backward compatibility and centralized
+ * type definitions.
+ */
+export interface GroupMembership {
+  userId: string;           // Discord user ID
+  username: string;         // Discord username
+  groupId: string;          // Group ID user belongs to
+  joinedAt: Timestamp;      // When user joined the group
+  isOwner: boolean;         // Whether user is the group owner
 }

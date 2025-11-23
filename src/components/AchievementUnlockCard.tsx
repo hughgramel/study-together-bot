@@ -1,3 +1,21 @@
+/**
+ * Achievement Unlock Card - Celebration card for unlocked achievements
+ *
+ * Displays a dynamic celebration card when users unlock achievements. Features a modern
+ * dark mode design with golden trophy theme and dynamic height based on the number of
+ * achievements unlocked. Rendered in Discord embeds when achievements are earned.
+ *
+ * @module components/AchievementUnlockCard
+ *
+ * @example
+ * <AchievementUnlockCard
+ *   username="JohnDoe"
+ *   avatarUrl="https://cdn.discordapp.com/avatars/..."
+ *   achievements={[{ emoji: "🏆", name: "First Steps", description: "Complete your first session" }]}
+ *   totalXP={100}
+ * />
+ */
+
 import React from 'react';
 import { Trophy } from 'lucide-react';
 import { getIconForEmoji } from '../utils/emojiToIcon';
@@ -16,9 +34,13 @@ interface AchievementUnlockCardProps {
 }
 
 /**
- * Achievement unlock celebration card component
- * Modern design with dark mode and trophy theme
- * Dynamic height based on number of achievements
+ * Renders an achievement unlock celebration card
+ *
+ * @param username - User's display name
+ * @param avatarUrl - URL to user's Discord avatar
+ * @param achievements - Array of achievements unlocked (can be multiple)
+ * @param totalXP - Total bonus XP earned from achievements
+ * @returns Achievement celebration card component
  */
 export default function AchievementUnlockCard({
   username,
