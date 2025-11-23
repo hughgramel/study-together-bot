@@ -107,7 +107,7 @@ export const GroupLeaderboardLight: React.FC<GroupLeaderboardLightProps> = ({ gr
             {/* XP Modifier */}
             <div className="flex items-center gap-2">
               <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
-              <span className="text-lg font-bold text-[#A78BFA]">
+              <span className="text-2xl font-extrabold text-[#A78BFA]">
                 +{(group.groupLevel * 1).toFixed(1)}% XP
               </span>
             </div>
