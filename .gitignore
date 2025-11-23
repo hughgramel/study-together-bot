@@ -10,3 +10,9 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Backup files
+*.backup
+*.backup[0-9]
+*.vc_backup
+*~
