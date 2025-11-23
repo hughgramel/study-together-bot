@@ -108,7 +108,7 @@ export const FindGroups: React.FC<FindGroupsProps> = ({ groups, currentPage, tot
               {/* XP Modifier */}
               <div className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
-                <span className="text-2xl font-extrabold text-[#A78BFA]">
+                <span className="text-lg font-extrabold text-[#A78BFA]">
                   +{(group.xpModifier * 100).toFixed(1)}% XP
                 </span>
               </div>
