@@ -11,6 +11,7 @@ import { initializeFirebase } from './config/firebase';
 import { loadCommands, registerCommands } from './commands';
 import { handleReady } from './events/ready';
 import { handleInteractionCreate } from './events/interactionCreate';
+import { handleMessageCreate } from './events/messageCreate';
 import { validateEnvironment } from './middleware/errorHandler';
 import { createLogger } from './utils/logger';
 import { browserPool } from './services/browserPool';
@@ -64,6 +65,10 @@ async function main(): Promise<void> {
 
     client.on('interactionCreate', async (interaction) => {
       await handleInteractionCreate(interaction, db, client);
+    });
+
+    client.on('messageCreate', async (message) => {
+      await handleMessageCreate(message, db, client);
     });
 
     // Login to Discord
