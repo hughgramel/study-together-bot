@@ -65,13 +65,13 @@ export default function LevelUpCard({
         <div className="text-[#CE82FF] text-2xl font-extrabold">
           Level {newLevel}!
         </div>
-        <p className="text-[#AFAFAF] text-sm font-normal">
-          About {hoursToNext} {hoursToNext === 1 ? 'hour' : 'hours'} to Level {newLevel + 1}
+        <p className="text-[#AFAFAF] text-base font-semibold">
+          {hoursToNext} {hoursToNext === 1 ? 'hour' : 'hours'} to Level {newLevel + 1}
         </p>
       </div>
 
       {/* XP Icon decoration */}
-      <div className="absolute bottom-4 right-6 opacity-20 z-0">
+      <div className="absolute bottom-4 right-6 opacity-30 z-0">
         <Zap className="w-16 h-16 text-[#CE82FF]" fill="#CE82FF" />
       </div>
     </div>

@@ -100,7 +100,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       <div className="absolute top-11 right-16 w-80">
         <div className="flex justify-between items-center mb-2">
           <span className="text-[#EFEFEF] text-xl font-bold">Level {level}</span>
-          <span className="text-[#AFAFAF] text-base font-normal">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
+          <span className="text-[#DBDEE1] text-lg font-semibold">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
         </div>
         <div className="h-5 bg-[#1F2B31] rounded-full overflow-hidden border border-[#2E3D44]">
           <div
@@ -158,7 +158,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#EFEFEF] leading-none mb-2">{xp.toLocaleString()}</div>
-              <div className="text-lg font-normal text-[#AFAFAF]">Total XP</div>
+              <div className="text-xl font-semibold text-[#DBDEE1]">Total XP</div>
             </div>
           </div>
         </div>
@@ -171,7 +171,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#EFEFEF] leading-none mb-2">{totalHours}h</div>
-              <div className="text-lg font-normal text-[#AFAFAF]">Total time</div>
+              <div className="text-xl font-semibold text-[#DBDEE1]">Total time</div>
             </div>
           </div>
         </div>
@@ -184,7 +184,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#EFEFEF] leading-none mb-2">{totalSessions}</div>
-              <div className="text-lg font-normal text-[#AFAFAF]">Sessions</div>
+              <div className="text-xl font-semibold text-[#DBDEE1]">Sessions</div>
             </div>
           </div>
         </div>
@@ -197,7 +197,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#EFEFEF] leading-none mb-2">{achievementCount}</div>
-              <div className="text-lg font-normal text-[#AFAFAF]">Achievements</div>
+              <div className="text-xl font-semibold text-[#DBDEE1]">Achievements</div>
             </div>
           </div>
         </div>
@@ -210,7 +210,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#EFEFEF] leading-none mb-2">{streak}</div>
-              <div className="text-lg font-normal text-[#AFAFAF]">Day streak</div>
+              <div className="text-xl font-semibold text-[#DBDEE1]">Day streak</div>
             </div>
           </div>
         </div>
@@ -223,7 +223,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#EFEFEF] leading-none mb-2">{longestStreak}</div>
-              <div className="text-lg font-normal text-[#AFAFAF]">Best streak</div>
+              <div className="text-xl font-semibold text-[#DBDEE1]">Best streak</div>
             </div>
           </div>
         </div>

@@ -14,6 +14,7 @@ import {
 import type { Command } from '../types';
 import { StatsService } from '../../services/stats';
 import { StatsImageService } from '../../services/statsImage';
+import { StatsImageLightService } from '../../services/statsImageLight';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('GraphCommand');
@@ -34,7 +35,15 @@ export const command: Command = {
 
       // Initialize services
       const statsService = new StatsService(db);
-      const statsImageService = new StatsImageService();
+
+      // Get user stats and check light mode preference
+      const userStats = await statsService.getUserStats(user.id);
+      const useLightMode = userStats?.lightMode || false;
+
+      // Choose appropriate image service based on preference
+      const statsImageService = useLightMode
+        ? new StatsImageLightService()
+        : new StatsImageService();
 
       // Default: Hours over the past week
       const defaultMetric = 'hours';

@@ -144,7 +144,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
             <h2 className="text-[#EFEFEF] text-xl font-bold truncate max-w-[400px]">
               {username}
             </h2>
-            <p className="text-[#AFAFAF] text-sm font-normal">
+            <p className="text-[#DBDEE1] text-base font-semibold">
               Detailed Statistics
             </p>
           </div>
@@ -171,8 +171,8 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
                     : 'bg-[#1F2B31] border-[#2E3D44]'
                 }`}
               >
-                <div className={`text-sm font-semibold uppercase tracking-wide mb-2 ${
-                  isHighlighted ? 'text-[#1CB0F6]' : 'text-[#AFAFAF]'
+                <div className={`text-base font-bold uppercase tracking-wide mb-2 ${
+                  isHighlighted ? 'text-[#1CB0F6]' : 'text-[#DBDEE1]'
                 }`}>
                   {item.label}
                 </div>

@@ -3,7 +3,7 @@
  *
  * Handles creation, management, and tracking of study groups. Groups are collaborative
  * teams of up to 5 members who earn XP bonuses based on group level. Features include:
- * - Group creation with unique IDs (e.g., GP-A1B2)
+ * - Group creation with unique IDs (e.g., A1B2)
  * - Member management (join, leave, kick)
  * - Group leveling based on collective study hours
  * - XP bonus modifiers for group members
@@ -22,7 +22,7 @@ const logger = createLogger('GroupService');
  * Group record - represents a study group
  */
 export interface Group {
-  groupId: string;          // Unique group ID (e.g., 'GP-A1B2')
+  groupId: string;          // Unique group ID (e.g., 'A1B2')
   name: string;             // Group name
   ownerId: string;          // Discord user ID of group owner
   ownerUsername: string;    // Discord username of owner
@@ -58,14 +58,14 @@ export class GroupService {
   }
 
   /**
-   * Generates a unique group ID in format GP-XXXX
+   * Generates a unique group ID in format XXXX
    *
-   * @returns Random group ID (e.g., "GP-A1B2")
+   * @returns Random group ID (e.g., "A1B2")
    * @private
    */
   private generateGroupId(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let id = 'GP-';
+    let id = '';
     for (let i = 0; i < 4; i++) {
       id += chars.charAt(Math.floor(Math.random() * chars.length));
     }

@@ -65,7 +65,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
       <div className="absolute top-11 right-16 w-80">
         <div className="flex justify-between items-center mb-2">
           <span className="text-[#3C3C3C] text-xl font-bold">Level {level}</span>
-          <span className="text-[#777777] text-base font-normal">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
+          <span className="text-[#555555] text-lg font-semibold">{Math.floor(xpInCurrentLevel)} / {xpNeededForNextLevel} XP</span>
         </div>
         <div className="h-5 bg-[#E5E5E5] rounded-full overflow-hidden border-2 border-[#D7D7D7]">
           <div
@@ -105,7 +105,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
                   <span className="text-sm font-extrabold text-white">{groupLevel}</span>
                 </div>
               </div>
-              <span className="text-[#777777] text-lg font-semibold">
+              <span className="text-[#666666] text-lg font-semibold">
                 {groupName}
               </span>
             </div>
@@ -123,7 +123,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#3C3C3C] leading-none mb-2">{xp.toLocaleString()}</div>
-              <div className="text-lg font-normal text-[#777777]">Total XP</div>
+              <div className="text-xl font-semibold text-[#666666]">Total XP</div>
             </div>
           </div>
         </div>
@@ -136,7 +136,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#3C3C3C] leading-none mb-2">{totalHours}h</div>
-              <div className="text-lg font-normal text-[#777777]">Total time</div>
+              <div className="text-xl font-semibold text-[#666666]">Total time</div>
             </div>
           </div>
         </div>
@@ -149,7 +149,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#3C3C3C] leading-none mb-2">{totalSessions}</div>
-              <div className="text-lg font-normal text-[#777777]">Sessions</div>
+              <div className="text-xl font-semibold text-[#666666]">Sessions</div>
             </div>
           </div>
         </div>
@@ -162,7 +162,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#3C3C3C] leading-none mb-2">{achievementCount}</div>
-              <div className="text-lg font-normal text-[#777777]">Achievements</div>
+              <div className="text-xl font-semibold text-[#666666]">Achievements</div>
             </div>
           </div>
         </div>
@@ -175,7 +175,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#3C3C3C] leading-none mb-2">{streak}</div>
-              <div className="text-lg font-normal text-[#777777]">Day streak</div>
+              <div className="text-xl font-semibold text-[#666666]">Day streak</div>
             </div>
           </div>
         </div>
@@ -188,7 +188,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#3C3C3C] leading-none mb-2">{longestStreak}</div>
-              <div className="text-lg font-normal text-[#777777]">Best streak</div>
+              <div className="text-xl font-semibold text-[#666666]">Best streak</div>
             </div>
           </div>
         </div>

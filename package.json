@@ -9,6 +9,7 @@
     "start": "node dist/bot.js",
     "register-commands": "ts-node scripts/register-commands.ts",
     "cleanup-duplicates": "ts-node scripts/cleanup-duplicates.ts",
+    "migrate-group-ids": "ts-node scripts/migrate-group-ids.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

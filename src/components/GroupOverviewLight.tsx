@@ -84,8 +84,8 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
       <div className="mb-8">
         <div className="flex items-baseline gap-3">
           <h1 className="text-[#3C3C3C] text-5xl font-extrabold">{groupName}</h1>
-          <span className="text-[#777777] text-2xl font-bold">#{groupId}</span>
-          <span className="text-[#777777] text-2xl font-bold ml-1">{currentMembers}/{maxMembers}</span>
+          <span className="text-[#888888] text-2xl font-bold">#{groupId}</span>
+          <span className="text-[#888888] text-2xl font-bold ml-1">{currentMembers}/{maxMembers}</span>
         </div>
       </div>
 
