@@ -12,6 +12,10 @@ import type { CommandContext } from '../commands/types';
 import { createLogger } from '../utils/logger';
 import { handleGroupButtons } from '../interactions/buttons/groupButtons';
 import {
+  handleFindGroupsPagination,
+  handleGroupLeaderboardPagination,
+} from '../interactions/buttons/groupPaginationButtons';
+import {
   handleEventJoinButton,
   handleEventLeaveButton,
   handleEventListJoinButton,
@@ -73,6 +77,17 @@ export async function handleInteractionCreate(
     // Handle group-related buttons
     if (interaction.customId.startsWith('groupadmin_delete_')) {
       await handleGroupButtons(interaction, db, client);
+      return;
+    }
+
+    // Handle group pagination buttons
+    if (interaction.customId.startsWith('findgroups:')) {
+      await handleFindGroupsPagination(interaction, db);
+      return;
+    }
+
+    if (interaction.customId.startsWith('group_leaderboard_page:')) {
+      await handleGroupLeaderboardPagination(interaction, db);
       return;
     }
 

@@ -73,6 +73,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/groups/group_leaderboard',
     '../commands/groups/findgroups',
     '../commands/groups/groupadmin',
+    '../commands/groups/groupsettings',
   ];
 
   // Utility commands

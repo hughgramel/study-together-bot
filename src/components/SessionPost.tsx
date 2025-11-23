@@ -35,6 +35,8 @@ interface SessionPostProps {
   title?: string;
   description?: string;
   date?: string; // Format: "November 10 at 3:13 PM"
+  groupName?: string; // Group name to display
+  groupLevel?: number; // Group level to show in shield
 }
 
 /**
@@ -61,6 +63,8 @@ export const SessionPost: React.FC<SessionPostProps> = ({
   title,
   description,
   date,
+  groupName,
+  groupLevel,
 }) => {
   /**
    * Gets the color gradient for intensity display
@@ -92,9 +96,37 @@ export const SessionPost: React.FC<SessionPostProps> = ({
             </div>
           )}
           <div className="flex flex-col overflow-hidden">
-            <h2 className="text-[#EFEFEF] text-xl font-bold truncate max-w-[600px]">
-              {username}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[#EFEFEF] text-xl font-bold truncate">
+                {username}
+              </h2>
+              {groupName && groupLevel && (
+                <div className="flex items-center gap-1.5 bg-[#1F2B31] border-2 border-[#2E3D44] rounded-full px-3 py-1 flex-shrink-0">
+                  <div className="relative w-5 h-5 flex items-center justify-center">
+                    {/* Shield icon */}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2L4 6V11C4 16.55 7.84 21.74 13 23C18.16 21.74 22 16.55 22 11V6L12 2Z"
+                            fill="url(#shield-gradient)"
+                            stroke="#58CC02"
+                            strokeWidth="1.5"/>
+                      <defs>
+                        <linearGradient id="shield-gradient" x1="4" y1="2" x2="22" y2="23" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#58CC02" />
+                          <stop offset="100%" stopColor="#45A000" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    {/* Level number inside shield */}
+                    <span className="absolute text-[10px] font-extrabold text-white" style={{ top: '6px' }}>
+                      {groupLevel}
+                    </span>
+                  </div>
+                  <span className="text-sm font-bold text-[#EFEFEF] truncate max-w-[120px]">
+                    {groupName}
+                  </span>
+                </div>
+              )}
+            </div>
             {date && (
               <p className="text-[#AFAFAF] text-base font-normal truncate max-w-[600px]">
                 {date}

@@ -16,6 +16,7 @@ import {
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { PostImageService } from '../services/postImage';
 import { PostService } from '../services/posts';
+import { GroupService } from '../services/groups';
 import { formatDuration } from './formatters';
 import { getServerConfig } from './serverHelpers';
 import { createLogger } from './logger';
@@ -92,6 +93,12 @@ export async function postSessionToFeed(
       minute: '2-digit',
     });
 
+    // Get user's group info
+    const groupService = new GroupService(db);
+    const userGroupData = await groupService.getUserGroup(userId);
+    const groupName = userGroupData?.group.name;
+    const groupLevel = userGroupData?.group.level;
+
     // Generate session post image
     const imageBuffer = await postImageService.generateSessionPostImage(
       username,
@@ -102,7 +109,9 @@ export async function postSessionToFeed(
       avatarUrl,
       title,
       description,
-      dateStr
+      dateStr,
+      groupName,
+      groupLevel
     );
 
     // Create attachment

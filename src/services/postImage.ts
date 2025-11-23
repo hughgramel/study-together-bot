@@ -67,7 +67,9 @@ export class PostImageService {
     avatarUrl?: string,
     title?: string,
     description?: string,
-    date?: string
+    date?: string,
+    groupName?: string,
+    groupLevel?: number
   ): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
@@ -91,6 +93,8 @@ export class PostImageService {
         title,
         description,
         date,
+        groupName,
+        groupLevel,
       });
 
       const html = ReactDOMServer.renderToStaticMarkup(component);

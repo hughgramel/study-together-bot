@@ -9,17 +9,9 @@ import { SlashCommandBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, Act
 import type { Command } from '../types';
 import { groupOverviewImageService } from '../../services/groupOverviewImage';
 import { createLogger } from '../../utils/logger';
+import { storeFindGroupsState } from '../../interactions/buttons/groupPaginationButtons';
 
 const logger = createLogger('FindGroupsCommand');
-
-// Group pagination state
-interface GroupPaginationState {
-  userId: string;
-  groups: any[];
-  currentPage: number;
-  messageId: string;
-}
-const groupPaginations = new Map<string, GroupPaginationState>();
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -115,17 +107,12 @@ export const command: Command = {
 
       // Store pagination state if there are multiple pages
       if (totalPages > 1) {
-        groupPaginations.set(paginationId, {
+        storeFindGroupsState(paginationId, {
           userId: user.id,
           groups: availableGroups,
           currentPage: 0, // 0-indexed internally
           messageId: reply.id,
         });
-
-        // Clean up pagination state after 15 minutes
-        setTimeout(() => {
-          groupPaginations.delete(paginationId);
-        }, 15 * 60 * 1000);
       }
 
       logger.info(`Found ${availableGroups.length} available groups`);
@@ -137,6 +124,3 @@ export const command: Command = {
     }
   },
 };
-
-// Export the pagination state map for use in button interaction handlers
-export { groupPaginations };

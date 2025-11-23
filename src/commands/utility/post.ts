@@ -8,6 +8,7 @@ import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import type { Command } from '../types';
 import { StatsService } from '../../services/stats';
 import { PostImageService } from '../../services/postImage';
+import { GroupService } from '../../services/groups';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('PostCommand');
@@ -49,6 +50,12 @@ export const command: Command = {
         hour12: true
       });
 
+      // Get user's group info
+      const groupService = new GroupService(db);
+      const userGroupData = await groupService.getUserGroup(user.id);
+      const groupName = userGroupData?.group.name;
+      const groupLevel = userGroupData?.group.level;
+
       // Generate the session post image
       const postImageService = new PostImageService();
       const imageBuffer = await postImageService.generateSessionPostImage(
@@ -60,7 +67,9 @@ export const command: Command = {
         avatarUrl,
         sampleTitle,
         sampleDescription,
-        sampleDate
+        sampleDate,
+        groupName,
+        groupLevel
       );
 
       // Create attachment
