@@ -1,8 +1,8 @@
 /**
  * Message Create Event Handler
  *
- * Handles incoming Discord messages to parse numbered task lists
- * in designated goal channels. Automatically creates tasks when
+ * Handles incoming Discord messages to parse numbered goal lists
+ * in designated goal channels. Automatically creates goals when
  * users post numbered lists.
  */
 
@@ -73,10 +73,10 @@ export async function handleMessageCreate(
     );
 
     logger.info(
-      `Created ${tasks.length} tasks for ${message.author.username} (${message.author.id})`
+      `Created ${tasks.length} goals for ${message.author.username} (${message.author.id})`
     );
 
-    // React to the message to confirm tasks were created
+    // React to the message to confirm goals were created
     await message.react('✅');
   } catch (error) {
     logger.error('Error handling message create', error);

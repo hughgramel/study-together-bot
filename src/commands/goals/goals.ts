@@ -1,8 +1,8 @@
 /**
- * /tasks Command
+ * /goals Command
  *
- * Displays user's active tasks.
- * Tasks are parsed from numbered lists posted in the goal channel.
+ * Displays user's active goals.
+ * Goals are parsed from numbered lists posted in the goal channel.
  */
 
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
@@ -10,18 +10,18 @@ import type { Command } from '../types';
 import { TaskService } from '../../services/tasks';
 import { createLogger } from '../../utils/logger';
 
-const logger = createLogger('TasksCommand');
+const logger = createLogger('GoalsCommand');
 
 export const command: Command = {
   data: new SlashCommandBuilder()
-    .setName('tasks')
-    .setDescription('View your active tasks'),
+    .setName('goals')
+    .setDescription('View your active goals'),
 
   async execute(interaction, context) {
     const { db } = context;
     const user = interaction.user;
 
-    logger.info(`User ${user.username} (${user.id}) viewing tasks`);
+    logger.info(`User ${user.username} (${user.id}) viewing goals`);
 
     try {
       const taskService = new TaskService(db);
@@ -30,24 +30,24 @@ export const command: Command = {
       if (activeTasks.length === 0) {
         await interaction.reply({
           content:
-            '📋 You have no active tasks.\n\n' +
-            'Post a numbered list in the goal channel to create tasks!',
+            '📋 You have no active goals.\n\n' +
+            'Post a numbered list in the goal channel to create goals!',
           ephemeral: true,
         });
         return;
       }
 
-      // Build task list
-      const taskList = activeTasks
+      // Build goal list
+      const goalList = activeTasks
         .map((task, index) => `**${index + 1}.** ${task.description}`)
         .join('\n');
 
       const embed = new EmbedBuilder()
         .setColor(0x0080ff)
-        .setTitle('📋 Your Active Tasks')
-        .setDescription(taskList)
+        .setTitle('📋 Your Active Goals')
+        .setDescription(goalList)
         .setFooter({
-          text: `${activeTasks.length} active task${activeTasks.length !== 1 ? 's' : ''} • Use /task complete [numbers] to complete tasks`
+          text: `${activeTasks.length} active goal${activeTasks.length !== 1 ? 's' : ''} • Use /complete [numbers] to complete goals`
         });
 
       await interaction.reply({
@@ -55,9 +55,9 @@ export const command: Command = {
         ephemeral: true,
       });
     } catch (error) {
-      logger.error('Error displaying tasks', error);
+      logger.error('Error displaying goals', error);
       await interaction.reply({
-        content: '❌ An error occurred while fetching your tasks. Please try again later.',
+        content: '❌ An error occurred while fetching your goals. Please try again later.',
         ephemeral: true,
       });
     }

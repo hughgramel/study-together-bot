@@ -12,6 +12,9 @@ import {
 } from 'discord.js';
 import type { Command } from '../types';
 import { DailyGoalService } from '../../services/dailyGoal';
+import { TaskService } from '../../services/tasks';
+import { XPService } from '../../services/xp';
+import { GroupService } from '../../services/groups';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('GoalCommand');

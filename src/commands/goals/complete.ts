@@ -1,8 +1,8 @@
 /**
- * /task Command
+ * /complete Command
  *
- * Complete tasks by number (supports single, multiple, and ranges).
- * Examples: /task complete 1, /task complete 1,2,3, /task complete 1-3
+ * Complete goals by number (supports single, multiple, and ranges).
+ * Examples: /complete 1, /complete 1,2,3, /complete 1-3
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -12,7 +12,7 @@ import { XPService } from '../../services/xp';
 import { GroupService } from '../../services/groups';
 import { createLogger } from '../../utils/logger';
 
-const logger = createLogger('TaskCommand');
+const logger = createLogger('CompleteCommand');
 
 /**
  * Parse task numbers from input string
@@ -51,27 +51,20 @@ function parseTaskNumbers(input: string): number[] {
 
 export const command: Command = {
   data: new SlashCommandBuilder()
-    .setName('task')
-    .setDescription('Complete tasks')
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName('complete')
-        .setDescription('Complete tasks by number (e.g., 1, 1-3, 1,2,3)')
-        .addStringOption((option) =>
-          option
-            .setName('numbers')
-            .setDescription('Task numbers to complete (e.g., 1, 1-3, 1,2,3)')
-            .setRequired(true)
-        )
+    .setName('complete')
+    .setDescription('Complete goals by number (e.g., 1, 1-3, 1,2,3)')
+    .addStringOption((option) =>
+      option
+        .setName('numbers')
+        .setDescription('Goal numbers to complete (e.g., 1, 1-3, 1,2,3)')
+        .setRequired(true)
     ),
 
   async execute(interaction, context) {
     const { db } = context;
     const user = interaction.user;
 
-    const subcommand = interaction.options.getSubcommand();
-
-    if (subcommand === 'complete') {
+    {
       await interaction.deferReply({ ephemeral: true });
 
       try {
@@ -81,11 +74,11 @@ export const command: Command = {
         if (taskNumbers.length === 0) {
           await interaction.editReply({
             content:
-              '❌ Invalid task numbers. Use formats like:\n' +
-              '• Single: `/task complete 1`\n' +
-              '• Multiple: `/task complete 1,2,3`\n' +
-              '• Range: `/task complete 1-3`\n' +
-              '• Combined: `/task complete 1-3,5,7-9`',
+              '❌ Invalid goal numbers. Use formats like:\n' +
+              '• Single: `/complete 1`\n' +
+              '• Multiple: `/complete 1,2,3`\n' +
+              '• Range: `/complete 1-3`\n' +
+              '• Combined: `/complete 1-3,5,7-9`',
           });
           return;
         }
@@ -94,17 +87,17 @@ export const command: Command = {
         const xpService = new XPService(db);
         const groupService = new GroupService(db);
 
-        // Get user's active tasks
+        // Get user's active goals
         const activeTasks = await taskService.getActiveTasks(user.id);
 
         if (activeTasks.length === 0) {
           await interaction.editReply({
-            content: '📋 You have no active tasks.',
+            content: '📋 You have no active goals.',
           });
           return;
         }
 
-        // Validate task numbers and get task IDs
+        // Validate goal numbers and get task IDs
         const taskIds: string[] = [];
         const invalidNumbers: number[] = [];
 
@@ -112,25 +105,25 @@ export const command: Command = {
           if (num < 1 || num > activeTasks.length) {
             invalidNumbers.push(num);
           } else {
-            // Task numbers are 1-indexed, array is 0-indexed
+            // Goal numbers are 1-indexed, array is 0-indexed
             taskIds.push(activeTasks[num - 1].id);
           }
         }
 
         if (taskIds.length === 0) {
           await interaction.editReply({
-            content: `❌ Invalid task number${invalidNumbers.length > 1 ? 's' : ''}: ${invalidNumbers.join(', ')}\n\nYou have ${activeTasks.length} active task${activeTasks.length !== 1 ? 's' : ''}. Use \`/tasks\` to view them.`,
+            content: `❌ Invalid goal number${invalidNumbers.length > 1 ? 's' : ''}: ${invalidNumbers.join(', ')}\n\nYou have ${activeTasks.length} active goal${activeTasks.length !== 1 ? 's' : ''}. Use \`/goals\` to view them.`,
           });
           return;
         }
 
-        // Complete the tasks
+        // Complete the goals
         const { tasks: completedTasks, totalXpAwarded: baseXP } =
           await taskService.completeTasks(user.id, taskIds);
 
         if (completedTasks.length === 0) {
           await interaction.editReply({
-            content: '❌ No tasks were completed. They may have already been completed.',
+            content: '❌ No goals were completed. They may have already been completed.',
           });
           return;
         }
@@ -154,11 +147,11 @@ export const command: Command = {
         const xpResult = await xpService.awardXP(
           user.id,
           finalXP,
-          `Completed ${completedTasks.length} task${completedTasks.length !== 1 ? 's' : ''}`
+          `Completed ${completedTasks.length} goal${completedTasks.length !== 1 ? 's' : ''}`
         );
 
         // Build response message
-        let message = `✅ **Completed ${completedTasks.length} task${completedTasks.length !== 1 ? 's' : ''}!**\n\n`;
+        let message = `✅ **Completed ${completedTasks.length} goal${completedTasks.length !== 1 ? 's' : ''}!**\n\n`;
         message += completedTasks.map((task) => `• ${task.description}`).join('\n');
         message += `\n\n**+${finalXP} XP**`;
 
@@ -172,7 +165,7 @@ export const command: Command = {
 
         // Show warning if some numbers were invalid
         if (invalidNumbers.length > 0) {
-          message += `\n\n⚠️ Skipped invalid task number${invalidNumbers.length > 1 ? 's' : ''}: ${invalidNumbers.join(', ')}`;
+          message += `\n\n⚠️ Skipped invalid goal number${invalidNumbers.length > 1 ? 's' : ''}: ${invalidNumbers.join(', ')}`;
         }
 
         await interaction.editReply({
@@ -180,12 +173,12 @@ export const command: Command = {
         });
 
         logger.info(
-          `User ${user.username} (${user.id}) completed ${completedTasks.length} tasks, awarded ${finalXP} XP`
+          `User ${user.username} (${user.id}) completed ${completedTasks.length} goals, awarded ${finalXP} XP`
         );
       } catch (error) {
-        logger.error('Error completing tasks', error);
+        logger.error('Error completing goals', error);
         await interaction.editReply({
-          content: '❌ An error occurred while completing tasks. Please try again later.',
+          content: '❌ An error occurred while completing goals. Please try again later.',
         });
       }
     }
