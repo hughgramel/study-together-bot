@@ -118,7 +118,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
         {/* Row 1 Left: Total XP Card */}
         <div className="bg-white rounded-2xl p-6 border-2 border-[#E5E5E5]">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-[#FFD900] to-[#FFAA00] rounded-2xl flex items-center justify-center flex-shrink-0">
+            <div className="w-16 h-16 bg-gradient-to-br from-[#CE82FF] to-[#A855F7] rounded-2xl flex items-center justify-center flex-shrink-0">
               <Zap className="w-9 h-9 text-white" fill="white" />
             </div>
             <div className="flex flex-col justify-center">
@@ -157,7 +157,7 @@ export const ProfileCardLight: React.FC<ProfileCardLightProps> = ({
         {/* Row 2 Right: Achievements Card */}
         <div className="bg-white rounded-2xl p-6 border-2 border-[#E5E5E5]">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-[#CE82FF] to-[#A855F7] rounded-2xl flex items-center justify-center flex-shrink-0">
+            <div className="w-16 h-16 bg-gradient-to-br from-[#FFD900] to-[#FFAA00] rounded-2xl flex items-center justify-center flex-shrink-0">
               <Award className="w-9 h-9 text-white" fill="white" />
             </div>
             <div className="flex flex-col justify-center">
