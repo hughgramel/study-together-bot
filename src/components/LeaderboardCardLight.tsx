@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { calculateLevel } from '../utils/xp';
-import { Trophy, Medal, Award } from 'lucide-react';
+import { Trophy, Medal, Award, Zap } from 'lucide-react';
 
 interface LeaderboardEntry {
   userId: string;
@@ -146,8 +146,8 @@ export const LeaderboardCardLight: React.FC<LeaderboardCardLightProps> = ({
               {/* Stats */}
               <div className="flex items-center gap-5 mr-2">
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#3C3C3C] flex items-center justify-end gap-1">
-                    {entry.xp.toLocaleString()} <span className="text-[#A78BFA]">⚡</span>
+                  <div className="text-xl font-extrabold text-[#3C3C3C] flex items-center justify-end gap-1.5">
+                    {entry.xp.toLocaleString()} <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
                   </div>
                   <div className="text-sm font-semibold text-[#777777]">XP</div>
                 </div>
@@ -195,8 +195,8 @@ export const LeaderboardCardLight: React.FC<LeaderboardCardLightProps> = ({
               {/* Stats */}
               <div className="flex items-center gap-5 mr-2">
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#3C3C3C] flex items-center justify-end gap-1">
-                    {currentUser.xp.toLocaleString()} <span className="text-[#A78BFA]">⚡</span>
+                  <div className="text-xl font-extrabold text-[#3C3C3C] flex items-center justify-end gap-1.5">
+                    {currentUser.xp.toLocaleString()} <Zap className="w-5 h-5 text-[#A78BFA]" fill="#A78BFA" />
                   </div>
                   <div className="text-sm font-semibold text-[#777777]">XP</div>
                 </div>
