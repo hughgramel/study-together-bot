@@ -7,7 +7,9 @@
 import { ButtonInteraction, AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { Firestore } from 'firebase-admin/firestore';
 import { groupOverviewImageService } from '../../services/groupOverviewImage';
+import { groupOverviewImageLightService } from '../../services/groupOverviewImageLight';
 import { GroupService } from '../../services/groups';
+import { StatsService } from '../../services/stats';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('GroupPaginationButtons');
@@ -110,8 +112,14 @@ export async function handleFindGroupsPagination(
     const endIdx = Math.min((state.currentPage + 1) * itemsPerPage, state.groups.length);
     const pageGroups = state.groups.slice(startIdx, endIdx);
 
-    // Generate new image
-    const imageBuffer = await groupOverviewImageService.generateFindGroupsImage(
+    // Check user's light mode preference
+    const statsService = new StatsService(db);
+    const stats = await statsService.getUserStats(interaction.user.id);
+    const useLightMode = stats?.lightMode || false;
+
+    // Generate new image using appropriate theme
+    const imageService = useLightMode ? groupOverviewImageLightService : groupOverviewImageService;
+    const imageBuffer = await imageService.generateFindGroupsImage(
       pageGroups,
       state.currentPage + 1, // Display as 1-indexed
       totalPages
@@ -233,8 +241,14 @@ export async function handleGroupLeaderboardPagination(
       groupLevel: group.groupLevel,
     }));
 
-    // Generate group leaderboard image
-    const imageBuffer = await groupOverviewImageService.generateGroupLeaderboardImage(pageGroups);
+    // Check user's light mode preference
+    const statsService = new StatsService(db);
+    const stats = await statsService.getUserStats(interaction.user.id);
+    const useLightMode = stats?.lightMode || false;
+
+    // Generate group leaderboard image using appropriate theme
+    const imageService = useLightMode ? groupOverviewImageLightService : groupOverviewImageService;
+    const imageBuffer = await imageService.generateGroupLeaderboardImage(pageGroups);
 
     // Create attachment
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'group-leaderboard.png' });

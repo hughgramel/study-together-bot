@@ -10,6 +10,7 @@ import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { GroupOverviewLight } from '../components/GroupOverviewLight';
 import { GroupLeaderboardLight } from '../components/GroupLeaderboardLight';
+import { FindGroupsLight } from '../components/FindGroupsLight';
 import { browserPool } from './browserPool';
 
 interface GroupMember {
@@ -26,6 +27,15 @@ interface GroupLeaderboardEntry {
   currentMembers: number;
   maxMembers: number;
   groupLevel: number;
+}
+
+interface FindGroupsEntry {
+  groupId: string;
+  groupName: string;
+  groupLevel: number;
+  currentMembers: number;
+  maxMembers: number;
+  xpModifier: number;
 }
 
 export class GroupOverviewImageLightService {
@@ -159,6 +169,85 @@ export class GroupOverviewImageLightService {
       });
 
       const component = React.createElement(GroupLeaderboardLight, { groups });
+      const html = ReactDOMServer.renderToStaticMarkup(component);
+
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+              :root {
+                --font-main: 'Nunito', sans-serif;
+              }
+              * {
+                box-sizing: border-box;
+                font-family: var(--font-main);
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                width: 700px;
+                height: 650px;
+                overflow: hidden;
+                font-family: var(--font-main);
+                background-color: white;
+              }
+            </style>
+          </head>
+          <body>
+            ${html}
+          </body>
+        </html>
+      `;
+
+      await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+      await page.waitForSelector('body > div');
+      await page.evaluate('document.fonts.ready');
+
+      const screenshot = await page.screenshot({
+        type: 'png',
+        omitBackground: false,
+        clip: {
+          x: 0,
+          y: 0,
+          width: 700,
+          height: 650
+        },
+      });
+
+      return screenshot as Buffer;
+    } finally {
+      await page.close();
+    }
+  }
+
+  /**
+   * Generate a light mode find groups image
+   */
+  async generateFindGroupsImage(
+    groups: FindGroupsEntry[],
+    currentPage: number,
+    totalPages: number
+  ): Promise<Buffer> {
+    const browser = await browserPool.getBrowser();
+    const page = await browser.newPage();
+
+    try {
+      await page.setViewport({
+        width: 700,
+        height: 650,
+        deviceScaleFactor: 1
+      });
+
+      const component = React.createElement(FindGroupsLight, {
+        groups,
+        currentPage,
+        totalPages
+      });
       const html = ReactDOMServer.renderToStaticMarkup(component);
 
       const fullHtml = `

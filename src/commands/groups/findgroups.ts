@@ -8,6 +8,8 @@
 import { SlashCommandBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import type { Command } from '../types';
 import { groupOverviewImageService } from '../../services/groupOverviewImage';
+import { groupOverviewImageLightService } from '../../services/groupOverviewImageLight';
+import { StatsService } from '../../services/stats';
 import { createLogger } from '../../utils/logger';
 import { storeFindGroupsState } from '../../interactions/buttons/groupPaginationButtons';
 
@@ -86,8 +88,14 @@ export const command: Command = {
       const currentPage = 1; // Start at page 1
       const pageGroups = availableGroups.slice(0, itemsPerPage);
 
-      // Generate find groups image
-      const imageBuffer = await groupOverviewImageService.generateFindGroupsImage(
+      // Check user's light mode preference
+      const statsService = new StatsService(db);
+      const stats = await statsService.getUserStats(user.id);
+      const useLightMode = stats?.lightMode || false;
+
+      // Generate find groups image using appropriate theme
+      const imageService = useLightMode ? groupOverviewImageLightService : groupOverviewImageService;
+      const imageBuffer = await imageService.generateFindGroupsImage(
         pageGroups,
         currentPage,
         totalPages

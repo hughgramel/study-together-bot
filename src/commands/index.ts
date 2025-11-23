@@ -78,6 +78,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/groups/findgroups',
     '../commands/groups/groupadmin',
     '../commands/groups/groupsettings',
+    '../commands/groups/renamegroup',
   ];
 
   // Utility commands
