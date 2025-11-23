@@ -155,7 +155,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
         )}
         <div className="flex flex-col">
           <h2 className="text-[#EFEFEF] text-3xl font-extrabold">
-            {username.length > 10 ? username.substring(0, 10) + '...' : username}
+            {username.length > 8 ? username.substring(0, 8) + '...' : username}
           </h2>
           {groupName && (
             <div className="mt-2">
