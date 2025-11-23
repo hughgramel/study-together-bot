@@ -17,9 +17,12 @@ import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { PostImageService } from '../services/postImage';
 import { PostService } from '../services/posts';
 import { GroupService } from '../services/groups';
+import { levelUpImageService } from '../services/levelUpImage';
+import { achievementUnlockImageService } from '../services/achievementUnlockImage';
 import { formatDuration } from './formatters';
 import { getServerConfig } from './serverHelpers';
 import { createLogger } from './logger';
+import { xpForLevel } from './xp';
 
 const logger = createLogger('FeedHelpers');
 
@@ -120,19 +123,8 @@ export async function postSessionToFeed(
       description: `${username}'s session: ${title}`,
     });
 
-    // Build additional info text if level-up or achievements
-    let additionalContent = '';
-    if (levelGained) {
-      additionalContent += `🎉 **${username} leveled up to Level ${levelGained}!**\n`;
-    }
-    if (achievements && achievements.length > 0) {
-      const achievementNames = achievements.map(a => a.name).join(', ');
-      additionalContent += `🏆 **New Achievements:** ${achievementNames}\n`;
-    }
-
-    // Post to feed
+    // Post to feed (no text content - images only)
     const message = await textChannel.send({
-      content: additionalContent || undefined,
       files: [attachment],
     });
 
@@ -181,15 +173,41 @@ export async function postLevelUpToFeed(
 
     const textChannel = channel as TextChannel;
 
-    // Create level-up embed
-    const embed = new EmbedBuilder()
-      .setColor(0xFFD700) // Gold
-      .setTitle('🎉 Level Up!')
-      .setDescription(`**${username}** advanced from Level ${oldLevel} to **Level ${newLevel}**!`)
-      .setThumbnail(avatarUrl)
-      .setTimestamp();
+    // Check bot permissions
+    const botMember = await interaction.guild?.members.fetch(interaction.client.user!.id);
+    const permissions = textChannel.permissionsFor(botMember!);
 
-    await textChannel.send({ embeds: [embed] });
+    if (!permissions?.has(PermissionFlagsBits.SendMessages)) {
+      logger.error('Bot lacks Send Messages permission in feed channel');
+      return;
+    }
+
+    if (!permissions?.has(PermissionFlagsBits.AttachFiles)) {
+      logger.error('Bot lacks Attach Files permission in feed channel');
+      return;
+    }
+
+    // Calculate hours to next level
+    const currentLevelXp = xpForLevel(newLevel);
+    const nextLevelXp = xpForLevel(newLevel + 1);
+    const xpNeededForNextLevel = nextLevelXp - currentLevelXp;
+    const hoursToNext = Math.round(xpNeededForNextLevel / 100); // Assuming ~100 XP per hour
+
+    // Generate level-up image
+    const imageBuffer = await levelUpImageService.generateLevelUpImage(
+      username,
+      avatarUrl,
+      newLevel,
+      hoursToNext
+    );
+
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `levelup-${username}-${newLevel}.png`,
+      description: `${username} leveled up to ${newLevel}!`,
+    });
+
+    await textChannel.send({ files: [attachment] });
     logger.info(`Posted level-up for ${username}: ${oldLevel} → ${newLevel}`);
   } catch (error) {
     logger.error('Error posting level-up:', error);
@@ -263,17 +281,51 @@ export async function postAchievementUnlockToFeed(
 
     const textChannel = channel as TextChannel;
 
-    // Create achievement embed
-    const embed = new EmbedBuilder()
-      .setColor(0x9B59B6) // Purple
-      .setTitle('🏆 Achievement Unlocked!')
-      .setDescription(
-        `**${username}** unlocked ${achievementIds.length} new achievement${achievementIds.length > 1 ? 's' : ''}!`
-      )
-      .setThumbnail(avatarUrl)
-      .setTimestamp();
+    // Check bot permissions
+    const botMember = await interaction.guild?.members.fetch(interaction.client.user!.id);
+    const permissions = textChannel.permissionsFor(botMember!);
 
-    await textChannel.send({ embeds: [embed] });
+    if (!permissions?.has(PermissionFlagsBits.SendMessages)) {
+      logger.error('Bot lacks Send Messages permission in feed channel');
+      return;
+    }
+
+    if (!permissions?.has(PermissionFlagsBits.AttachFiles)) {
+      logger.error('Bot lacks Attach Files permission in feed channel');
+      return;
+    }
+
+    // Get achievement data from IDs
+    const { getAchievement } = await import('../data/achievements');
+    const achievements = achievementIds
+      .map(id => getAchievement(id))
+      .filter(a => a !== undefined)
+      .map(a => ({
+        emoji: a!.emoji,
+        name: a!.name,
+        description: a!.description,
+        xpReward: a!.xpReward,
+      }));
+
+    if (achievements.length === 0) {
+      logger.warn('No valid achievements found for IDs:', achievementIds);
+      return;
+    }
+
+    // Generate achievement unlock image
+    const imageBuffer = await achievementUnlockImageService.generateAchievementUnlockImage(
+      username,
+      avatarUrl,
+      achievements
+    );
+
+    // Create attachment
+    const attachment = new AttachmentBuilder(imageBuffer, {
+      name: `achievement-${username}-${Date.now()}.png`,
+      description: `${username} unlocked ${achievements.length} achievement${achievements.length > 1 ? 's' : ''}!`,
+    });
+
+    await textChannel.send({ files: [attachment] });
     logger.info(`Posted achievement unlock for ${username}: ${achievementIds.join(', ')}`);
   } catch (error) {
     logger.error('Error posting achievement unlock:', error);
