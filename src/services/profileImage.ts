@@ -9,13 +9,13 @@
  * @module services/profileImage
  */
 
-import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { UserStats } from '../types';
 import { calculateLevel } from '../utils/xp';
 import { ProfileCard } from '../components/ProfileCard';
 import { LeaderboardCard } from '../components/LeaderboardCard';
+import { browserPool } from './browserPool';
 
 export interface LeaderboardEntry {
   userId: string;
@@ -28,10 +28,9 @@ export interface LeaderboardEntry {
 
 /**
  * Service for rendering profile cards and leaderboards as images
+ * Uses shared browser pool to prevent resource exhaustion
  */
 export class ProfileImageService {
-  private browser: Browser | null = null;
-
   /**
    * Pre-initializes the browser instance to avoid delays on first use
    *
@@ -39,38 +38,8 @@ export class ProfileImageService {
    */
   async warmup(): Promise<void> {
     console.log('[ProfileImageService] Warming up browser...');
-    await this.getBrowser();
+    await browserPool.warmup();
     console.log('[ProfileImageService] Browser ready');
-  }
-
-  /**
-   * Initialize the browser instance (reusable for performance)
-   */
-  private async getBrowser(): Promise<Browser> {
-    // Check if browser exists and is still connected
-    if (this.browser && !this.browser.connected) {
-      console.log('[ProfileImageService] Browser disconnected, recreating...');
-      try {
-        await this.browser.close();
-      } catch (e) {
-        // Ignore errors when closing disconnected browser
-      }
-      this.browser = null;
-    }
-
-    if (!this.browser) {
-      console.log('[ProfileImageService] Launching new browser instance...');
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
-      });
-    }
-    return this.browser;
   }
 
   /**
@@ -86,7 +55,7 @@ export class ProfileImageService {
       groupLevel: number;
     }
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -176,7 +145,7 @@ export class ProfileImageService {
     currentUser?: LeaderboardEntry,
     currentUserId?: string
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -307,12 +276,10 @@ export class ProfileImageService {
   }
 
   /**
-   * Clean up browser instance
+   * Clean up browser instance (now handled by browser pool)
    */
   async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    // Browser cleanup is now handled by the shared browser pool
+    // This method is kept for backwards compatibility
   }
 }

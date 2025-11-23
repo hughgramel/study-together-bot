@@ -13,6 +13,7 @@ import { handleReady } from './events/ready';
 import { handleInteractionCreate } from './events/interactionCreate';
 import { validateEnvironment } from './middleware/errorHandler';
 import { createLogger } from './utils/logger';
+import { browserPool } from './services/browserPool';
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +33,10 @@ async function main(): Promise<void> {
     // Initialize Firebase
     const db = initializeFirebase();
     logger.info('Firebase initialized');
+
+    // Initialize browser pool for image generation
+    await browserPool.warmup();
+    logger.info('Browser pool initialized');
 
     // Create Discord client
     const client = createDiscordClient();
@@ -71,13 +76,15 @@ async function main(): Promise<void> {
 }
 
 // Handle process termination
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   logger.info('Received SIGINT, shutting down gracefully...');
+  await browserPool.cleanup();
   process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   logger.info('Received SIGTERM, shutting down gracefully...');
+  await browserPool.cleanup();
   process.exit(0);
 });
 

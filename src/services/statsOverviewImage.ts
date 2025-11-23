@@ -9,46 +9,16 @@
  * @module services/statsOverviewImage
  */
 
-import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { StatsOverview } from '../components/StatsOverview';
+import { browserPool } from './browserPool';
 
 /**
  * Service for rendering statistics overview cards as images
  */
 export class StatsOverviewImageService {
-  private browser: Browser | null = null;
-
-  /**
-   * Initialize the browser instance (reusable for performance)
-   */
-  private async getBrowser(): Promise<Browser> {
-    // Check if browser exists and is still connected
-    if (this.browser && !this.browser.connected) {
-      console.log('[StatsOverviewImageService] Browser disconnected, recreating...');
-      try {
-        await this.browser.close();
-      } catch (e) {
-        // Ignore errors when closing disconnected browser
-      }
-      this.browser = null;
-    }
-
-    if (!this.browser) {
-      console.log('[StatsOverviewImageService] Launching new browser instance...');
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
-      });
-    }
-    return this.browser;
-  }
+  // Browser management now handled by shared browser pool
 
   /**
    * Generate a stats overview image
@@ -63,7 +33,7 @@ export class StatsOverviewImageService {
     avatarUrl?: string,
     highlightIndex?: number
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -159,12 +129,10 @@ export class StatsOverviewImageService {
   }
 
   /**
-   * Clean up browser instance
+   * Clean up browser instance (now handled by browser pool)
    */
   async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    // Browser cleanup is now handled by the shared browser pool
+    // This method is kept for backwards compatibility
   }
 }

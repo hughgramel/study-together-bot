@@ -9,11 +9,12 @@
  * @module services/statsImage
  */
 
-import puppeteer, { Browser } from 'puppeteer';
+// Browser management now handled by browserPool
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { StatsChart, DataPoint } from '../components/StatsChart';
 import { createLogger } from '../utils/logger';
+import { browserPool } from './browserPool';
 
 const logger = createLogger('StatsImageService');
 
@@ -21,8 +22,6 @@ const logger = createLogger('StatsImageService');
  * Service for rendering statistics charts as images
  */
 export class StatsImageService {
-  private browser: Browser | null = null;
-
   /**
    * Pre-initializes the browser instance to avoid delays on first use
    *
@@ -30,38 +29,8 @@ export class StatsImageService {
    */
   async warmup(): Promise<void> {
     logger.info('Warming up browser...');
-    await this.getBrowser();
+    await browserPool.warmup();
     logger.info('Browser ready');
-  }
-
-  /**
-   * Initialize the browser instance (reusable for performance)
-   */
-  private async getBrowser(): Promise<Browser> {
-    // Check if browser exists and is still connected
-    if (this.browser && !this.browser.connected) {
-      logger.info('Browser disconnected, recreating...');
-      try {
-        await this.browser.close();
-      } catch (e) {
-        // Ignore errors when closing disconnected browser
-      }
-      this.browser = null;
-    }
-
-    if (!this.browser) {
-      logger.info('Launching new browser instance...');
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
-      });
-    }
-    return this.browser;
   }
 
   /**
@@ -76,7 +45,7 @@ export class StatsImageService {
     previousValue: number,
     avatarUrl?: string
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -144,12 +113,10 @@ export class StatsImageService {
   }
 
   /**
-   * Clean up browser instance
+   * Clean up browser instance (now handled by browser pool)
    */
   async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    // Browser cleanup is now handled by the shared browser pool
+    // This method is kept for backwards compatibility
   }
 }

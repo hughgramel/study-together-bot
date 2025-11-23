@@ -8,10 +8,10 @@
  * @module services/achievementUnlockImage
  */
 
-import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import AchievementUnlockCard from '../components/AchievementUnlockCard';
+import { browserPool } from './browserPool';
 
 interface Achievement {
   emoji: string;
@@ -24,45 +24,7 @@ interface Achievement {
  * Service for rendering achievement unlock cards as images
  */
 class AchievementUnlockImageService {
-  private browser: Browser | null = null;
-
-  /**
-   * Gets or creates a Puppeteer browser instance
-   *
-   * Reuses existing browser for performance, recreates if disconnected.
-   *
-   * @returns Active browser instance
-   * @private
-   */
-  private async getBrowser(): Promise<Browser> {
-    // Check if browser exists and is still connected
-    if (this.browser && !this.browser.connected) {
-      console.log('[AchievementUnlockImageService] Browser disconnected, recreating...');
-      try {
-        await this.browser.close();
-      } catch (e) {
-        // Ignore errors when closing disconnected browser
-      }
-      this.browser = null;
-    }
-
-    if (!this.browser) {
-      console.log('[AchievementUnlockImageService] Launching new browser instance...');
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      });
-      console.log('[AchievementUnlockImageService] Browser launched successfully');
-    }
-
-    return this.browser;
-  }
+  // Browser management now handled by shared browser pool
 
   /**
    * Generate an achievement unlock celebration image
@@ -77,7 +39,7 @@ class AchievementUnlockImageService {
     avatarUrl: string,
     achievements: Achievement[]
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -154,13 +116,11 @@ class AchievementUnlockImageService {
   }
 
   /**
-   * Cleanup browser resources
+   * Cleanup browser resources (now handled by browser pool)
    */
   async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    // Browser cleanup is now handled by the shared browser pool
+    // This method is kept for backwards compatibility
   }
 }
 

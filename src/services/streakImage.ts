@@ -8,49 +8,16 @@
  * @module services/streakImage
  */
 
-import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import StreakCard from '../components/StreakCard';
+import { browserPool } from './browserPool';
 
 /**
  * Service for rendering streak milestone celebration cards as images
  */
 class StreakImageService {
-  private browser: Browser | null = null;
-
-  /**
-   * Initialize the browser instance (reusable for performance)
-   */
-  private async getBrowser(): Promise<Browser> {
-    // Check if browser exists and is still connected
-    if (this.browser && !this.browser.connected) {
-      console.log('[StreakImageService] Browser disconnected, recreating...');
-      try {
-        await this.browser.close();
-      } catch (e) {
-        // Ignore errors when closing disconnected browser
-      }
-      this.browser = null;
-    }
-
-    if (!this.browser) {
-      console.log('[StreakImageService] Launching new browser instance...');
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      });
-      console.log('[StreakImageService] Browser launched successfully');
-    }
-
-    return this.browser;
-  }
+  // Browser management now handled by shared browser pool
 
   /**
    * Generate a streak milestone celebration image
@@ -67,7 +34,7 @@ class StreakImageService {
     streak: number,
     message: string
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -137,10 +104,8 @@ class StreakImageService {
    * Cleanup browser resources
    */
   async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    // Browser cleanup is now handled by the shared browser pool
+    // This method is kept for backwards compatibility
   }
 }
 

@@ -8,11 +8,11 @@
  * @module services/sessionStartImage
  */
 
-import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import SessionStartCard from '../components/SessionStartCard';
 import { createLogger } from '../utils/logger';
+import { browserPool } from './browserPool';
 
 const logger = createLogger('SessionStartImageService');
 
@@ -20,40 +20,7 @@ const logger = createLogger('SessionStartImageService');
  * Service for rendering session start notification cards as images
  */
 class SessionStartImageService {
-  private browser: Browser | null = null;
-
-  /**
-   * Initialize the browser instance (reusable for performance)
-   */
-  private async getBrowser(): Promise<Browser> {
-    // Check if browser exists and is still connected
-    if (this.browser && !this.browser.connected) {
-      logger.info('Browser disconnected, recreating...');
-      try {
-        await this.browser.close();
-      } catch (e) {
-        // Ignore errors when closing disconnected browser
-      }
-      this.browser = null;
-    }
-
-    if (!this.browser) {
-      logger.info('Launching new browser instance...');
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      });
-      logger.info('Browser launched successfully');
-    }
-
-    return this.browser;
-  }
+  // Browser management now handled by shared browser pool
 
   /**
    * Generate a session start notification image
@@ -68,7 +35,7 @@ class SessionStartImageService {
     avatarUrl: string,
     activity: string
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -137,10 +104,8 @@ class SessionStartImageService {
    * Cleanup browser resources
    */
   async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    // Browser cleanup is now handled by the shared browser pool
+    // This method is kept for backwards compatibility
   }
 }
 

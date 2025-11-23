@@ -11,12 +11,12 @@
  * @module services/groupOverviewImage
  */
 
-import puppeteer, { Browser } from 'puppeteer';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { GroupOverview } from '../components/GroupOverview';
 import { GroupLeaderboard } from '../components/GroupLeaderboard';
 import { FindGroups } from '../components/FindGroups';
+import { browserPool } from './browserPool';
 
 interface GroupMember {
   username: string;
@@ -44,37 +44,7 @@ interface FindGroupsEntry {
 }
 
 export class GroupOverviewImageService {
-  private browser: Browser | null = null;
-
-  /**
-   * Initialize the browser instance (reusable for performance)
-   */
-  private async getBrowser(): Promise<Browser> {
-    // Check if browser exists and is still connected
-    if (this.browser && !this.browser.connected) {
-      console.log('[GroupOverviewImageService] Browser disconnected, recreating...');
-      try {
-        await this.browser.close();
-      } catch (e) {
-        // Ignore errors when closing disconnected browser
-      }
-      this.browser = null;
-    }
-
-    if (!this.browser) {
-      console.log('[GroupOverviewImageService] Launching new browser instance...');
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
-      });
-    }
-    return this.browser;
-  }
+  // Browser management now handled by shared browser pool
 
   /**
    * Generate a group overview image
@@ -92,7 +62,7 @@ export class GroupOverviewImageService {
     nextLevelXpModifier: number,
     members: GroupMember[]
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -196,7 +166,7 @@ export class GroupOverviewImageService {
   async generateGroupLeaderboardImage(
     groups: GroupLeaderboardEntry[]
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -292,7 +262,7 @@ export class GroupOverviewImageService {
     currentPage: number,
     totalPages: number
   ): Promise<Buffer> {
-    const browser = await this.getBrowser();
+    const browser = await browserPool.getBrowser();
     const page = await browser.newPage();
 
     try {
@@ -383,13 +353,11 @@ export class GroupOverviewImageService {
   }
 
   /**
-   * Clean up browser instance
+   * Clean up browser instance (now handled by browser pool)
    */
   async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    // Browser cleanup is now handled by the shared browser pool
+    // This method is kept for backwards compatibility
   }
 }
 
