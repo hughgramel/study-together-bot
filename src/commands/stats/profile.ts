@@ -12,6 +12,7 @@ import {
 import type { Command } from '../types';
 import { StatsService } from '../../services/stats';
 import { ProfileImageService } from '../../services/profileImage';
+import { ProfileImageLightService } from '../../services/profileImageLight';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('ProfileCommand');
@@ -40,10 +41,18 @@ export const command: Command = {
 
       // Initialize services
       const statsService = new StatsService(db);
-      const profileImageService = new ProfileImageService();
 
       // Get target user stats
       const stats = await statsService.getUserStats(targetUser.id);
+
+      // Check light mode preference (use viewing user's preference)
+      const viewerStats = await statsService.getUserStats(user.id);
+      const useLightMode = viewerStats?.lightMode || false;
+
+      // Choose appropriate image service based on preference
+      const profileImageService = useLightMode
+        ? new ProfileImageLightService()
+        : new ProfileImageService();
 
       if (!stats) {
         await interaction.editReply({
