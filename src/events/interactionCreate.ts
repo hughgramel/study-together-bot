@@ -32,8 +32,12 @@ import {
   handleLeaderboardImageTimeframeSelect,
 } from '../interactions/selects/leaderboardSelect';
 import { handleStatsMetricTimeframeSelect } from '../interactions/selects/statsSelect';
+import { handleStatsDetailSelect } from '../interactions/selects/statsDetailSelect';
 import { handleEndSessionModal } from '../interactions/modals/endSessionModal';
 import { handleManualSessionModal } from '../interactions/modals/manualSessionModal';
+import { handleEventBuilderModals } from '../interactions/eventBuilder/eventBuilderModals';
+import { handleEventBuilderButtons } from '../interactions/eventBuilder/eventBuilderButtons';
+import { handleEventBuilderStudyTypeSelect } from '../interactions/eventBuilder/eventBuilderSelects';
 
 const logger = createLogger('InteractionCreate');
 
@@ -79,6 +83,12 @@ export async function handleInteractionCreate(
 
   // Handle button interactions
   if (interaction.isButton()) {
+    // Handle event builder buttons
+    if (interaction.customId.includes('event_builder:')) {
+      await handleEventBuilderButtons(interaction, db, client);
+      return;
+    }
+
     // Handle group-related buttons
     if (interaction.customId.startsWith('groupadmin_delete_')) {
       await handleGroupButtons(interaction, db, client);
@@ -127,13 +137,19 @@ export async function handleInteractionCreate(
       await handleViewStatsButton(interaction, db, client);
       return;
     }
-
-    // TODO: Handle other button types
-    // For now, other buttons will be handled by the legacy bot.ts code
   }
 
   // Handle select menu interactions
   if (interaction.isStringSelectMenu()) {
+    // Event builder study type selection
+    if (
+      interaction.customId.includes('event_builder:') &&
+      interaction.customId.includes(':study_type')
+    ) {
+      await handleEventBuilderStudyTypeSelect(interaction);
+      return;
+    }
+
     // Goal completion select menu
     if (interaction.customId.startsWith('goal_complete:')) {
       await handleGoalCompleteSelect(interaction, db);
@@ -167,12 +183,26 @@ export async function handleInteractionCreate(
       return;
     }
 
-    // TODO: Handle other select menu types (stats_select_*, graph_metric_*, graph_timeframe_*)
+    // Stats detail select menu (stats_select_*)
+    if (interaction.customId.startsWith('stats_select_')) {
+      await handleStatsDetailSelect(interaction, db);
+      return;
+    }
+
     logger.warn(`Unknown select menu: ${interaction.customId}`);
   }
 
   // Handle modal submissions
   if (interaction.isModalSubmit()) {
+    // Event builder modals
+    if (
+      interaction.customId.includes('event_builder:') &&
+      interaction.customId.includes(':modal_')
+    ) {
+      await handleEventBuilderModals(interaction);
+      return;
+    }
+
     if (interaction.customId === 'endSessionModal') {
       await handleEndSessionModal(interaction, db, client);
       return;
@@ -183,9 +213,6 @@ export async function handleInteractionCreate(
       return;
     }
 
-    // TODO: Handle other modal types
     logger.warn(`Unknown modal: ${interaction.customId}`);
   }
-
-  // TODO: Handle other interaction types (selects, etc.)
 }
