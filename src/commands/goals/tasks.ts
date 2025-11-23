@@ -43,59 +43,55 @@ export const command: Command = {
         return;
       }
 
-      // Build task list as description
-      const taskList = activeTasks
-        .map((task, index) => `**${index + 1}.** ${task.description}`)
-        .join('\n\n');
-
-      const embed = new EmbedBuilder()
-        .setColor(0x0080ff)
-        .setTitle('📋 Your Active Tasks')
-        .setDescription(taskList)
-        .setFooter({ text: `${activeTasks.length} active task${activeTasks.length !== 1 ? 's' : ''}` });
-
-      // Create rows with one button per task (placed on the same line)
-      // Discord limits: 5 buttons per row, 5 rows max (25 buttons total)
+      // Create rows where each task gets its own row with a button
+      // Discord limits: 5 rows max, 1 button per row for clean layout
       const rows: ActionRowBuilder<ButtonBuilder>[] = [];
 
-      // Show up to 25 tasks (5 rows of 5 buttons max)
-      const maxTasks = Math.min(activeTasks.length, 25);
+      // Show up to 4 tasks (leaving 1 row for "Complete All" if needed)
+      const maxTasks = Math.min(activeTasks.length, 4);
 
-      // Create individual task buttons
+      // Build embed with tasks as fields
+      const embed = new EmbedBuilder()
+        .setColor(0x0080ff)
+        .setTitle('📋 Your Active Tasks');
+
+      // Add each task as a field with a button below it
       for (let i = 0; i < maxTasks; i++) {
         const task = activeTasks[i];
+
+        // Add task as embed field
+        embed.addFields({
+          name: `${i + 1}. ${task.description}`,
+          value: '​', // Zero-width space to satisfy Discord's requirements
+        });
+
+        // Create button for this task
         const button = new ButtonBuilder()
           .setCustomId(`complete_task_${task.id}`)
-          .setLabel(`Complete ${i + 1}`)
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('✅');
+          .setLabel(`✅ Complete`)
+          .setStyle(ButtonStyle.Secondary);
 
-        // Add to current row or create new row
-        const currentRowIndex = Math.floor(i / 5);
-
-        if (!rows[currentRowIndex]) {
-          rows[currentRowIndex] = new ActionRowBuilder<ButtonBuilder>();
-        }
-
-        rows[currentRowIndex].addComponents(button);
+        // Each task gets its own row
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+        rows.push(row);
       }
 
-      // Add "Complete All" button on the last row if there are multiple tasks
-      if (activeTasks.length > 1) {
+      // If there are more than 4 tasks, show a note
+      if (activeTasks.length > maxTasks) {
+        embed.setFooter({
+          text: `Showing ${maxTasks} of ${activeTasks.length} tasks. Complete some to see more!`
+        });
+      }
+
+      // Add "Complete All" button if there are multiple tasks and we have room
+      if (activeTasks.length > 1 && rows.length < 5) {
         const completeAllButton = new ButtonBuilder()
           .setCustomId(`complete_all_tasks_${user.id}`)
           .setLabel('Complete All')
           .setStyle(ButtonStyle.Success)
           .setEmoji('✅');
 
-        // Try to add to last row, or create new row if last row is full
-        const lastRowIndex = rows.length - 1;
-        if (rows[lastRowIndex] && rows[lastRowIndex].components.length < 5) {
-          rows[lastRowIndex].addComponents(completeAllButton);
-        } else if (rows.length < 5) {
-          // Create new row for Complete All button
-          rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(completeAllButton));
-        }
+        rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(completeAllButton));
       }
 
       await interaction.reply({
