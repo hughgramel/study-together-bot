@@ -140,22 +140,22 @@ export const LeaderboardCardLight: React.FC<LeaderboardCardLightProps> = ({
                 <h3 className="text-lg font-bold text-[#3C3C3C]">
                   {entry.username}
                 </h3>
-                <p className="text-xs text-[#666666]">Level {level}</p>
+                <p className="text-sm font-semibold text-[#777777]">Level {level}</p>
               </div>
 
               {/* Stats */}
               <div className="flex items-center gap-5 mr-2">
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#3C3C3C]">
-                    {entry.xp.toLocaleString()}
+                  <div className="text-xl font-extrabold text-[#3C3C3C] flex items-center justify-end gap-1">
+                    {entry.xp.toLocaleString()} <span className="text-[#A78BFA]">⚡</span>
                   </div>
-                  <div className="text-xs text-[#666666]">XP</div>
+                  <div className="text-sm font-semibold text-[#777777]">XP</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xl font-extrabold text-[#3C3C3C]">
                     {hours}h
                   </div>
-                  <div className="text-xs text-[#666666]">Time</div>
+                  <div className="text-sm font-semibold text-[#777777]">Time</div>
                 </div>
               </div>
             </div>
@@ -187,7 +187,7 @@ export const LeaderboardCardLight: React.FC<LeaderboardCardLightProps> = ({
                 <h3 className="text-lg font-bold text-[#3C3C3C]">
                   {currentUser.username} (You)
                 </h3>
-                <p className="text-xs text-[#666666]">
+                <p className="text-sm font-semibold text-[#777777]">
                   Level {calculateLevel(currentUser.xp)}
                 </p>
               </div>
@@ -195,16 +195,16 @@ export const LeaderboardCardLight: React.FC<LeaderboardCardLightProps> = ({
               {/* Stats */}
               <div className="flex items-center gap-5 mr-2">
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#3C3C3C]">
-                    {currentUser.xp.toLocaleString()}
+                  <div className="text-xl font-extrabold text-[#3C3C3C] flex items-center justify-end gap-1">
+                    {currentUser.xp.toLocaleString()} <span className="text-[#A78BFA]">⚡</span>
                   </div>
-                  <div className="text-xs text-[#666666]">XP</div>
+                  <div className="text-sm font-semibold text-[#777777]">XP</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xl font-extrabold text-[#3C3C3C]">
                     {Math.floor(currentUser.totalDuration / 3600)}h
                   </div>
-                  <div className="text-xs text-[#666666]">Time</div>
+                  <div className="text-sm font-semibold text-[#777777]">Time</div>
                 </div>
               </div>
             </div>

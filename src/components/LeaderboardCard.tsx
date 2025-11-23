@@ -164,22 +164,22 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {entry.username}
                 </h3>
-                <p className="text-xs text-[#AFAFAF]">Level {level}</p>
+                <p className="text-sm text-[#AFAFAF]">Level {level}</p>
               </div>
 
               {/* Stats */}
               <div className="flex items-center gap-5 mr-2">
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#EFEFEF]">
-                    {entry.xp.toLocaleString()}
+                  <div className="text-xl font-extrabold text-[#EFEFEF] flex items-center justify-end gap-1">
+                    {entry.xp.toLocaleString()} <span className="text-[#A78BFA]">⚡</span>
                   </div>
-                  <div className="text-xs text-[#AFAFAF]">XP</div>
+                  <div className="text-sm text-[#AFAFAF]">XP</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xl font-extrabold text-[#EFEFEF]">
                     {hours}h
                   </div>
-                  <div className="text-xs text-[#AFAFAF]">Time</div>
+                  <div className="text-sm text-[#AFAFAF]">Time</div>
                 </div>
               </div>
             </div>
@@ -211,7 +211,7 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {currentUser.username} (You)
                 </h3>
-                <p className="text-xs text-[#AFAFAF]">
+                <p className="text-sm text-[#AFAFAF]">
                   Level {calculateLevel(currentUser.xp)}
                 </p>
               </div>
@@ -219,16 +219,16 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
               {/* Stats */}
               <div className="flex items-center gap-5 mr-2">
                 <div className="text-right">
-                  <div className="text-xl font-extrabold text-[#EFEFEF]">
-                    {currentUser.xp.toLocaleString()}
+                  <div className="text-xl font-extrabold text-[#EFEFEF] flex items-center justify-end gap-1">
+                    {currentUser.xp.toLocaleString()} <span className="text-[#A78BFA]">⚡</span>
                   </div>
-                  <div className="text-xs text-[#AFAFAF]">XP</div>
+                  <div className="text-sm text-[#AFAFAF]">XP</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xl font-extrabold text-[#EFEFEF]">
                     {Math.floor(currentUser.totalDuration / 3600)}h
                   </div>
-                  <div className="text-xs text-[#AFAFAF]">Time</div>
+                  <div className="text-sm text-[#AFAFAF]">Time</div>
                 </div>
               </div>
             </div>
