@@ -86,10 +86,16 @@ export interface UserStats {
 
   // XP & Achievement System (Phase 1)
   xp?: number;              // Total XP earned (10 XP/hour + bonuses)
-  achievements?: string[];  // Array of unlocked achievement IDs (e.g., ['first_steps', 'hot_streak'])
-  achievementsUnlockedAt?: { // Map of achievement ID -> unlock timestamp
+  achievements?: string[];  // LEGACY: Array of unlocked achievement IDs (migrated to leveledAchievements)
+  achievementsUnlockedAt?: { // LEGACY: Map of achievement ID -> unlock timestamp
     [achievementId: string]: Timestamp;
   };
+
+  // Leveled Achievements (Duolingo-style)
+  leveledAchievements?: {   // Map of achievement ID -> progress
+    [achievementId: string]: LeveledAchievementProgress;
+  };
+  totalAchievementBoost?: number; // Total XP boost from all achievement levels (e.g., 2.5 = +2.5%)
 
   // Session Analytics (for achievement unlock conditions)
   sessionsByDay?: {         // Map of date (YYYY-MM-DD) -> session count for that day
@@ -165,11 +171,8 @@ export interface ServerConfig {
 // ============================================================================
 
 /**
- * Achievement definition - defines an unlockable achievement
- *
- * Template for achievements users can unlock. Defines unlock conditions,
- * XP rewards, rarity tiers, and display information. All achievement
- * definitions are stored in src/data/achievements.ts.
+ * Legacy achievement definition - DEPRECATED
+ * Kept for backward compatibility during migration
  */
 export interface AchievementDefinition {
   id: string;               // Unique achievement identifier (e.g., 'first_steps', 'centurion')
@@ -185,6 +188,35 @@ export interface AchievementDefinition {
   };
   rarity: 'common' | 'rare' | 'epic' | 'legendary'; // Achievement rarity (affects display color)
   order: number;            // Display sort order (lower = shown first)
+}
+
+/**
+ * Leveled achievement definition - Duolingo-style achievements with progression
+ *
+ * Core achievement types that users progress through by leveling up.
+ * Each level grants +0.1% permanent XP boost.
+ */
+export interface LeveledAchievementDefinition {
+  id: string;               // Unique achievement ID ('scholar', 'wildfire', 'marathon_runner', 'champion')
+  name: string;             // Display name (e.g., 'Scholar', 'Wildfire')
+  emoji: string;            // Achievement emoji/icon
+  description: string;      // What this achievement tracks
+  color: number;            // Hex color for embed/UI (e.g., 0xFFD700)
+  levels: number[];         // Array of 10 thresholds for levels 1-10
+  statField: string;        // UserStats field to check (e.g., 'totalDuration', 'longestStreak')
+  unit: 'hours' | 'days' | 'sessions' | 'level'; // Unit type for formatting
+  order: number;            // Display order
+}
+
+/**
+ * User's progress on a specific leveled achievement
+ */
+export interface LeveledAchievementProgress {
+  achievementId: string;    // Reference to achievement ID
+  currentLevel: number;     // Current level (0-10, 0 = not started)
+  currentProgress: number;  // Current stat value (e.g., total hours, longest streak)
+  unlockedAt?: Timestamp;   // When first level was achieved (level 1)
+  lastLevelUpAt?: Timestamp; // When most recently leveled up
 }
 
 // ============================================================================

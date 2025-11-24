@@ -10,6 +10,7 @@
     "register-commands": "ts-node scripts/register-commands.ts",
     "cleanup-duplicates": "ts-node scripts/cleanup-duplicates.ts",
     "migrate-group-ids": "ts-node scripts/migrate-group-ids.ts",
+    "migrate-leveled-achievements": "ts-node scripts/migrate-leveled-achievements.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
