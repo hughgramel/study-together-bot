@@ -3,14 +3,17 @@ import { UserStats } from '../types';
 import { isSameDay, isYesterday, getDateKey } from '../utils/formatters';
 import { XPService } from './xp';
 import { calculateLevel } from '../utils/xp';
+import { LeveledAchievementService } from './leveledAchievements';
 
 export class StatsService {
   private db: Firestore;
   private xpService: XPService;
+  private achievementService: LeveledAchievementService;
 
   constructor(db: Firestore) {
     this.db = db;
     this.xpService = new XPService(db);
+    this.achievementService = new LeveledAchievementService(db);
   }
 
   /**
@@ -133,6 +136,12 @@ export class StatsService {
     leveledUp: boolean;
     newLevel?: number;
     xpMultiplier: number;
+    achievementLevelUps?: Array<{
+      achievementId: string;
+      newLevel: number;
+      achievementName: string;
+      emoji: string;
+    }>;
   }> {
     const statsRef = this.db
       .collection('discord-data')
@@ -173,6 +182,10 @@ export class StatsService {
       const baseXP = xpBreakdown.total;
       let finalXP = Math.ceil(baseXP * xpMultiplier);
 
+      // Achievement boost is 0 for first session (no achievements yet)
+      // But we still check for consistency
+      const achievementBoost = 0;
+
       // Apply user level XP bonus
       if (userLevelBonus && userLevelBonus > 0) {
         finalXP = Math.ceil(finalXP * (1 + userLevelBonus));
@@ -208,11 +221,15 @@ export class StatsService {
 
       await statsRef.set(newStats);
 
+      // Check for achievement level-ups (first session will likely unlock level 1 achievements)
+      const achievementLevelUps = await this.achievementService.checkAndUpdateAchievements(userId);
+
       return {
         stats: newStats,
         xpGained: finalXP,
         leveledUp: false,
         xpMultiplier,
+        achievementLevelUps, // Array of { achievementId, newLevel, achievementName, emoji }
       };
     }
 
@@ -278,6 +295,12 @@ export class StatsService {
     // Apply intensity multiplier to total XP
     const baseXP = xpBreakdown.total;
     let finalXP = Math.ceil(baseXP * xpMultiplier);
+
+    // Apply achievement boost
+    const achievementBoost = stats.totalAchievementBoost || 0;
+    if (achievementBoost > 0) {
+      finalXP = Math.ceil(finalXP * (1 + achievementBoost / 100));
+    }
 
     // Apply user level XP bonus
     if (userLevelBonus && userLevelBonus > 0) {
@@ -425,12 +448,16 @@ export class StatsService {
 
     const updatedStats = { ...stats, ...updates, xp: xpResult.newXp };
 
+    // Check for achievement level-ups
+    const achievementLevelUps = await this.achievementService.checkAndUpdateAchievements(userId);
+
     return {
       stats: updatedStats as UserStats,
       xpGained: finalXP,
       leveledUp: xpResult.leveledUp,
       newLevel: xpResult.leveledUp ? xpResult.newLevel : undefined,
       xpMultiplier,
+      achievementLevelUps, // Array of { achievementId, newLevel, achievementName, emoji }
     };
   }
 

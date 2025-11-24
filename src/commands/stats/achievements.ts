@@ -1,20 +1,18 @@
 /**
  * /achievements Command
  *
- * View all unlocked and locked achievements with interactive filter.
- * Displays achievement progress and allows filtering between unlocked and locked.
+ * View leveled achievements with progress tracking.
+ * Displays all 4 core achievements with levels, progress bars, and XP boost.
  */
 
 import {
   SlashCommandBuilder,
-  EmbedBuilder,
-  StringSelectMenuBuilder,
-  ActionRowBuilder,
+  AttachmentBuilder,
 } from 'discord.js';
 import type { Command } from '../types';
 import { StatsService } from '../../services/stats';
-import { AchievementService } from '../../services/achievements';
-import { getAllAchievements } from '../../data/achievements';
+import { LeveledAchievementService } from '../../services/leveledAchievements';
+import { leveledAchievementsImageService } from '../../services/leveledAchievementsImage';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('AchievementsCommand');
@@ -22,7 +20,7 @@ const logger = createLogger('AchievementsCommand');
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('achievements')
-    .setDescription('View all your unlocked achievements'),
+    .setDescription('View your achievement progress and XP boost'),
 
   async execute(interaction, context) {
     const { db } = context;
@@ -32,7 +30,7 @@ export const command: Command = {
 
     // Initialize services
     const statsService = new StatsService(db);
-    const achievementService = new AchievementService(db);
+    const achievementService = new LeveledAchievementService(db);
 
     // Get user stats
     const stats = await statsService.getUserStats(user.id);
@@ -45,67 +43,43 @@ export const command: Command = {
       return;
     }
 
+    // Defer reply since image generation may take a moment
+    await interaction.deferReply({ ephemeral: false });
+
     try {
-      const userAchievements = await achievementService.getUserAchievements(user.id);
-      const allAchievements = getAllAchievements();
+      // Get achievement progress
+      const progressData = await achievementService.getUserAchievementProgress(user.id);
 
-      // Get unlocked achievement IDs for quick lookup
-      const unlockedIds = new Set(userAchievements.map(b => b.id));
+      // Get avatar URL
+      const avatarUrl = user.displayAvatarURL({ size: 128, extension: 'png' });
 
-      // Separate unlocked and locked achievements
-      const unlockedAchievements = allAchievements.filter(b => unlockedIds.has(b.id)).sort((a, b) => a.order - b.order);
-      const lockedAchievements = allAchievements.filter(b => !unlockedIds.has(b.id)).sort((a, b) => a.order - b.order);
+      // Check user's light mode preference
+      const lightMode = stats.lightMode || false;
 
-      // Create achievement list (show unlocked by default)
-      const achievementList = unlockedAchievements.length > 0
-        ? unlockedAchievements.map(b => `${b.emoji} **${b.name}** - *${b.description}*`).join('\n')
-        : '*No achievements unlocked yet. Keep studying to earn your first achievement!*';
+      // Generate achievement image
+      const imageBuffer = await leveledAchievementsImageService.generateAchievementsImage(
+        user.username,
+        avatarUrl,
+        progressData.achievements,
+        progressData.totalBoost,
+        lightMode
+      );
 
-      const avatarUrl = user.displayAvatarURL({ size: 128 });
-
-      const embed = new EmbedBuilder()
-        .setColor(0xFFD900) // Gold
-        .setTitle(`Your Achievements (${unlockedAchievements.length}/${allAchievements.length})`)
-        .setDescription(achievementList)
-        .setFooter({
-          text: user.username,
-          iconURL: avatarUrl
-        });
-
-      // Create dropdown menu
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`achievement_filter:${user.id}`)
-        .setPlaceholder('Filter achievements')
-        .addOptions([
-          {
-            label: 'Unlocked',
-            description: `View your ${unlockedAchievements.length} unlocked achievements`,
-            value: 'unlocked',
-            emoji: '✅',
-            default: true,
-          },
-          {
-            label: 'Locked',
-            description: `View ${lockedAchievements.length} achievements you haven't earned yet`,
-            value: 'locked',
-            emoji: '🔒',
-          },
-        ]);
-
-      const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-
-      await interaction.reply({
-        embeds: [embed],
-        components: [row],
-        ephemeral: false,
+      const attachment = new AttachmentBuilder(imageBuffer, {
+        name: 'achievements.png',
       });
 
-      logger.info(`Achievements displayed for user ${user.id} (${unlockedAchievements.length}/${allAchievements.length})`);
+      await interaction.editReply({
+        files: [attachment],
+      });
+
+      logger.info(
+        `Achievements displayed for user ${user.id} (Boost: +${progressData.totalBoost.toFixed(1)}%)`
+      );
     } catch (error) {
-      logger.error('Error fetching achievements', error);
-      await interaction.reply({
-        content: 'Failed to fetch achievements. Please try again later.',
-        ephemeral: true,
+      logger.error('Error generating achievements image', error);
+      await interaction.editReply({
+        content: 'Failed to generate achievements image. Please try again later.',
       });
     }
   },
