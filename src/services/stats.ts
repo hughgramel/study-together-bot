@@ -240,7 +240,11 @@ export class StatsService {
     let newStreak = stats.currentStreak;
     let isStreakMilestone = false;
 
-    if (isSameDay(stats.lastSessionAt, now)) {
+    // Safety check: if lastSessionAt is missing, treat as first session
+    if (!stats.lastSessionAt) {
+      newStreak = 1;
+      isStreakMilestone = false;
+    } else if (isSameDay(stats.lastSessionAt, now)) {
       // Same day - keep streak (no milestone, as streak didn't just increment)
       newStreak = stats.currentStreak;
       isStreakMilestone = false;
@@ -251,7 +255,7 @@ export class StatsService {
       if (newStreak === 7 || newStreak === 30) {
         isStreakMilestone = true;
       }
-    } else {
+    } else if (stats.lastSessionAt) {
       // More than 1 day ago - check if goals were set to maintain streak
       // We need to check each day between last session and today
       let streakBroken = false;
@@ -280,6 +284,10 @@ export class StatsService {
           isStreakMilestone = true;
         }
       }
+    } else {
+      // lastSessionAt is missing - treat as broken streak, reset to 1
+      newStreak = 1;
+      isStreakMilestone = false;
     }
 
     // Update longest streak if needed
