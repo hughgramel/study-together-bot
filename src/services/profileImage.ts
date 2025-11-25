@@ -24,6 +24,7 @@ export interface LeaderboardEntry {
   xp: number;
   totalDuration: number;
   rank: number;
+  groupName?: string;
 }
 
 /**

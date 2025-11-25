@@ -30,6 +30,8 @@ export async function loadCommands(): Promise<void> {
     '../commands/session/unpause',
     '../commands/session/time',
     '../commands/session/cancel',
+    '../commands/session/reduce-xp',
+    '../commands/session/reduce-time',
   ];
 
   // Stats commands
@@ -65,6 +67,8 @@ export async function loadCommands(): Promise<void> {
     '../commands/admin/setup-events-channel',
     '../commands/admin/setup-timezone',
     '../commands/admin/setup-goal-channel',
+    '../commands/admin/admin-delete-xp',
+    '../commands/admin/admin-delete-time',
   ];
 
   // Group commands

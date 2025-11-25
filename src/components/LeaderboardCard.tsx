@@ -28,6 +28,7 @@ interface LeaderboardEntry {
   xp: number;
   totalDuration: number;
   rank: number;
+  groupName?: string; // User's group name (optional)
 }
 
 interface LeaderboardCardProps {
@@ -182,11 +183,16 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 </div>
               </div>
 
-              {/* Username */}
+              {/* Username and Group */}
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {entry.username}
                 </h3>
+                {entry.groupName && (
+                  <p className="text-sm font-semibold text-[#AFAFAF] -mt-0.5">
+                    {entry.groupName}
+                  </p>
+                )}
               </div>
 
               {/* Stats */}
@@ -233,11 +239,16 @@ export const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 </div>
               </div>
 
-              {/* Username */}
+              {/* Username and Group */}
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-[#EFEFEF]">
                   {currentUser.username} (You)
                 </h3>
+                {currentUser.groupName && (
+                  <p className="text-sm font-semibold text-[#AFAFAF] -mt-0.5">
+                    {currentUser.groupName}
+                  </p>
+                )}
               </div>
 
               {/* Stats */}

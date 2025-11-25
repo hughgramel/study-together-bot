@@ -89,6 +89,7 @@ export async function postSessionToFeed(
     // Format data for image
     const durationStr = formatDuration(duration);
     const dateStr = endTime.toDate().toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles', // Pacific Time
       month: 'short',
       day: 'numeric',
       year: 'numeric',

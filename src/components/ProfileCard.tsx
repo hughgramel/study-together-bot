@@ -78,7 +78,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   // Calculate XP progress for the level bar
   const currentLevelXp = xpForLevel(level);
   const nextLevelXp = xpForLevel(level + 1);
-  const xpInCurrentLevel = xp - currentLevelXp;
+  const xpInCurrentLevel = Math.max(0, xp - currentLevelXp); // Prevent negative XP display
   const xpNeededForNextLevel = nextLevelXp - currentLevelXp;
   const progressPercent = levelProgress(xp);
 

@@ -33,7 +33,9 @@ export const command: Command = {
               '`/unpause` - Unpause your paused session\n' +
               '`/stop` - Complete and share your session\n' +
               '`/cancel` - Cancel session without saving\n' +
-              '`/manual` - Log a past session manually',
+              '`/manual` - Log a past session manually\n' +
+              '`/reduce-time` - Reduce your own time (self-correction)\n' +
+              '`/reduce-xp` - Reduce your own XP (self-correction)',
             inline: false
           },
           {
@@ -42,7 +44,9 @@ export const command: Command = {
               '`/stats` - View your personal statistics\n' +
               '`/leaderboard` - Interactive leaderboard with daily/weekly/monthly views\n' +
               '`/achievements` - View your achievements\n' +
-              '`/profile [@user]` - View detailed user profile',
+              '`/profile [@user]` - View detailed user profile\n' +
+              '`/graph [@user]` - View stats graph with customizable metrics\n' +
+              '`/live` - See who\'s currently studying',
             inline: false
           },
           {
@@ -54,25 +58,42 @@ export const command: Command = {
             inline: false
           },
           {
-            name: 'Social',
+            name: 'Study Groups',
             value:
-              '`/live` - See who\'s currently studying',
+              '`/creategroup` - Create a new study group\n' +
+              '`/joingroup` - Join an existing group\n' +
+              '`/leavegroup` - Leave your current group\n' +
+              '`/group` - View your group info\n' +
+              '`/findgroups` - Browse available groups\n' +
+              '`/groupleaderboard` - View group leaderboard',
             inline: false
           },
           {
-            name: 'Server Setup (Admin Only)',
+            name: 'Events',
+            value:
+              '`/createevent` - Create a study event\n' +
+              '`/events` - View active events\n' +
+              '`/myevents` - View your joined events\n' +
+              '`/cancelevent` - Cancel an event you created',
+            inline: false
+          },
+          {
+            name: 'Admin Commands',
             value:
               '`/setup-feed {channel}` - Set feed channel for session posts\n' +
               '`/set-welcome-channel {channel}` - Set welcome channel for new members\n' +
-              '`/setup-events-channel {channel}` - Set events channel for study events',
+              '`/setup-events-channel {channel}` - Set events channel\n' +
+              '`/setup-timezone {timezone}` - Set server timezone\n' +
+              '`/admin-delete-xp` - Delete XP from a user (corrections)\n' +
+              '`/admin-delete-time` - Delete time from a user (corrections)',
             inline: false
           },
           {
             name: 'Tips',
             value:
               '• Earn XP and level up by completing sessions (10 XP/hour + bonuses)\n' +
-              '• Unlock 20 achievements by hitting milestones\n' +
-              '• React to others\' session posts to unlock social achievements\n' +
+              '• Join a study group to earn bonus XP (1% per group level, max 50%)\n' +
+              '• Unlock achievements by hitting milestones\n' +
               '• Build streaks by completing sessions daily',
             inline: false
           }

@@ -15,6 +15,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import type { Command } from '../types';
 import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
+import { GroupService } from '../../services/groups';
 import { ProfileImageService } from '../../services/profileImage';
 import { ProfileImageLightService } from '../../services/profileImageLight';
 import { getStartOfDayPacific, getStartOfWeekPacific, getStartOfMonthPacific } from '../../utils/timeHelpers';
@@ -73,6 +74,9 @@ export const command: Command = {
       // Get data based on timeframe - ALL timeframes filter by server
       let topUsers: Array<{ userId: string; username: string; totalDuration: number; xp?: number }> = [];
 
+      // Initialize group service for fetching group names
+      const groupService = new GroupService(db);
+
       if (timeframe === 'all-time') {
         // Get all-time top users by XP - filtered by server
         const xpUsers = await statsService.getTopUsersByXP(20, guildId);
@@ -111,12 +115,23 @@ export const command: Command = {
         // Check if current user is in top 10
         const userPosition = topUsers.findIndex(u => u.userId === user.id);
 
-        // Prepare leaderboard entries with avatars
+        // Prepare leaderboard entries with avatars and group names
         entries = await Promise.all(
           top10.map(async (u, index) => {
             try {
               const discordUser = await client.users.fetch(u.userId);
               const stats = await statsService.getUserStats(u.userId);
+
+              // Fetch user's group name
+              let groupName: string | undefined;
+              try {
+                const userGroupData = await groupService.getUserGroup(u.userId);
+                groupName = userGroupData?.group.name;
+              } catch (error) {
+                // User not in a group
+                groupName = undefined;
+              }
+
               return {
                 userId: u.userId,
                 username: u.username,
@@ -124,6 +139,7 @@ export const command: Command = {
                 xp: stats?.xp || 0,
                 totalDuration: u.totalDuration,
                 rank: index + 1,
+                groupName,
               };
             } catch (error) {
               logger.error(`Failed to fetch user ${u.userId}`, error);
@@ -142,6 +158,17 @@ export const command: Command = {
         // Prepare current user entry if they're not in top 10
         if (userPosition > 9) {
           const userStats = await statsService.getUserStats(user.id);
+
+          // Fetch current user's group name
+          let userGroupName: string | undefined;
+          try {
+            const userGroupData = await groupService.getUserGroup(user.id);
+            userGroupName = userGroupData?.group.name;
+          } catch (error) {
+            // User not in a group
+            userGroupName = undefined;
+          }
+
           currentUserEntry = {
             userId: user.id,
             username: user.username,
@@ -149,6 +176,7 @@ export const command: Command = {
             xp: userStats?.xp || 0,
             totalDuration: topUsers[userPosition].totalDuration,
             rank: userPosition + 1,
+            groupName: userGroupName,
           };
         }
       }
