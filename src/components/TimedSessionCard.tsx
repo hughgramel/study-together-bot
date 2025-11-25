@@ -1,45 +1,46 @@
 /**
- * Session Start Card - Single-user session start notification
+ * Timed Session Card - Timer session start notification
  *
- * Displays a compact notification when a user starts a study session. Features a green
- * gradient theme with a live indicator and radio wave icon. Matches the dimensions of
- * LevelUpCard and StreakCard (500x140px). Rendered in Discord when users start sessions.
+ * Displays a notification when a user starts a timed/countdown session.
+ * Similar to SessionStartCard but includes the timer duration.
+ * Features a green gradient theme with a live indicator and timer icon.
  *
- * @module components/SessionStartCard
+ * @module components/TimedSessionCard
  *
  * @example
- * <SessionStartCard
+ * <TimedSessionCard
  *   username="JohnDoe"
  *   avatarUrl="https://cdn.discordapp.com/avatars/..."
- *   activity="Deep Work - Algorithms"
+ *   activity="Evening Study Session"
+ *   durationText="2 hours"
  * />
  */
 
 import React from 'react';
-import { Radio } from 'lucide-react';
+import { Timer } from 'lucide-react';
 
-interface SessionStartCardProps {
+interface TimedSessionCardProps {
   username: string;
   avatarUrl: string;
   activity: string;
+  durationText: string;
 }
 
 /**
- * Renders a session start notification card
+ * Renders a timed session start notification card
  *
  * @param username - User's display name
  * @param avatarUrl - URL to user's Discord avatar
  * @param activity - Activity description for the session
- * @returns Session start card component
+ * @param durationText - Duration of the timer (e.g., "2 hours", "30 minutes")
+ * @returns Timed session card component
  */
-export default function SessionStartCard({
+export default function TimedSessionCard({
   username,
   avatarUrl,
   activity,
-}: SessionStartCardProps) {
-  // Check if activity is provided and not empty
-  const hasActivity = activity && activity.trim().length > 0;
-
+  durationText,
+}: TimedSessionCardProps) {
   return (
     <div className="w-[500px] h-[140px] bg-[#131F24] flex items-center gap-5 px-8 py-6 relative overflow-hidden">
       {/* Decorative background glow */}
@@ -67,16 +68,17 @@ export default function SessionStartCard({
             Live
           </span>
         </div>
-        {hasActivity && (
-          <p className="text-[#DBDEE1] text-base font-semibold">
-            {activity}
-          </p>
-        )}
+        <p className="text-[#DBDEE1] text-sm font-semibold">
+          started a <span className="text-[#58CC02]">{durationText}</span> focus session
+        </p>
+        <p className="text-[#999999] text-xs font-medium">
+          {activity}
+        </p>
       </div>
 
-      {/* Radio waves icon decoration */}
+      {/* Timer icon decoration */}
       <div className="absolute bottom-3 right-6 opacity-15 z-0">
-        <Radio className="w-12 h-12 text-[#58CC02]" />
+        <Timer className="w-12 h-12 text-[#58CC02]" />
       </div>
     </div>
   );

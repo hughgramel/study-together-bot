@@ -32,6 +32,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/session/cancel',
     '../commands/session/reduce-xp',
     '../commands/session/reduce-time',
+    // Note: timer functionality is now part of /start command (use /start hours:X or /start minutes:Y)
   ];
 
   // Stats commands

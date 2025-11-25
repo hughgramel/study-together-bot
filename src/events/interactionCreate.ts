@@ -35,9 +35,13 @@ import { handleStatsMetricTimeframeSelect } from '../interactions/selects/statsS
 import { handleStatsDetailSelect } from '../interactions/selects/statsDetailSelect';
 import { handleEndSessionModal } from '../interactions/modals/endSessionModal';
 import { handleManualSessionModal } from '../interactions/modals/manualSessionModal';
+import { handleTimerEndSessionModal } from '../interactions/modals/timerEndSessionModal';
+import { handleEditSessionModal } from '../interactions/modals/editSessionModal';
 import { handleEventBuilderModals } from '../interactions/eventBuilder/eventBuilderModals';
 import { handleEventBuilderButtons } from '../interactions/eventBuilder/eventBuilderButtons';
 import { handleEventBuilderStudyTypeSelect } from '../interactions/eventBuilder/eventBuilderSelects';
+import { handleTimerEditButton } from '../interactions/buttons/timerButtons';
+import { handleSessionEditButton } from '../interactions/buttons/sessionEditButtons';
 
 const logger = createLogger('InteractionCreate');
 
@@ -137,6 +141,18 @@ export async function handleInteractionCreate(
       await handleViewStatsButton(interaction, db, client);
       return;
     }
+
+    // Handle timer edit button
+    if (interaction.customId.startsWith('timer_edit_')) {
+      await handleTimerEditButton(interaction, db);
+      return;
+    }
+
+    // Handle session edit button
+    if (interaction.customId.startsWith('edit_session_')) {
+      await handleSessionEditButton(interaction, db);
+      return;
+    }
   }
 
   // Handle select menu interactions
@@ -205,6 +221,16 @@ export async function handleInteractionCreate(
 
     if (interaction.customId === 'endSessionModal') {
       await handleEndSessionModal(interaction, db, client);
+      return;
+    }
+
+    if (interaction.customId === 'timerEndSessionModal') {
+      await handleTimerEndSessionModal(interaction, db, client);
+      return;
+    }
+
+    if (interaction.customId.startsWith('editSessionModal_')) {
+      await handleEditSessionModal(interaction, db, client);
       return;
     }
 

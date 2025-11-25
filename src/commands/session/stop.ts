@@ -73,6 +73,15 @@ export const command: Command = {
         .setCustomId('endSessionModal')
         .setTitle(`Complete Session (${durationStr})`);
 
+      // Activity input (what you worked on)
+      const activityInput = new TextInputBuilder()
+        .setCustomId('activity')
+        .setLabel('What were you working on?')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g., Math homework, Reading, Coding project')
+        .setRequired(true)
+        .setMaxLength(100);
+
       // Title input
       const titleInput = new TextInputBuilder()
         .setCustomId('title')
@@ -102,6 +111,8 @@ export const command: Command = {
         .setMaxLength(1);
 
       // Add inputs to action rows
+      const activityRow =
+        new ActionRowBuilder<TextInputBuilder>().addComponents(activityInput);
       const titleRow =
         new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput);
       const descriptionRow =
@@ -109,7 +120,7 @@ export const command: Command = {
       const intensityRow =
         new ActionRowBuilder<TextInputBuilder>().addComponents(intensityInput);
 
-      modal.addComponents(titleRow, descriptionRow, intensityRow);
+      modal.addComponents(activityRow, titleRow, descriptionRow, intensityRow);
 
       await interaction.showModal(modal);
       logger.info(`Modal shown to user ${user.id}`);

@@ -1,9 +1,8 @@
 /**
- * End Session Modal Handler
+ * Timer End Session Modal Handler
  *
- * Handles the modal submission when users complete a session via /stop command.
- * Processes session completion, calculates XP with group bonuses, updates stats,
- * and posts to the feed channel.
+ * Handles the modal submission when users complete a timer session via the edit button.
+ * This is similar to endSessionModal but specifically for timer-based sessions.
  */
 
 import { ModalSubmitInteraction, Client } from 'discord.js';
@@ -11,21 +10,24 @@ import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
 import { GroupService } from '../../services/groups';
+import { AchievementService } from '../../services/achievements';
+import { getAchievement } from '../../data/achievements';
 import { calculateDuration, formatDuration } from '../../utils/formatters';
 import { calculateLevel, calculateUserLevelBonus } from '../../utils/xp';
 import {
   postSessionToFeed,
   postLevelUpToFeed,
   postStreakMilestoneToFeed,
+  postAchievementUnlockToFeed,
 } from '../../utils/feedHelpers';
 import { createLogger } from '../../utils/logger';
 
-const logger = createLogger('EndSessionModal');
+const logger = createLogger('TimerEndSessionModal');
 
 /**
- * Handle end session modal submission
+ * Handle timer end session modal submission
  */
-export async function handleEndSessionModal(
+export async function handleTimerEndSessionModal(
   interaction: ModalSubmitInteraction,
   db: Firestore,
   client: Client
@@ -33,6 +35,15 @@ export async function handleEndSessionModal(
   try {
     const user = interaction.user;
     const guildId = interaction.guildId;
+
+    // Cancel the auto-post timeout if it exists (user manually submitted)
+    const autoPostTimeouts = (global as any).autoPostTimeouts;
+    if (autoPostTimeouts && autoPostTimeouts.has(user.id)) {
+      const timeout = autoPostTimeouts.get(user.id);
+      clearTimeout(timeout);
+      autoPostTimeouts.delete(user.id);
+      logger.info(`Cancelled auto-post for user ${user.id} (manual submission)`);
+    }
 
     // Get modal inputs
     const activity = interaction.fields.getTextInputValue('activity');
@@ -50,13 +61,14 @@ export async function handleEndSessionModal(
       return;
     }
 
-    // Defer reply immediately to prevent timeout (we have complex processing ahead)
+    // Defer reply immediately to prevent timeout
     await interaction.deferReply({ ephemeral: false });
 
     // Initialize services
     const sessionService = new SessionService(db);
     const statsService = new StatsService(db);
     const groupService = new GroupService(db);
+    const achievementService = new AchievementService(db);
 
     // Get active session
     const session = await sessionService.getActiveSession(user.id);
@@ -85,7 +97,7 @@ export async function handleEndSessionModal(
       userId: user.id,
       username: user.username,
       serverId: guildId!,
-      activity, // Now from modal input instead of session
+      activity, // Now from modal input
       title,
       description,
       duration,
@@ -104,7 +116,6 @@ export async function handleEndSessionModal(
       const userGroupData = await groupService.getUserGroup(user.id);
       if (userGroupData) {
         // Calculate group XP bonus based on group level
-        // Formula: 1% per level, capped at 50%
         const groupLevel = userGroupData.group.level || 1;
         groupXpBonus = Math.min(0.5, groupLevel * 0.01);
       }
@@ -123,10 +134,10 @@ export async function handleEndSessionModal(
       userLevelBonus
     );
 
-    // Update completed session with XP gained (for leaderboards)
+    // Update completed session with XP gained
     await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
 
-    // Update group stats if user is in a group (always update, not just when bonus > 0)
+    // Update group stats if user is in a group
     try {
       const userGroupData = await groupService.getUserGroup(user.id);
       if (userGroupData) {
@@ -135,8 +146,13 @@ export async function handleEndSessionModal(
       }
     } catch (error) {
       logger.error('Error updating group stats:', error);
-      // Don't fail the session completion if group update fails
     }
+
+    // Check for new achievements
+    const newAchievementIds = await achievementService.checkAndAwardAchievements(user.id);
+    const newAchievements = newAchievementIds
+      .map((id) => getAchievement(id))
+      .filter((a) => a !== null) as Array<{ id: string; name: string; description?: string }>;
 
     const durationStr = formatDuration(duration);
 
@@ -154,6 +170,26 @@ export async function handleEndSessionModal(
     await interaction.editReply({
       content: `✅ Session completed! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
     });
+
+    // Update the timer DM message to remove the button and show completion
+    try {
+      const dmChannel = await user.createDM();
+      const messages = await dmChannel.messages.fetch({ limit: 10 });
+      const timerMessage = messages.find(msg =>
+        msg.author.id === client.user?.id &&
+        msg.content.includes('⏰ **Timer Complete!**')
+      );
+
+      if (timerMessage) {
+        await timerMessage.edit({
+          content: `✅ **Session Completed!**\n\nYou've successfully posted your session to the feed with custom details.`,
+          components: [], // Remove the edit button
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to update timer DM message:', error);
+      // Non-critical, don't fail the whole operation
+    }
 
     // Get user's avatar URL
     const avatarUrl = user.displayAvatarURL({ size: 128 });
@@ -173,7 +209,7 @@ export async function handleEndSessionModal(
       sessionId,
       statsUpdate.xpGained,
       statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
-      undefined, // No old achievements
+      newAchievements.length > 0 ? newAchievements : undefined,
       intensity
     );
 
@@ -195,6 +231,17 @@ export async function handleEndSessionModal(
       );
     }
 
+    // Post achievement unlock celebration if applicable
+    if (newAchievementIds.length > 0) {
+      await postAchievementUnlockToFeed(
+        db,
+        interaction,
+        user.username,
+        avatarUrl,
+        newAchievementIds
+      );
+    }
+
     // Post level-up celebration if applicable
     if (statsUpdate.leveledUp && statsUpdate.newLevel) {
       // Calculate old level from XP
@@ -212,9 +259,9 @@ export async function handleEndSessionModal(
       );
     }
 
-    logger.info(`Session completed successfully for user ${user.username} (${user.id})`);
+    logger.info(`Timer session completed successfully for user ${user.username} (${user.id})`);
   } catch (error) {
-    logger.error('Error handling end session modal:', error);
+    logger.error('Error handling timer end session modal:', error);
 
     const errorMessage = 'An error occurred while completing your session. Please try again.';
 

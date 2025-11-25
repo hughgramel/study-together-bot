@@ -70,7 +70,7 @@ export const command: Command = {
             return {
               username: session.username,
               avatarUrl,
-              activity: session.activity,
+              activity: session.activity || 'Studying', // Default if no activity
               duration: elapsedStr,
               isPaused: session.isPaused,
               durationMinutes: elapsed, // Keep raw minutes for sorting
@@ -81,7 +81,7 @@ export const command: Command = {
             return {
               username: session.username,
               avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
-              activity: session.activity,
+              activity: session.activity || 'Studying', // Default if no activity
               duration: elapsedStr,
               isPaused: session.isPaused,
               durationMinutes: elapsed,

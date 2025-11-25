@@ -71,17 +71,21 @@ export class SessionService {
     userId: string,
     username: string,
     serverId: string,
-    activity: string
+    activity?: string
   ): Promise<void> {
     const session: ActiveSession = {
       userId,
       username,
       serverId,
-      activity,
       startTime: Timestamp.now(),
       isPaused: false,
       pausedDuration: 0,
     };
+
+    // Only add activity if provided
+    if (activity) {
+      session.activity = activity;
+    }
 
     await this.db
       .collection('discord-data')
@@ -158,6 +162,36 @@ export class SessionService {
       .collection('completed')
       .doc(sessionId)
       .update({ xpGained });
+  }
+
+  /**
+   * Updates a completed session with feed message ID
+   */
+  async updateCompletedSessionFeedMessageId(sessionId: string, feedMessageId: string): Promise<void> {
+    await this.db
+      .collection('discord-data')
+      .doc('sessions')
+      .collection('completed')
+      .doc(sessionId)
+      .update({ feedMessageId });
+  }
+
+  /**
+   * Gets a specific completed session by ID
+   */
+  async getCompletedSession(sessionId: string): Promise<CompletedSession | null> {
+    const doc = await this.db
+      .collection('discord-data')
+      .doc('sessions')
+      .collection('completed')
+      .doc(sessionId)
+      .get();
+
+    if (!doc.exists) {
+      return null;
+    }
+
+    return doc.data() as CompletedSession;
   }
 
   /**
