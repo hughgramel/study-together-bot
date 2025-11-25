@@ -123,9 +123,9 @@ export const GroupOverview: React.FC<GroupOverviewProps> = ({
   const progressPercentage = (currentLevelHours / nextLevelHours) * 100;
 
   return (
-    <div className="w-[700px] h-[700px] bg-[#131F24] flex flex-col px-8 py-8 pb-1">
+    <div className="w-[700px] h-[700px] bg-[#131F24] flex flex-col px-8 py-6 pb-1">
       {/* Header with group name, ID, and capacity (no rank) */}
-      <div className={description ? "mb-4 mt-2" : "mb-6 mt-2"}>
+      <div className={description ? "mb-4 mt-0" : "mb-6 mt-2"}>
         <div className="flex items-baseline gap-3">
           <h1 className="text-[#EFEFEF] text-5xl font-extrabold">{groupName}</h1>
           <span className="text-[#AFAFAF] text-2xl font-bold">#{groupId}</span>
@@ -134,7 +134,7 @@ export const GroupOverview: React.FC<GroupOverviewProps> = ({
         {/* Description - appears right below the title */}
         {description && (
           <div className="mt-2">
-            <p className="text-[#B8B8B8] text-xl font-medium italic">{description}</p>
+            <p className="text-[#B8B8B8] text-2xl font-medium italic">{description}</p>
           </div>
         )}
       </div>
@@ -215,7 +215,7 @@ export const GroupOverview: React.FC<GroupOverviewProps> = ({
       </div>
 
       {/* Group Level and Progress Bar */}
-      <div className="pt-7 mt-4">
+      <div className="pt-4 mt-4">
         <div className="flex gap-6">
           {/* Group Level - Shield with number inside */}
           <div className="relative flex-shrink-0">
