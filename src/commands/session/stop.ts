@@ -74,6 +74,7 @@ export const command: Command = {
         .setTitle(`Complete Session (${durationStr})`);
 
       // Activity input (what you worked on)
+      // Pre-fill with existing activity if available (backward compatibility with old sessions)
       const activityInput = new TextInputBuilder()
         .setCustomId('activity')
         .setLabel('What were you working on?')
@@ -81,6 +82,10 @@ export const command: Command = {
         .setPlaceholder('e.g., Math homework, Reading, Coding project')
         .setRequired(true)
         .setMaxLength(100);
+
+      if (session.activity) {
+        activityInput.setValue(session.activity);
+      }
 
       // Title input
       const titleInput = new TextInputBuilder()
