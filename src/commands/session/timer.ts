@@ -214,6 +214,12 @@ async function autoPostSession(
 ): Promise<void> {
   logger.info(`Auto-posting session for user ${userId}`);
 
+  // Clean up the timeout from global map
+  const autoPostTimeouts = (global as any).autoPostTimeouts;
+  if (autoPostTimeouts) {
+    autoPostTimeouts.delete(userId);
+  }
+
   try {
     const sessionService = new SessionService(db);
     const statsService = new StatsService(db);
@@ -225,6 +231,17 @@ async function autoPostSession(
 
     if (!session) {
       logger.warn(`No active session found for auto-post for user ${userId}`);
+      // Update the message to indicate session was already completed
+      if (originalMessage) {
+        try {
+          await originalMessage.edit({
+            content: `✅ **Session Already Completed!**\n\nYour session was already posted to the feed.`,
+            components: [], // Remove the edit button
+          });
+        } catch (error) {
+          logger.error('Failed to update original message:', error);
+        }
+      }
       return;
     }
 

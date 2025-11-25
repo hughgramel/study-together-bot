@@ -28,15 +28,6 @@ export async function handleTimerEditButton(
   try {
     const userId = interaction.user.id;
 
-    // Cancel the auto-post timeout if it exists
-    const autoPostTimeouts = (global as any).autoPostTimeouts;
-    if (autoPostTimeouts && autoPostTimeouts.has(userId)) {
-      const timeout = autoPostTimeouts.get(userId);
-      clearTimeout(timeout);
-      autoPostTimeouts.delete(userId);
-      logger.info(`Cancelled auto-post for user ${userId}`);
-    }
-
     // Get the active session
     const sessionService = new SessionService(db);
     const session = await sessionService.getActiveSession(userId);
@@ -105,15 +96,8 @@ export async function handleTimerEditButton(
     await interaction.showModal(modal);
     logger.info(`Timer edit modal shown to user ${userId}`);
 
-    // Update the original message to indicate user is editing
-    try {
-      await interaction.message.edit({
-        content: `✏️ **Editing Session Details...**\n\nPlease complete the form to finalize your session.`,
-        components: [], // Remove the edit button
-      });
-    } catch (error) {
-      logger.error('Failed to update original message:', error);
-    }
+    // Don't update the message - keep the button available for multiple clicks
+    // The auto-post will still happen after 10 seconds regardless
   } catch (error) {
     logger.error('Error handling timer edit button:', error);
     await interaction.reply({

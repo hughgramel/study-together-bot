@@ -36,6 +36,15 @@ export async function handleTimerEndSessionModal(
     const user = interaction.user;
     const guildId = interaction.guildId;
 
+    // Cancel the auto-post timeout if it exists (user manually submitted)
+    const autoPostTimeouts = (global as any).autoPostTimeouts;
+    if (autoPostTimeouts && autoPostTimeouts.has(user.id)) {
+      const timeout = autoPostTimeouts.get(user.id);
+      clearTimeout(timeout);
+      autoPostTimeouts.delete(user.id);
+      logger.info(`Cancelled auto-post for user ${user.id} (manual submission)`);
+    }
+
     // Get modal inputs
     const title = interaction.fields.getTextInputValue('title');
     const description = interaction.fields.getTextInputValue('description');
@@ -160,6 +169,26 @@ export async function handleTimerEndSessionModal(
     await interaction.editReply({
       content: `✅ Session completed! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
     });
+
+    // Update the timer DM message to remove the button and show completion
+    try {
+      const dmChannel = await user.createDM();
+      const messages = await dmChannel.messages.fetch({ limit: 10 });
+      const timerMessage = messages.find(msg =>
+        msg.author.id === client.user?.id &&
+        msg.content.includes('⏰ **Timer Complete!**')
+      );
+
+      if (timerMessage) {
+        await timerMessage.edit({
+          content: `✅ **Session Completed!**\n\nYou've successfully posted your session to the feed with custom details.`,
+          components: [], // Remove the edit button
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to update timer DM message:', error);
+      // Non-critical, don't fail the whole operation
+    }
 
     // Get user's avatar URL
     const avatarUrl = user.displayAvatarURL({ size: 128 });
