@@ -18,6 +18,7 @@ import { getAchievement } from '../../data/achievements';
 import { calculateDuration } from '../../utils/formatters';
 import { calculateUserLevelBonus, calculateLevel } from '../../utils/xp';
 import { postSessionToFeed, postStreakMilestoneToFeed, postAchievementUnlockToFeed, postLevelUpToFeed } from '../../utils/feedHelpers';
+import { postTimedSessionStartToFeed } from '../../utils/serverHelpers';
 
 const logger = createLogger('TimerCommand');
 
@@ -26,6 +27,25 @@ const activeTimers = new Map<string, NodeJS.Timeout>();
 
 // Store timer metadata: userId -> { duration, startTime, guildId }
 const timerMetadata = new Map<string, { duration: number; startTime: Date; guildId: string }>();
+
+/**
+ * Format duration in seconds to readable text
+ */
+function formatDurationText(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  } else {
+    const hours = seconds / 3600;
+    // Show decimal for fractional hours (e.g., 1.5 hours, 2.5 hours)
+    if (hours % 1 !== 0) {
+      return `${hours.toFixed(1)} hours`;
+    }
+    return `${hours} hour${hours !== 1 ? 's' : ''}`;
+  }
+}
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -107,11 +127,29 @@ export const command: Command = {
 
       logger.info(`Timer session created for user ${user.id}`);
 
+      // Format duration text for display
+      const durationText = formatDurationText(duration);
+
       // Send initial confirmation
       await interaction.reply({
-        content: `⏱️ Timer started for ${duration} seconds!\n\n**Activity:** ${activityName}\n\nI'll notify you when the time is up.`,
+        content: `⏱️ Timer started for ${durationText}!\n\n**Activity:** ${activityName}\n\nI'll notify you when the time is up.`,
         ephemeral: true,
       });
+
+      // Post timed session to feed
+      const avatarUrl = user.displayAvatarURL({ size: 128 });
+      await postTimedSessionStartToFeed(
+        db,
+        client,
+        interaction,
+        user.username,
+        user.id,
+        avatarUrl,
+        activityName,
+        durationText
+      );
+
+      logger.info(`Timed session posted to feed for user ${user.id}`);
 
       // Store timer metadata
       timerMetadata.set(user.id, {
