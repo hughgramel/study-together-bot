@@ -10,15 +10,12 @@ import { createLogger } from '../../utils/logger';
 import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
 import { GroupService } from '../../services/groups';
-import { AchievementService } from '../../services/achievements';
-import { getAchievement } from '../../data/achievements';
 import { formatDuration } from '../../utils/formatters';
 import { calculateLevel, calculateUserLevelBonus } from '../../utils/xp';
 import {
   postSessionToFeed,
   postLevelUpToFeed,
   postStreakMilestoneToFeed,
-  postAchievementUnlockToFeed,
 } from '../../utils/feedHelpers';
 
 const logger = createLogger('ManualSessionModal');
@@ -66,7 +63,6 @@ export async function handleManualSessionModal(
     const sessionService = new SessionService(db);
     const statsService = new StatsService(db);
     const groupService = new GroupService(db);
-    const achievementService = new AchievementService(db);
 
     // Get modal inputs
     const activity = interaction.fields.getTextInputValue('activity');
@@ -170,12 +166,6 @@ export async function handleManualSessionModal(
       // Don't fail the session completion if group update fails
     }
 
-    // Check for new achievements
-    const newAchievementIds = await achievementService.checkAndAwardAchievements(user.id);
-    const newAchievements = newAchievementIds
-      .map((id) => getAchievement(id))
-      .filter((a) => a !== null) as Array<{ id: string; name: string; description?: string }>;
-
     const durationStr = formatDuration(duration);
 
     // Calculate total bonus percentage for display
@@ -211,7 +201,7 @@ export async function handleManualSessionModal(
       sessionId,
       statsUpdate.xpGained,
       statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
-      newAchievements.length > 0 ? newAchievements : undefined,
+      undefined, // No old achievements
       intensity
     );
 
@@ -225,17 +215,6 @@ export async function handleManualSessionModal(
         user.username,
         avatarUrl,
         updatedStats.currentStreak
-      );
-    }
-
-    // Post achievement unlock celebration if applicable
-    if (newAchievementIds.length > 0) {
-      await postAchievementUnlockToFeed(
-        db,
-        interaction,
-        user.username,
-        avatarUrl,
-        newAchievementIds
       );
     }
 

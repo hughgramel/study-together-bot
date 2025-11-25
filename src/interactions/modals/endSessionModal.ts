@@ -11,15 +11,12 @@ import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { SessionService } from '../../services/sessions';
 import { StatsService } from '../../services/stats';
 import { GroupService } from '../../services/groups';
-import { AchievementService } from '../../services/achievements';
-import { getAchievement } from '../../data/achievements';
 import { calculateDuration, formatDuration } from '../../utils/formatters';
 import { calculateLevel, calculateUserLevelBonus } from '../../utils/xp';
 import {
   postSessionToFeed,
   postLevelUpToFeed,
   postStreakMilestoneToFeed,
-  postAchievementUnlockToFeed,
 } from '../../utils/feedHelpers';
 import { createLogger } from '../../utils/logger';
 
@@ -59,7 +56,6 @@ export async function handleEndSessionModal(
     const sessionService = new SessionService(db);
     const statsService = new StatsService(db);
     const groupService = new GroupService(db);
-    const achievementService = new AchievementService(db);
 
     // Get active session
     const session = await sessionService.getActiveSession(user.id);
@@ -141,12 +137,6 @@ export async function handleEndSessionModal(
       // Don't fail the session completion if group update fails
     }
 
-    // Check for new achievements
-    const newAchievementIds = await achievementService.checkAndAwardAchievements(user.id);
-    const newAchievements = newAchievementIds
-      .map((id) => getAchievement(id))
-      .filter((a) => a !== null) as Array<{ id: string; name: string; description?: string }>;
-
     const durationStr = formatDuration(duration);
 
     // Calculate total bonus percentage for display
@@ -182,7 +172,7 @@ export async function handleEndSessionModal(
       sessionId,
       statsUpdate.xpGained,
       statsUpdate.leveledUp ? statsUpdate.newLevel : undefined,
-      newAchievements.length > 0 ? newAchievements : undefined,
+      undefined, // No old achievements
       intensity
     );
 
@@ -196,17 +186,6 @@ export async function handleEndSessionModal(
         user.username,
         avatarUrl,
         updatedStats.currentStreak
-      );
-    }
-
-    // Post achievement unlock celebration if applicable
-    if (newAchievementIds.length > 0) {
-      await postAchievementUnlockToFeed(
-        db,
-        interaction,
-        user.username,
-        avatarUrl,
-        newAchievementIds
       );
     }
 
