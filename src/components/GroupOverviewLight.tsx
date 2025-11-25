@@ -81,9 +81,9 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
   const progressPercentage = (currentLevelHours / nextLevelHours) * 100;
 
   return (
-    <div className="w-[700px] h-[700px] bg-white flex flex-col px-8 py-6 pb-1">
+    <div className="w-[700px] h-[700px] bg-white flex flex-col px-8 py-4 pb-1">
       {/* Header with group name, ID, and capacity */}
-      <div className={description ? "mb-4 mt-0" : "mb-6 mt-2"}>
+      <div className={description ? "mb-3 mt-0" : "mb-6 mt-2"}>
         <div className="flex items-baseline gap-3">
           <h1 className="text-[#3C3C3C] text-5xl font-extrabold">{groupName}</h1>
           <span className="text-[#666666] text-3xl font-bold">#{groupId}</span>
@@ -92,7 +92,7 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
         {/* Description - appears right below the title */}
         {description && (
           <div className="mt-2">
-            <p className="text-[#5A5A5A] text-2xl font-medium italic">{description}</p>
+            <p className="text-[#5A5A5A] text-3xl font-medium italic">{description}</p>
           </div>
         )}
       </div>
