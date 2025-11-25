@@ -30,6 +30,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/session/unpause',
     '../commands/session/time',
     '../commands/session/cancel',
+    '../commands/session/timer',
   ];
 
   // Stats commands
