@@ -71,17 +71,21 @@ export class SessionService {
     userId: string,
     username: string,
     serverId: string,
-    activity: string
+    activity?: string
   ): Promise<void> {
     const session: ActiveSession = {
       userId,
       username,
       serverId,
-      activity,
       startTime: Timestamp.now(),
       isPaused: false,
       pausedDuration: 0,
     };
+
+    // Only add activity if provided
+    if (activity) {
+      session.activity = activity;
+    }
 
     await this.db
       .collection('discord-data')

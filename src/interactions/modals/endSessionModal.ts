@@ -38,6 +38,7 @@ export async function handleEndSessionModal(
     const guildId = interaction.guildId;
 
     // Get modal inputs
+    const activity = interaction.fields.getTextInputValue('activity');
     const title = interaction.fields.getTextInputValue('title');
     const description = interaction.fields.getTextInputValue('description');
     const intensityStr = interaction.fields.getTextInputValue('intensity');
@@ -88,7 +89,7 @@ export async function handleEndSessionModal(
       userId: user.id,
       username: user.username,
       serverId: guildId!,
-      activity: session.activity,
+      activity, // Now from modal input instead of session
       title,
       description,
       duration,
@@ -174,7 +175,7 @@ export async function handleEndSessionModal(
       user.id,
       user.username,
       avatarUrl,
-      session.activity,
+      activity, // Now from modal input
       title,
       description,
       duration,

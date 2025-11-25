@@ -37,6 +37,9 @@ export default function SessionStartCard({
   avatarUrl,
   activity,
 }: SessionStartCardProps) {
+  // Check if activity is provided and not empty
+  const hasActivity = activity && activity.trim().length > 0;
+
   return (
     <div className="w-[500px] h-[140px] bg-[#131F24] flex items-center gap-5 px-8 py-6 relative overflow-hidden">
       {/* Decorative background glow */}
@@ -64,9 +67,11 @@ export default function SessionStartCard({
             Live
           </span>
         </div>
-        <p className="text-[#DBDEE1] text-base font-semibold">
-          {activity}
-        </p>
+        {hasActivity && (
+          <p className="text-[#DBDEE1] text-base font-semibold">
+            {activity}
+          </p>
+        )}
       </div>
 
       {/* Radio waves icon decoration */}

@@ -35,7 +35,7 @@ export interface ActiveSession {
   userId: string;           // Discord user ID
   username: string;         // Discord username (updated on each action)
   serverId: string;         // Discord guild/server ID
-  activity: string;         // What the user is working on
+  activity?: string;        // OPTIONAL: What the user is working on (filled at /stop)
   startTime: Timestamp;     // Firebase server timestamp
   isPaused: boolean;        // Current pause state
   pausedAt?: Timestamp;     // Timestamp when last paused (if isPaused = true)
@@ -53,7 +53,7 @@ export interface CompletedSession {
   userId: string;           // Discord user ID
   username: string;         // Discord username
   serverId: string;         // Discord guild/server ID
-  activity: string;         // What the user worked on
+  activity: string;         // What the user worked on (filled at /stop)
   title: string;            // Session title
   description: string;      // What was actually accomplished
   duration: number;         // Total session duration in seconds
@@ -62,6 +62,9 @@ export interface CompletedSession {
   createdAt: Timestamp;     // Document creation time (for sorting)
   intensity?: number;       // Session intensity (1-5 scale) - affects XP multiplier
   xpGained?: number;        // XP earned from this session (for leaderboards)
+  feedMessageId?: string;   // Discord message ID of the feed post (for editing)
+  editedAt?: Timestamp;     // When the session was last edited
+  editCount?: number;       // Number of times edited
 }
 
 // ============================================================================
