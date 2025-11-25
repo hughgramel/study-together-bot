@@ -25,17 +25,17 @@ function getTimeBasedSessionTitle(): string {
   const hour = new Date().getHours();
 
   if (hour >= 5 && hour < 12) {
-    return 'Morning Focus Session';
+    return 'Morning Focus';
   } else if (hour >= 12 && hour < 17) {
-    return 'Afternoon Focus Session';
+    return 'Afternoon Focus';
   } else if (hour >= 17 && hour < 21) {
-    return 'Evening Focus Session';
+    return 'Evening Focus';
   } else if (hour >= 21 && hour < 24) {
-    return 'Night Focus Session';
+    return 'Night Focus';
   } else if (hour >= 0 && hour < 3) {
-    return 'Late Night Focus Session';
+    return 'Late Night Focus';
   } else {
-    return 'Early Morning Focus Session';
+    return 'Early Morning Focus';
   }
 }
 

@@ -259,14 +259,13 @@ async function handleTimerComplete(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(editButton);
 
     const message = await user.send({
-      content: `⏰ **Timer Complete!**\n\nYour session has ended. You can edit the session details now, or it will automatically post to the feed in 10 seconds.\n\n_Click the button below to customize your session details._`,
+      content: `⏰ **Timer Complete!**\n\nYour session has ended. You can edit the session details now, or it will automatically post to the feed in 10 minutes.\n\n_Click the button below to customize your session details._`,
       components: [row],
     });
 
     logger.info(`Timer completion notification sent to user ${userId}`);
 
-    // Set auto-post timeout (10 seconds for testing)
-    // TODO: Change to appropriate production timeout before pushing to production
+    // Set auto-post timeout (10 minutes)
     const autoPostTimeout = setTimeout(async () => {
       try {
         const { autoPostTimerSession } = await import('./timer');
@@ -274,7 +273,7 @@ async function handleTimerComplete(
       } catch (error) {
         logger.error(`Error auto-posting session for user ${userId}:`, error);
       }
-    }, 10 * 1000);
+    }, 10 * 60 * 1000); // 10 minutes
 
     // Store the auto-post timeout so we can cancel it if user clicks edit
     (global as any).autoPostTimeouts = (global as any).autoPostTimeouts || new Map();
