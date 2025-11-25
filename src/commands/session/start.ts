@@ -9,6 +9,7 @@
  * /start                  - Start open-ended session
  * /start hours:2          - Start 2-hour timed session
  * /start minutes:30       - Start 30-minute timed session
+ * /start seconds:30       - Start 30-second timed session (testing only)
  * /start hours:1.5        - Start 1.5-hour timed session
  */
 
@@ -64,6 +65,14 @@ export const command: Command = {
         .setRequired(false)
         .setMinValue(1)
         .setMaxValue(1440)
+    )
+    .addNumberOption((option) =>
+      option
+        .setName('seconds')
+        .setDescription('Duration in seconds (testing only)')
+        .setRequired(false)
+        .setMinValue(1)
+        .setMaxValue(3600)
     ),
 
   async execute(interaction, context) {
@@ -72,6 +81,7 @@ export const command: Command = {
     const guildId = interaction.guildId;
     const hours = interaction.options.getNumber('hours');
     const minutes = interaction.options.getNumber('minutes');
+    const seconds = interaction.options.getNumber('seconds');
 
     if (!guildId) {
       await interaction.reply({
@@ -81,10 +91,11 @@ export const command: Command = {
       return;
     }
 
-    // Check if both hours and minutes were provided
-    if (hours !== null && minutes !== null) {
+    // Check if multiple time parameters were provided
+    const timeParamsProvided = [hours, minutes, seconds].filter(v => v !== null).length;
+    if (timeParamsProvided > 1) {
       await interaction.reply({
-        content: '❌ Please specify either hours OR minutes, not both.',
+        content: '❌ Please specify only one time parameter (hours, minutes, OR seconds).',
         ephemeral: true,
       });
       return;
@@ -93,13 +104,16 @@ export const command: Command = {
     // Calculate duration in seconds if timer was requested
     let durationSeconds: number | null = null;
     let durationText: string | null = null;
-    const isTimedSession = hours !== null || minutes !== null;
+    const isTimedSession = hours !== null || minutes !== null || seconds !== null;
 
     if (hours !== null) {
       durationSeconds = Math.floor(hours * 3600);
       durationText = formatDurationText(durationSeconds);
     } else if (minutes !== null) {
       durationSeconds = Math.floor(minutes * 60);
+      durationText = formatDurationText(durationSeconds);
+    } else if (seconds !== null) {
+      durationSeconds = Math.floor(seconds);
       durationText = formatDurationText(durationSeconds);
     }
 
@@ -252,6 +266,7 @@ async function handleTimerComplete(
     logger.info(`Timer completion notification sent to user ${userId}`);
 
     // Set auto-post timeout (10 seconds for testing)
+    // TODO: Change to appropriate production timeout before pushing to production
     const autoPostTimeout = setTimeout(async () => {
       try {
         const { autoPostTimerSession } = await import('./timer');

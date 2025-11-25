@@ -203,15 +203,15 @@ export async function handleEditSessionModal(
       newIntensity,
       avatarUrl,
       title,
-      `${description}\n\n_(edited)_`, // Add edit indicator to description
+      description, // No edit indicator - Discord shows "edited" on the message
       dateStr,
       groupName
     );
 
     // Create new attachment
     const attachment = new AttachmentBuilder(imageBuffer, {
-      name: `session-${sessionId}-edited.png`,
-      description: `${user.username}'s session: ${title} (edited)`,
+      name: `session-${sessionId}.png`,
+      description: `${user.username}'s session: ${title}`,
     });
 
     // Create edit button (preserve it)
