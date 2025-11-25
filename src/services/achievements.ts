@@ -161,53 +161,6 @@ export class AchievementService {
         // and then cleared after the achievement is awarded
         return stats.newRecordUnlocked === true;
 
-      // ===== SCHEDULE ACHIEVEMENTS =====
-      case 'early_bird':
-        // Complete a session before 7 AM (at least once)
-        return (stats.sessionsBefore7AM || 0) >= threshold;
-
-      case 'night_owl':
-        // Complete a session after 11 PM (at least once)
-        return (stats.sessionsAfter11PM || 0) >= threshold;
-
-      case 'midnight_grinder':
-        // Complete a session after midnight (12 AM - 6 AM)
-        return (stats.sessionsAfterMidnight || 0) >= threshold;
-
-      case 'weekend_warrior':
-        // Study on both Saturday and Sunday (same weekend)
-        // Requires at least one weekend where both days had sessions
-        return (stats.weekendWarriorWeeks || 0) >= threshold;
-
-      case 'weekend_streak':
-        // Study on both Sat+Sun for 4 consecutive weekends
-        return (stats.consecutiveWeekendStreak || 0) >= threshold;
-
-      case 'full_week':
-        // Study all 7 days in one week (at least once)
-        return (stats.fullWeeksCompleted || 0) >= threshold;
-
-      case 'month_master':
-        // Study 20+ days in a single month
-        // bestMonthDaysCount tracks the highest number of unique days studied in any month
-        return (stats.bestMonthDaysCount || 0) >= threshold;
-
-      case 'morning_starter':
-        // Study for 1+ hour before 10 AM (1 time)
-        return (stats.morningSessionsBefore10AM || 0) >= threshold;
-
-      case 'morning_routine':
-        // Study for 1+ hour before 10 AM (7 times)
-        return (stats.morningSessionsBefore10AM || 0) >= threshold;
-
-      case 'morning_champion':
-        // Study for 1+ hour before 10 AM (14 times)
-        return (stats.morningSessionsBefore10AM || 0) >= threshold;
-
-      case 'morning_legend':
-        // Study for 1+ hour before 10 AM (30 times)
-        return (stats.morningSessionsBefore10AM || 0) >= threshold;
-
       // ===== LEVEL ACHIEVEMENTS =====
       case 'level_5':
       case 'level_10':
@@ -219,12 +172,6 @@ export class AchievementService {
         const xp = stats.xp || 0;
         const currentLevel = this.calculateLevel(xp);
         return currentLevel >= threshold;
-
-      // ===== META ACHIEVEMENTS =====
-      case 'collector':
-        // Unlock 10 achievements
-        const achievementCount = (stats.achievements || []).length;
-        return achievementCount >= threshold;
 
       default:
         return false;
