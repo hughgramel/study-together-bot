@@ -3,14 +3,13 @@
  *
  * Defines all achievements that users can unlock through study activities. Achievements
  * are organized by category and award XP bonuses when unlocked. Covers milestones,
- * study hours, streaks, session intensity, study habits, and level progression.
+ * study hours, streaks, session intensity, and level progression.
  *
  * Categories:
  * - milestone: First session achievement
  * - time: Total hours studied achievements
  * - streak: Consecutive day achievements
  * - intensity: Long session achievements
- * - schedule: Time-based and weekend achievements
  * - level: XP level milestones
  *
  * @module data/achievements
@@ -394,162 +393,6 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     order: 43,
   },
 
-  // ===== SCHEDULE ACHIEVEMENTS (Time-based & Weekends) =====
-  {
-    id: 'early_bird',
-    name: 'Early Bird',
-    emoji: '🐦',
-    description: 'Complete a session before 7 AM',
-    category: 'schedule',
-    xpReward: 100,
-    condition: {
-      type: 'custom',
-      threshold: 1,
-    },
-    rarity: 'rare',
-    order: 50,
-  },
-  {
-    id: 'night_owl',
-    name: 'Night Owl',
-    emoji: '🦉',
-    description: 'Complete a session after 11 PM',
-    category: 'schedule',
-    xpReward: 100,
-    condition: {
-      type: 'custom',
-      threshold: 1,
-    },
-    rarity: 'rare',
-    order: 51,
-  },
-  {
-    id: 'weekend_warrior',
-    name: 'Weekend Warrior',
-    emoji: '⚔️',
-    description: 'Study on both Saturday and Sunday',
-    category: 'schedule',
-    xpReward: 100,
-    condition: {
-      type: 'custom',
-      threshold: 1,
-    },
-    rarity: 'rare',
-    order: 52,
-  },
-  {
-    id: 'morning_starter',
-    name: 'Morning Starter',
-    emoji: '🌅',
-    description: 'Study for 1 hour before 10 AM',
-    category: 'schedule',
-    xpReward: 75,
-    condition: {
-      type: 'custom',
-      threshold: 1,
-    },
-    rarity: 'common',
-    order: 53,
-  },
-  {
-    id: 'morning_routine',
-    name: 'Morning Routine',
-    emoji: '☀️',
-    description: 'Study for 1 hour before 10 AM (7 times)',
-    category: 'schedule',
-    xpReward: 150,
-    condition: {
-      type: 'custom',
-      threshold: 7,
-    },
-    rarity: 'rare',
-    order: 54,
-  },
-  {
-    id: 'morning_champion',
-    name: 'Morning Champion',
-    emoji: '🌄',
-    description: 'Study for 1 hour before 10 AM (14 times)',
-    category: 'schedule',
-    xpReward: 300,
-    condition: {
-      type: 'custom',
-      threshold: 14,
-    },
-    rarity: 'epic',
-    order: 55,
-  },
-  {
-    id: 'morning_legend',
-    name: 'Morning Legend',
-    emoji: '🌞',
-    description: 'Study for 1 hour before 10 AM (30 times)',
-    category: 'schedule',
-    xpReward: 500,
-    condition: {
-      type: 'custom',
-      threshold: 30,
-    },
-    rarity: 'epic',
-    order: 56,
-  },
-  {
-    id: 'midnight_grinder',
-    name: 'Midnight Grinder',
-    emoji: '🌙',
-    description: 'Complete a session after midnight',
-    category: 'schedule',
-    xpReward: 100,
-    condition: {
-      type: 'custom',
-      threshold: 1,
-    },
-    rarity: 'rare',
-    order: 57,
-  },
-  {
-    id: 'weekend_streak',
-    name: 'Weekend Streak',
-    emoji: '🗓️',
-    description: 'Study on both Saturday and Sunday for 4 consecutive weekends',
-    category: 'schedule',
-    xpReward: 300,
-    condition: {
-      type: 'custom',
-      threshold: 4, // Requires tracking weekend consistency
-    },
-    rarity: 'epic',
-    order: 58,
-  },
-  {
-    id: 'full_week',
-    name: 'Full Week',
-    emoji: '📅',
-    description: 'Study at least once every day for 7 consecutive days',
-    category: 'schedule',
-    xpReward: 250,
-    condition: {
-      type: 'custom',
-      threshold: 1, // Requires checking if all 7 days in a week have sessions
-    },
-    rarity: 'epic',
-    order: 59,
-  },
-  {
-    id: 'month_master',
-    name: 'Month Master',
-    emoji: '🗓️',
-    description: 'Study for at least 20 days in a single month',
-    category: 'schedule',
-    xpReward: 400,
-    condition: {
-      type: 'custom',
-      threshold: 20, // Requires counting unique study days in a month
-    },
-    rarity: 'epic',
-    order: 60,
-  },
-
   // ===== LEVEL ACHIEVEMENTS (XP Milestones) =====
   {
     id: 'level_5',
@@ -635,23 +478,6 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     rarity: 'legendary',
     order: 64,
   },
-
-  // ===== META ACHIEVEMENTS (Achievement Hunting) =====
-  {
-    id: 'collector',
-    name: 'Collector',
-    emoji: '🏆',
-    description: 'Unlock 10 achievements',
-    category: 'meta',
-    xpReward: 250,
-    condition: {
-      type: 'custom',
-      threshold: 10, // Check achievements.length
-    },
-    rarity: 'rare',
-    order: 70,
-  },
-
 ];
 
 /**
