@@ -12,6 +12,9 @@ import {
   PermissionFlagsBits,
   AttachmentBuilder,
   EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } from 'discord.js';
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
 import { PostImageService } from '../services/postImage';
@@ -48,26 +51,26 @@ export async function postSessionToFeed(
   levelGained?: number,
   achievements?: Array<{ id: string; name: string; description?: string }>,
   intensity?: number
-): Promise<void> {
+): Promise<string | null> {
   try {
     const guildId = interaction.guildId;
     if (!guildId) {
       logger.warn('No guild ID, skipping feed post');
-      return;
+      return null;
     }
 
     // Get server config
     const config = await getServerConfig(db, guildId);
     if (!config || !config.feedChannelId) {
       logger.info('No feed channel configured, skipping post');
-      return;
+      return null;
     }
 
     // Get feed channel
     const channel = await interaction.client.channels.fetch(config.feedChannelId);
     if (!channel || !channel.isTextBased()) {
       logger.error('Feed channel not found or not text-based');
-      return;
+      return null;
     }
 
     const textChannel = channel as TextChannel;
@@ -78,12 +81,12 @@ export async function postSessionToFeed(
 
     if (!permissions?.has(PermissionFlagsBits.SendMessages)) {
       logger.error('Bot lacks Send Messages permission in feed channel');
-      return;
+      return null;
     }
 
     if (!permissions?.has(PermissionFlagsBits.AttachFiles)) {
       logger.error('Bot lacks Attach Files permission in feed channel');
-      return;
+      return null;
     }
 
     // Format data for image
@@ -121,9 +124,18 @@ export async function postSessionToFeed(
       description: `${username}'s session: ${title}`,
     });
 
-    // Post to feed (no text content - images only)
+    // Create edit button (only visible to post creator)
+    const editButton = new ButtonBuilder()
+      .setCustomId(`edit_session_${sessionId}_${userId}`)
+      .setLabel('✏️ Edit')
+      .setStyle(ButtonStyle.Secondary);
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(editButton);
+
+    // Post to feed with edit button
     const message = await textChannel.send({
       files: [attachment],
+      components: [row],
     });
 
     // Add heart reaction
@@ -149,9 +161,13 @@ export async function postSessionToFeed(
     );
 
     logger.info(`Posted session to feed: ${message.id} for user ${username}`);
+
+    // Return message ID for storing in session record
+    return message.id;
   } catch (error) {
     logger.error('Error posting to feed:', error);
     // Don't throw - feed posting failure shouldn't break session completion
+    return null;
   }
 }
 

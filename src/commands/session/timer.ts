@@ -164,8 +164,8 @@ export async function autoPostTimerSession(
       client,
     };
 
-    // Post to feed channel
-    await postSessionToFeed(
+    // Post to feed channel and get message ID
+    const feedMessageId = await postSessionToFeed(
       db,
       mockInteraction as any,
       userId,
@@ -182,6 +182,11 @@ export async function autoPostTimerSession(
       newAchievements.length > 0 ? newAchievements : undefined,
       intensity
     );
+
+    // Store feed message ID in session record for edit functionality
+    if (feedMessageId) {
+      await sessionService.updateCompletedSessionFeedMessageId(sessionId, feedMessageId);
+    }
 
     // Get updated stats to check for streak milestones
     const updatedStats = await statsService.getUserStats(userId);

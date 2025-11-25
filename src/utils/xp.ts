@@ -161,3 +161,56 @@ export function awardXP(
     oldLevel,
   };
 }
+
+/**
+ * Calculate XP for a session with all bonuses applied
+ * Base: 100 XP per hour (approximation - actual calculation uses XPService)
+ *
+ * @param durationSeconds - Session duration in seconds
+ * @param intensity - Session intensity (1-5), affects multiplier
+ * @param groupXpBonus - Group XP bonus as decimal (e.g., 0.1 for 10%)
+ * @param userLevelBonus - User level bonus as decimal (e.g., 0.02 for 2%)
+ * @returns Total XP earned
+ */
+export function calculateXpForSession(
+  durationSeconds: number,
+  intensity: number = 3,
+  groupXpBonus: number = 0,
+  userLevelBonus: number = 0
+): number {
+  // Calculate base XP (~100 XP per hour)
+  // This is an approximation - the actual XPService has more complex logic
+  const baseXP = Math.ceil((durationSeconds / 3600) * 100);
+
+  // Calculate intensity multiplier
+  // 1=0.8x, 2=0.9x, 3=1.0x, 4=1.2x, 5=1.5x
+  let intensityMultiplier: number;
+  if (intensity === 1) {
+    intensityMultiplier = 0.8;
+  } else if (intensity === 2) {
+    intensityMultiplier = 0.9;
+  } else if (intensity === 3) {
+    intensityMultiplier = 1.0;
+  } else if (intensity === 4) {
+    intensityMultiplier = 1.2;
+  } else if (intensity === 5) {
+    intensityMultiplier = 1.5;
+  } else {
+    intensityMultiplier = 1.0; // Default
+  }
+
+  // Apply intensity multiplier
+  let finalXP = Math.ceil(baseXP * intensityMultiplier);
+
+  // Apply user level bonus
+  if (userLevelBonus > 0) {
+    finalXP = Math.ceil(finalXP * (1 + userLevelBonus));
+  }
+
+  // Apply group XP bonus
+  if (groupXpBonus > 0) {
+    finalXP = Math.ceil(finalXP * (1 + groupXpBonus));
+  }
+
+  return finalXP;
+}

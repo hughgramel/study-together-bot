@@ -194,8 +194,8 @@ export async function handleTimerEndSessionModal(
     // Get user's avatar URL
     const avatarUrl = user.displayAvatarURL({ size: 128 });
 
-    // Post to feed channel
-    await postSessionToFeed(
+    // Post to feed channel and get message ID
+    const feedMessageId = await postSessionToFeed(
       db,
       interaction,
       user.id,
@@ -212,6 +212,11 @@ export async function handleTimerEndSessionModal(
       newAchievements.length > 0 ? newAchievements : undefined,
       intensity
     );
+
+    // Store feed message ID in session record for edit functionality
+    if (feedMessageId) {
+      await sessionService.updateCompletedSessionFeedMessageId(sessionId, feedMessageId);
+    }
 
     // Get updated stats to check for streak milestones
     const updatedStats = await statsService.getUserStats(user.id);

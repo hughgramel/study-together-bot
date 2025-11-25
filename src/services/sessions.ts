@@ -165,6 +165,36 @@ export class SessionService {
   }
 
   /**
+   * Updates a completed session with feed message ID
+   */
+  async updateCompletedSessionFeedMessageId(sessionId: string, feedMessageId: string): Promise<void> {
+    await this.db
+      .collection('discord-data')
+      .doc('sessions')
+      .collection('completed')
+      .doc(sessionId)
+      .update({ feedMessageId });
+  }
+
+  /**
+   * Gets a specific completed session by ID
+   */
+  async getCompletedSession(sessionId: string): Promise<CompletedSession | null> {
+    const doc = await this.db
+      .collection('discord-data')
+      .doc('sessions')
+      .collection('completed')
+      .doc(sessionId)
+      .get();
+
+    if (!doc.exists) {
+      return null;
+    }
+
+    return doc.data() as CompletedSession;
+  }
+
+  /**
    * Gets completed sessions for a user within a timeframe
    */
   async getCompletedSessions(
