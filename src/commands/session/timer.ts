@@ -19,6 +19,27 @@ import { createLogger } from '../../utils/logger';
 const logger = createLogger('TimerHelpers');
 
 /**
+ * Get time-based session title based on current hour
+ */
+function getTimeBasedSessionTitle(): string {
+  const hour = new Date().getHours();
+
+  if (hour >= 5 && hour < 12) {
+    return 'Morning Focus Session';
+  } else if (hour >= 12 && hour < 17) {
+    return 'Afternoon Focus Session';
+  } else if (hour >= 17 && hour < 21) {
+    return 'Evening Focus Session';
+  } else if (hour >= 21 && hour < 24) {
+    return 'Night Focus Session';
+  } else if (hour >= 0 && hour < 3) {
+    return 'Late Night Focus Session';
+  } else {
+    return 'Early Morning Focus Session';
+  }
+}
+
+/**
  * Automatically post timer session with default values when user doesn't manually submit
  */
 export async function autoPostTimerSession(
@@ -70,8 +91,8 @@ export async function autoPostTimerSession(
     const endTime = Timestamp.now();
 
     // Generate default title, description, and activity
-    const title = 'Focus Session';
-    const description = 'Completed a timed study session.';
+    const title = getTimeBasedSessionTitle(); // Time-based title (Morning/Afternoon/Evening/etc)
+    const description = 'Completed a focused study session';
     const activity = 'Focused Work'; // Default activity for auto-posted sessions
     const intensity = 3; // Default medium intensity
 
