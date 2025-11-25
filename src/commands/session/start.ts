@@ -28,21 +28,21 @@ const activeTimers = new Map<string, NodeJS.Timeout>();
 const timerMetadata = new Map<string, { duration: number; startTime: Date; guildId: string }>();
 
 /**
- * Format duration in seconds to readable text
+ * Format duration in seconds to readable text (always singular form)
  */
 function formatDurationText(seconds: number): string {
   if (seconds < 60) {
-    return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+    return `${seconds}-second`;
   } else if (seconds < 3600) {
     const minutes = Math.floor(seconds / 60);
-    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    return `${minutes}-minute`;
   } else {
     const hours = seconds / 3600;
-    // Show decimal for fractional hours (e.g., 1.5 hours, 2.5 hours)
+    // Show decimal for fractional hours (e.g., 1.5-hour, 2.5-hour)
     if (hours % 1 !== 0) {
-      return `${hours.toFixed(1)} hours`;
+      return `${hours.toFixed(1)}-hour`;
     }
-    return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    return `${hours}-hour`;
   }
 }
 
