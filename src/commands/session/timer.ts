@@ -340,18 +340,12 @@ async function autoPostSession(
 
     // Get guild to create interaction-like object for feed posting
     const guild = await client.guilds.fetch(session.serverId);
-    const channel = guild.channels.cache.first();
-
-    if (!channel) {
-      logger.error('No channel found to post session');
-      return;
-    }
 
     // Create a mock interaction object for feed helpers
     const mockInteraction = {
       guildId: session.serverId,
       guild,
-      channel,
+      client,
     };
 
     // Post to feed channel
