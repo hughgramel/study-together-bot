@@ -23,6 +23,13 @@ export const command: Command = {
         .setRequired(true)
         .setMaxLength(50)
     )
+    .addStringOption(option =>
+      option
+        .setName('description')
+        .setDescription('Group description (max 100 characters)')
+        .setRequired(false)
+        .setMaxLength(100)
+    )
     .addBooleanOption(option =>
       option
         .setName('public')
@@ -47,6 +54,7 @@ export const command: Command = {
 
     try {
       const groupName = interaction.options.getString('name', true);
+      const description = interaction.options.getString('description');
       const isPublic = interaction.options.getBoolean('public') ?? true;
 
       logger.info(`User ${user.username} (${user.id}) creating group: ${groupName}, public: ${isPublic}`);
@@ -72,6 +80,7 @@ export const command: Command = {
         {
           isPublic,
           maxMembers: 5,
+          description: description || undefined,
         }
       );
 

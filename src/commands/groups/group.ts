@@ -137,6 +137,7 @@ export const command: Command = {
       const group = groupDoc.data();
       const groupName = group?.name || 'Unknown Group';
       const groupIdDisplay = group?.groupId || groupId;
+      const description = group?.description;
       const maxMembers = group?.maxMembers || 5;
       const memberCount = group?.memberCount || 0;
 
@@ -273,6 +274,7 @@ export const command: Command = {
         groupRank,
         groupName,
         groupIdDisplay,
+        description,
         memberCount,
         maxMembers,
         calculatedLevel,

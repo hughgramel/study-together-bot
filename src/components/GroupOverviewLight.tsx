@@ -20,6 +20,7 @@ interface GroupOverviewLightProps {
   groupRank: number;
   groupName: string;
   groupId: string;
+  description?: string;
   currentMembers: number;
   maxMembers: number;
   groupLevel: number;
@@ -34,6 +35,7 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
   groupRank,
   groupName,
   groupId,
+  description,
   currentMembers,
   maxMembers,
   groupLevel,
@@ -81,12 +83,18 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
   return (
     <div className="w-[700px] h-[700px] bg-white flex flex-col px-8 py-8 pb-1">
       {/* Header with group name, ID, and capacity */}
-      <div className="mb-6 mt-2">
+      <div className={description ? "mb-4 mt-2" : "mb-6 mt-2"}>
         <div className="flex items-baseline gap-3">
           <h1 className="text-[#3C3C3C] text-5xl font-extrabold">{groupName}</h1>
           <span className="text-[#666666] text-3xl font-bold">#{groupId}</span>
           <span className="text-[#666666] text-3xl font-bold ml-1">{currentMembers}/{maxMembers}</span>
         </div>
+        {/* Description - appears right below the title */}
+        {description && (
+          <div className="mt-2">
+            <p className="text-[#5A5A5A] text-xl font-medium italic">{description}</p>
+          </div>
+        )}
       </div>
 
       {/* Group Leaderboard */}

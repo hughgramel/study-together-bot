@@ -24,6 +24,7 @@ const logger = createLogger('GroupService');
 export interface Group {
   groupId: string;          // Unique group ID (e.g., 'A1B2')
   name: string;             // Group name
+  description?: string;     // Optional group description
   ownerId: string;          // Discord user ID of group owner
   ownerUsername: string;    // Discord username of owner
   serverId: string;         // Discord server ID
@@ -115,6 +116,7 @@ export class GroupService {
     options?: {
       isPublic?: boolean;
       maxMembers?: number;
+      description?: string;
     }
   ): Promise<Group> {
     try {
@@ -145,6 +147,7 @@ export class GroupService {
       const group: Group = {
         groupId: groupId!,
         name,
+        description: options?.description,
         ownerId,
         ownerUsername,
         serverId,
@@ -754,13 +757,14 @@ export class GroupService {
   }
 
   /**
-   * Update group settings (name, public status, max members)
+   * Update group settings (name, description, public status, max members)
    * Only owner can update group settings
    */
   async updateGroupSettings(
     groupId: string,
     updates: {
       name?: string;
+      description?: string;
       isPublic?: boolean;
       maxMembers?: number;
     }
@@ -783,6 +787,10 @@ export class GroupService {
 
       if (updates.name !== undefined) {
         updateData.name = updates.name;
+      }
+
+      if (updates.description !== undefined) {
+        updateData.description = updates.description;
       }
 
       if (updates.isPublic !== undefined) {

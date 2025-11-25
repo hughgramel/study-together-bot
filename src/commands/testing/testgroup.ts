@@ -62,6 +62,7 @@ export const command: Command = {
         groupRank,
         groupName,
         groupId,
+        undefined, // description
         currentMembers,
         maxMembers,
         groupLevel,

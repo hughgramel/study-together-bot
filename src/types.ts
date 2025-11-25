@@ -378,6 +378,7 @@ export interface StudyEvent {
 export interface Group {
   groupId: string;          // Unique group ID (e.g., 'GP-A1B2')
   name: string;             // Group name
+  description?: string;     // Optional group description
   ownerId: string;          // Discord user ID of group owner
   ownerUsername: string;    // Discord username of owner
   serverId: string;         // Discord server ID
