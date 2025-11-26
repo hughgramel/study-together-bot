@@ -91,7 +91,7 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
         </div>
         {/* Description - appears right below the title */}
         {description && (
-          <div className="mt-2">
+          <div className="mt-3">
             <p className="text-[#5A5A5A] text-2xl font-medium italic">{description}</p>
           </div>
         )}
@@ -173,7 +173,7 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
       </div>
 
       {/* Group Level and Progress Bar */}
-      <div className="pt-6 mt-4">
+      <div className="pt-5 mt-4">
         <div className="flex gap-6">
           {/* Group Level - Shield with number inside */}
           <div className="relative flex-shrink-0">
