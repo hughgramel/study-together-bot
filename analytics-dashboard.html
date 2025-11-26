@@ -648,6 +648,27 @@
                 </div>
             </div>
 
+            <div class="chart-card wide">
+                <h3>📈 Cumulative Study Hours with Incremental Growth Overlay</h3>
+                <div class="chart-container tall">
+                    <canvas id="cumulativeHoursIncrementalChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card wide">
+                <h3>📈 Cumulative Study Hours with Growth Rate Overlay</h3>
+                <div class="chart-container tall">
+                    <canvas id="cumulativeHoursChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card wide">
+                <h3>📊 Daily Study Hours Growth Rate (Last 30 Days)</h3>
+                <div class="chart-container tall">
+                    <canvas id="hoursGrowthRateChart"></canvas>
+                </div>
+            </div>
+
             <div class="chart-card">
                 <h3>📊 User Level Distribution</h3>
                 <div class="chart-container">
@@ -1120,6 +1141,103 @@ const firebaseConfig = {
                 result.push({
                     date: dateKey,
                     hours: dailyHours[dateKey] || 0
+                });
+            }
+
+            return result;
+        }
+
+        function calculateCumulativeStudyHours() {
+            // Get all sessions and sort them by date
+            const sessionsByDate = {};
+
+            allSessions.forEach(session => {
+                const endTime = session.endTime?.toDate();
+                if (!endTime) return;
+
+                const dateKey = endTime.toISOString().split('T')[0];
+
+                if (!sessionsByDate[dateKey]) {
+                    sessionsByDate[dateKey] = 0;
+                }
+
+                // Add session duration in hours
+                sessionsByDate[dateKey] += (session.duration || 0) / 3600;
+            });
+
+            // Get all dates and sort them
+            const dates = Object.keys(sessionsByDate).sort();
+
+            if (dates.length === 0) {
+                return [];
+            }
+
+            // Calculate cumulative sum and growth rate
+            const result = [];
+            let cumulativeSum = 0;
+            let previousCumulative = 0;
+
+            // Start from the first date in the data
+            const firstDate = new Date(dates[0]);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Generate continuous date range from first session to today
+            const currentDate = new Date(firstDate);
+            while (currentDate <= today) {
+                const dateKey = currentDate.toISOString().split('T')[0];
+
+                // Add hours for this date (if any)
+                if (sessionsByDate[dateKey]) {
+                    cumulativeSum += sessionsByDate[dateKey];
+                }
+
+                // Calculate growth rate (percentage change in cumulative hours)
+                let growthRate = 0;
+                if (previousCumulative > 0) {
+                    growthRate = ((cumulativeSum - previousCumulative) / previousCumulative) * 100;
+                } else if (cumulativeSum > 0) {
+                    growthRate = 100; // First day with data
+                }
+
+                result.push({
+                    date: dateKey,
+                    cumulativeHours: cumulativeSum,
+                    growthRate: growthRate,
+                    dailyHours: sessionsByDate[dateKey] || 0
+                });
+
+                previousCumulative = cumulativeSum;
+
+                // Move to next day
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            return result;
+        }
+
+        function calculateHoursGrowthRate(days = 30) {
+            const dailyData = calculateDailyStudyHours(days);
+            const result = [];
+
+            for (let i = 1; i < dailyData.length; i++) {
+                const today = dailyData[i];
+                const yesterday = dailyData[i - 1];
+
+                let growthRate = 0;
+
+                // Calculate percentage change
+                // If yesterday was 0, show 100% if today > 0, else 0%
+                if (yesterday.hours === 0) {
+                    growthRate = today.hours > 0 ? 100 : 0;
+                } else {
+                    growthRate = ((today.hours - yesterday.hours) / yesterday.hours) * 100;
+                }
+
+                result.push({
+                    date: today.date,
+                    growthRate: growthRate,
+                    hours: today.hours
                 });
             }
 
@@ -1854,6 +1972,327 @@ const firebaseConfig = {
                                 color: '#a0a0c0',
                                 callback: function(value) {
                                     return value + 'h';
+                                }
+                            },
+                            grid: { color: '#2e2e4e' }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderCumulativeHoursIncrementalChart() {
+            const data = calculateCumulativeStudyHours();
+
+            const ctx = document.getElementById('cumulativeHoursIncrementalChart').getContext('2d');
+
+            if (charts.cumulativeHoursIncremental) charts.cumulativeHoursIncremental.destroy();
+
+            // Sample data if there's too many points (show every nth point for performance)
+            let sampledData = data;
+            if (data.length > 100) {
+                const step = Math.ceil(data.length / 100);
+                sampledData = data.filter((_, index) => index % step === 0 || index === data.length - 1);
+            }
+
+            charts.cumulativeHoursIncremental = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sampledData.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })),
+                    datasets: [
+                        {
+                            label: 'Cumulative Hours',
+                            data: sampledData.map(d => d.cumulativeHours),
+                            backgroundColor: 'rgba(0, 128, 255, 0.6)',
+                            borderColor: '#0080ff',
+                            borderWidth: 1,
+                            order: 2
+                        },
+                        {
+                            label: 'Incremental Growth',
+                            data: sampledData.map(d => d.dailyHours),
+                            backgroundColor: 'rgba(0, 255, 128, 0.7)',
+                            borderColor: '#00ff80',
+                            borderWidth: 1,
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#a0a0c0',
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#2e2e4e',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.datasetIndex === 0) {
+                                        return `Cumulative: ${context.parsed.y.toFixed(1)}h`;
+                                    } else {
+                                        return `Daily Gain: ${context.parsed.y.toFixed(1)}h`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            stacked: false,
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#a0a0c0',
+                                callback: function(value) {
+                                    return value.toLocaleString() + 'h';
+                                }
+                            },
+                            grid: { color: '#2e2e4e' },
+                            title: {
+                                display: true,
+                                text: 'Cumulative Hours',
+                                color: '#0080ff',
+                                font: { size: 12, weight: 'bold' }
+                            }
+                        },
+                        x: {
+                            stacked: false,
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 20
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderCumulativeHoursChart() {
+            const data = calculateCumulativeStudyHours();
+
+            const ctx = document.getElementById('cumulativeHoursChart').getContext('2d');
+
+            if (charts.cumulativeHours) charts.cumulativeHours.destroy();
+
+            // Sample data if there's too many points (show every nth point for performance)
+            let sampledData = data;
+            if (data.length > 100) {
+                const step = Math.ceil(data.length / 100);
+                sampledData = data.filter((_, index) => index % step === 0 || index === data.length - 1);
+            }
+
+            charts.cumulativeHours = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sampledData.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })),
+                    datasets: [
+                        {
+                            label: 'Cumulative Hours',
+                            data: sampledData.map(d => d.cumulativeHours),
+                            backgroundColor: 'rgba(0, 128, 255, 0.6)',
+                            borderColor: '#0080ff',
+                            borderWidth: 1,
+                            yAxisID: 'y',
+                            order: 2
+                        },
+                        {
+                            label: 'Growth Rate',
+                            data: sampledData.map(d => d.growthRate),
+                            type: 'line',
+                            borderColor: '#00ff80',
+                            backgroundColor: 'rgba(0, 255, 128, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: false,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                            pointBackgroundColor: '#00ff80',
+                            yAxisID: 'y1',
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#a0a0c0',
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#2e2e4e',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: function(context) {
+                                    const dataIndex = context.dataIndex;
+                                    const dataPoint = sampledData[dataIndex];
+
+                                    if (context.datasetIndex === 0) {
+                                        return `Cumulative: ${context.parsed.y.toFixed(1)}h`;
+                                    } else {
+                                        return `Growth Rate: ${context.parsed.y.toFixed(2)}%`;
+                                    }
+                                },
+                                afterLabel: function(context) {
+                                    const dataIndex = context.dataIndex;
+                                    const dataPoint = sampledData[dataIndex];
+
+                                    if (context.datasetIndex === 0) {
+                                        return `Daily: ${dataPoint.dailyHours.toFixed(1)}h`;
+                                    }
+                                    return null;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#0080ff',
+                                callback: function(value) {
+                                    return value.toLocaleString() + 'h';
+                                }
+                            },
+                            grid: { color: '#2e2e4e' },
+                            title: {
+                                display: true,
+                                text: 'Cumulative Hours',
+                                color: '#0080ff',
+                                font: { size: 12, weight: 'bold' }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            ticks: {
+                                color: '#00ff80',
+                                callback: function(value) {
+                                    return value.toFixed(1) + '%';
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            title: {
+                                display: true,
+                                text: 'Growth Rate (%)',
+                                color: '#00ff80',
+                                font: { size: 12, weight: 'bold' }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 20
+                            },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderHoursGrowthRateChart() {
+            const data = calculateHoursGrowthRate(30);
+
+            const ctx = document.getElementById('hoursGrowthRateChart').getContext('2d');
+
+            if (charts.hoursGrowthRate) charts.hoursGrowthRate.destroy();
+
+            // Color bars based on positive/negative growth
+            const backgroundColors = data.map(d => d.growthRate >= 0 ? '#00ff80' : '#ff4444');
+
+            charts.hoursGrowthRate = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                    datasets: [{
+                        label: 'Growth Rate (%)',
+                        data: data.map(d => d.growthRate),
+                        backgroundColor: backgroundColors,
+                        borderColor: backgroundColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 46, 0.9)',
+                            titleColor: '#fff',
+                            bodyColor: '#a0a0c0',
+                            borderColor: '#2e2e4e',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    const rate = context.parsed.y.toFixed(1);
+                                    const hours = data[context.dataIndex].hours.toFixed(1);
+                                    return [
+                                        `Growth: ${rate}%`,
+                                        `Hours: ${hours}h`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                color: '#a0a0c0',
+                                callback: function(value) {
+                                    return value + '%';
                                 }
                             },
                             grid: { color: '#2e2e4e' }
@@ -3112,6 +3551,9 @@ const firebaseConfig = {
             updateOverviewCards();
             renderDAUChart();
             renderDailyHoursChart();
+            renderCumulativeHoursIncrementalChart();
+            renderCumulativeHoursChart();
+            renderHoursGrowthRateChart();
             renderLevelChart();
             renderDurationChart();
             renderStreakChart();
