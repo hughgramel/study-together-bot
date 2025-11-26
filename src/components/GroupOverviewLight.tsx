@@ -98,7 +98,7 @@ export const GroupOverviewLight: React.FC<GroupOverviewLightProps> = ({
       </div>
 
       {/* Group Leaderboard */}
-      <div className="mb-0 mt-2">
+      <div className="mb-0 mt-1">
         <div className="space-y-2">
           {members.map((member) => (
             <div
