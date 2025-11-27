@@ -19,6 +19,7 @@ import {
   postStreakMilestoneToFeed,
   postAchievementUnlockToFeed,
 } from '../../utils/feedHelpers';
+import { checkLevelUpRoles } from '../../services/levelRoles';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('PomodoroEndSessionModal');
@@ -232,6 +233,28 @@ export async function handlePomodoroEndSessionModal(
         statsUpdate.newLevel,
         oldLevel
       );
+
+      // Update user's Discord role based on new level
+      try {
+        const roleChanges = await checkLevelUpRoles(
+          db,
+          client,
+          session.serverId,
+          user.id,
+          oldLevel,
+          statsUpdate.newLevel,
+          currentXP
+        );
+
+        if (roleChanges.roleAdded) {
+          logger.info(
+            `Updated role for ${user.username}: added ${roleChanges.roleAdded}, removed ${roleChanges.rolesRemoved.length} roles`
+          );
+        }
+      } catch (error) {
+        logger.error(`Failed to update roles for user ${user.id} on level up:`, error);
+        // Don't fail the session completion if role update fails
+      }
     }
 
     logger.info(`Pomodoro session completed successfully for user ${user.id}`);

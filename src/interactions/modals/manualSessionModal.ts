@@ -17,6 +17,7 @@ import {
   postLevelUpToFeed,
   postStreakMilestoneToFeed,
 } from '../../utils/feedHelpers';
+import { checkLevelUpRoles } from '../../services/levelRoles';
 
 const logger = createLogger('ManualSessionModal');
 
@@ -234,6 +235,30 @@ export async function handleManualSessionModal(
         statsUpdate.newLevel,
         oldLevel
       );
+
+      // Update user's Discord role based on new level
+      if (guildId) {
+        try {
+          const roleChanges = await checkLevelUpRoles(
+            db,
+            client,
+            guildId,
+            user.id,
+            oldLevel,
+            statsUpdate.newLevel,
+            currentXP
+          );
+
+          if (roleChanges.roleAdded) {
+            logger.info(
+              `Updated role for ${user.username}: added ${roleChanges.roleAdded}, removed ${roleChanges.rolesRemoved.length} roles`
+            );
+          }
+        } catch (error) {
+          logger.error(`Failed to update roles for user ${user.id} on level up:`, error);
+          // Don't fail the session completion if role update fails
+        }
+      }
     }
 
     logger.info(
