@@ -103,15 +103,16 @@ export const command: Command = {
       const radiantRole = interaction.options.getRole('radiant');
 
       // Build level role config
+      // NOTE: level field is the MINIMUM level to get this role
       const levelRoles: LevelRoleConfig[] = [];
 
-      if (voidRole) levelRoles.push({ level: 3, roleId: voidRole.id, roleName: voidRole.name });
-      if (charcoalRole) levelRoles.push({ level: 8, roleId: charcoalRole.id, roleName: charcoalRole.name });
-      if (bronzeRole) levelRoles.push({ level: 15, roleId: bronzeRole.id, roleName: bronzeRole.name });
-      if (silverRole) levelRoles.push({ level: 25, roleId: silverRole.id, roleName: silverRole.name });
-      if (goldRole) levelRoles.push({ level: 40, roleId: goldRole.id, roleName: goldRole.name });
-      if (amethystRole) levelRoles.push({ level: 60, roleId: amethystRole.id, roleName: amethystRole.name });
-      if (diamondRole) levelRoles.push({ level: 85, roleId: diamondRole.id, roleName: diamondRole.name });
+      if (voidRole) levelRoles.push({ level: 1, roleId: voidRole.id, roleName: voidRole.name });
+      if (charcoalRole) levelRoles.push({ level: 4, roleId: charcoalRole.id, roleName: charcoalRole.name });
+      if (bronzeRole) levelRoles.push({ level: 9, roleId: bronzeRole.id, roleName: bronzeRole.name });
+      if (silverRole) levelRoles.push({ level: 16, roleId: silverRole.id, roleName: silverRole.name });
+      if (goldRole) levelRoles.push({ level: 26, roleId: goldRole.id, roleName: goldRole.name });
+      if (amethystRole) levelRoles.push({ level: 41, roleId: amethystRole.id, roleName: amethystRole.name });
+      if (diamondRole) levelRoles.push({ level: 61, roleId: diamondRole.id, roleName: diamondRole.name });
       if (radiantRole) levelRoles.push({ level: 86, roleId: radiantRole.id, roleName: radiantRole.name });
 
       // If no roles provided, show current config
@@ -156,13 +157,13 @@ export const command: Command = {
       const configText = levelRoles
         .sort((a, b) => a.level - b.level)
         .map((r) => {
-          if (r.level === 3) return `• **Void** (Level 1-3): <@&${r.roleId}>`;
-          if (r.level === 8) return `• **Charcoal** (Level 4-8): <@&${r.roleId}>`;
-          if (r.level === 15) return `• **Bronze** (Level 9-15): <@&${r.roleId}>`;
-          if (r.level === 25) return `• **Silver** (Level 16-25): <@&${r.roleId}>`;
-          if (r.level === 40) return `• **Gold** (Level 26-40): <@&${r.roleId}>`;
-          if (r.level === 60) return `• **Amethyst** (Level 41-60): <@&${r.roleId}>`;
-          if (r.level === 85) return `• **Diamond** (Level 61-85): <@&${r.roleId}>`;
+          if (r.level === 1) return `• **Void** (Level 1-3): <@&${r.roleId}>`;
+          if (r.level === 4) return `• **Charcoal** (Level 4-8): <@&${r.roleId}>`;
+          if (r.level === 9) return `• **Bronze** (Level 9-15): <@&${r.roleId}>`;
+          if (r.level === 16) return `• **Silver** (Level 16-25): <@&${r.roleId}>`;
+          if (r.level === 26) return `• **Gold** (Level 26-40): <@&${r.roleId}>`;
+          if (r.level === 41) return `• **Amethyst** (Level 41-60): <@&${r.roleId}>`;
+          if (r.level === 61) return `• **Diamond** (Level 61-85): <@&${r.roleId}>`;
           if (r.level === 86) return `• **Radiant** (Level 86+): <@&${r.roleId}>`;
           return `• Level ${r.level}+: <@&${r.roleId}>`;
         })
