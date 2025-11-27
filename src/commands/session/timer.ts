@@ -134,6 +134,7 @@ export async function autoPostTimerSession(
       userId,
       session.username,
       duration,
+      undefined, // No serverId available in timer auto-complete
       activity,
       intensity,
       groupXpBonus,

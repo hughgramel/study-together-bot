@@ -150,9 +150,10 @@ export const command: Command = {
           logger.info(`User ${user.id} not in a group, using base XP with user level bonus`);
         }
 
-        // Award XP
+        // Award XP (no serverId - roles will be synced on next session completion)
         const xpResult = await xpService.awardXP(
           user.id,
+          undefined,
           finalXP,
           `Completed ${completedTasks.length} goal${completedTasks.length !== 1 ? 's' : ''}`
         );

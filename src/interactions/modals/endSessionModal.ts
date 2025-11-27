@@ -55,7 +55,7 @@ export async function handleEndSessionModal(
 
     // Initialize services
     const sessionService = new SessionService(db);
-    const statsService = new StatsService(db);
+    const statsService = new StatsService(db, client);
     const groupService = new GroupService(db);
 
     // Get active session
@@ -117,6 +117,7 @@ export async function handleEndSessionModal(
       user.id,
       user.username,
       duration,
+      guildId || undefined,
       session.activity,
       intensity,
       groupXpBonus,

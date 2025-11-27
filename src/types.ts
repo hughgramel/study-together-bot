@@ -167,6 +167,20 @@ export interface ServerConfig {
   timezone?: string;        // IANA timezone (e.g., 'America/New_York', 'America/Los_Angeles')
   setupAt: Timestamp;       // When configuration was last updated
   setupBy: string;          // Discord user ID of admin who set it up
+  levelRoles?: LevelRoleConfig[]; // Role assignments based on user level
+}
+
+/**
+ * Level-based role configuration
+ *
+ * Maps Discord roles to user levels. When a user reaches a level threshold,
+ * they automatically receive the associated role. Lower level roles are
+ * removed when a user advances to a higher tier.
+ */
+export interface LevelRoleConfig {
+  level: number;            // Minimum level required (e.g., 10, 25, 50)
+  roleId: string;           // Discord role ID to assign
+  roleName: string;         // Role name for display (cached for convenience)
 }
 
 // ============================================================================

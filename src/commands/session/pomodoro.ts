@@ -310,6 +310,7 @@ async function autoPostPomodoroSession(
       userId,
       session.username,
       focusDuration,
+      undefined, // No serverId available in pomodoro auto-complete
       activity,
       intensity,
       groupXpBonus,

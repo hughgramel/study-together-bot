@@ -61,7 +61,7 @@ export async function handleManualSessionModal(
 
     // Instantiate services
     const sessionService = new SessionService(db);
-    const statsService = new StatsService(db);
+    const statsService = new StatsService(db, client);
     const groupService = new GroupService(db);
 
     // Get modal inputs
@@ -143,6 +143,7 @@ export async function handleManualSessionModal(
       user.id,
       user.username,
       duration,
+      guildId || undefined,
       activity,
       intensity,
       groupXpBonus,

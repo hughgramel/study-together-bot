@@ -35,16 +35,16 @@ export async function handleGoalCompleteSelect(
 
   try {
     const dailyGoalService = new DailyGoalService(db);
-    const xpService = new XPService(db);
+    const xpService = new XPService(db); // No client needed for goal completion (roles update on session completion)
 
     // Complete the goal
     const result = await dailyGoalService.completeGoal(userId, goalId);
     const { goal, xpAwarded } = result;
 
-    // Award XP to user
+    // Award XP to user (no serverId - roles will be synced on next session completion)
     let xpResult;
     try {
-      xpResult = await xpService.awardXP(userId, xpAwarded, `Completed goal: ${goal.text}`);
+      xpResult = await xpService.awardXP(userId, undefined, xpAwarded, `Completed goal: ${goal.text}`);
     } catch (error) {
       logger.warn('User has no stats yet, skipping XP award');
     }

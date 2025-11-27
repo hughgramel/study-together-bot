@@ -72,6 +72,8 @@ export async function loadCommands(): Promise<void> {
     '../commands/admin/setup-goal-channel',
     '../commands/admin/admin-delete-xp',
     '../commands/admin/admin-delete-time',
+    '../commands/admin/setup-level-roles',
+    '../commands/admin/sync-roles',
   ];
 
   // Group commands

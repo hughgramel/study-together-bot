@@ -1,4 +1,5 @@
 import { Firestore, Timestamp } from 'firebase-admin/firestore';
+import { Client } from 'discord.js';
 import { UserStats } from '../types';
 import { isSameDay, isYesterday, getDateKey } from '../utils/formatters';
 import { XPService } from './xp';
@@ -10,9 +11,9 @@ export class StatsService {
   private xpService: XPService;
   private achievementService: LeveledAchievementService;
 
-  constructor(db: Firestore) {
+  constructor(db: Firestore, client?: Client) {
     this.db = db;
-    this.xpService = new XPService(db);
+    this.xpService = new XPService(db, client);
     this.achievementService = new LeveledAchievementService(db);
   }
 
@@ -126,6 +127,7 @@ export class StatsService {
     userId: string,
     username: string,
     sessionDuration: number,
+    serverId?: string,
     activity?: string,
     intensity?: number,
     groupXpBonus?: number,
@@ -320,9 +322,10 @@ export class StatsService {
       finalXP = Math.ceil(finalXP * (1 + groupXpBonus));
     }
 
-    // Award XP
+    // Award XP (with serverId for role assignment)
     const xpResult = await this.xpService.awardXP(
       userId,
+      serverId,
       finalXP,
       'Session completed'
     );

@@ -44,6 +44,7 @@ import { handleTimerEditButton } from '../interactions/buttons/timerButtons';
 import { handleSessionEditButton } from '../interactions/buttons/sessionEditButtons';
 import { handlePomodoroEditButton } from '../interactions/buttons/pomodoroButtons';
 import { handlePomodoroEndSessionModal } from '../interactions/modals/pomodoroEndSessionModal';
+import { handleSetupLevelRolesModal } from '../interactions/modals/setupLevelRolesModal';
 
 const logger = createLogger('InteractionCreate');
 
@@ -249,6 +250,11 @@ export async function handleInteractionCreate(
 
     if (interaction.customId === 'pomodoroEndSessionModal') {
       await handlePomodoroEndSessionModal(interaction, db, client);
+      return;
+    }
+
+    if (interaction.customId.startsWith('setup-level-roles-modal:')) {
+      await handleSetupLevelRolesModal(interaction, db, client);
       return;
     }
 

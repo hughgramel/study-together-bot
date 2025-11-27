@@ -65,7 +65,7 @@ export async function handleTimerEndSessionModal(
 
     // Initialize services
     const sessionService = new SessionService(db);
-    const statsService = new StatsService(db);
+    const statsService = new StatsService(db, client);
     const groupService = new GroupService(db);
     const achievementService = new AchievementService(db);
 
@@ -127,6 +127,7 @@ export async function handleTimerEndSessionModal(
       user.id,
       user.username,
       duration,
+      session.serverId, // Use serverId from session for role assignment
       session.activity,
       intensity,
       groupXpBonus,

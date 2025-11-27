@@ -56,8 +56,8 @@ export async function handleCompleteTaskButton(
       logger.info(`User ${user.id} not in a group, using base XP with user level bonus`);
     }
 
-    // Award XP
-    const xpResult = await xpService.awardXP(user.id, finalXP, 'Task completed');
+    // Award XP (no serverId - roles will be synced on next session completion)
+    const xpResult = await xpService.awardXP(user.id, undefined, finalXP, 'Task completed');
 
     // Build response message
     let message = `✅ **Task completed!**\n\n`;
@@ -178,8 +178,8 @@ export async function handleCompleteAllTasksButton(
       logger.info(`User ${user.id} not in a group, using base XP with user level bonus`);
     }
 
-    // Award XP
-    const xpResult = await xpService.awardXP(user.id, finalXP, 'All tasks completed');
+    // Award XP (no serverId - roles will be synced on next session completion)
+    const xpResult = await xpService.awardXP(user.id, undefined, finalXP, 'All tasks completed');
 
     // Build response message
     let message = `✅ **All tasks completed!**\n\n`;

@@ -64,7 +64,7 @@ export async function handlePomodoroEndSessionModal(
 
     // Initialize services
     const sessionService = new SessionService(db);
-    const statsService = new StatsService(db);
+    const statsService = new StatsService(db, client);
     const groupService = new GroupService(db);
     const achievementService = new AchievementService(db);
 
@@ -125,6 +125,7 @@ export async function handlePomodoroEndSessionModal(
       user.id,
       user.username,
       duration,
+      session.serverId,
       activity,
       intensity,
       groupXpBonus,

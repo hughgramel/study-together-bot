@@ -1,5 +1,10 @@
 import { Firestore } from 'firebase-admin/firestore';
+import { Client } from 'discord.js';
 import { calculateLevel, awardXP as calculateXP } from '../utils/xp';
+import { checkLevelUpRoles } from './levelRoles';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('XPService');
 
 /**
  * XP Service - Manages XP awarding and level tracking in Firestore
@@ -11,15 +16,18 @@ import { calculateLevel, awardXP as calculateXP } from '../utils/xp';
  */
 export class XPService {
   private db: Firestore;
+  private client?: Client;
 
-  constructor(db: Firestore) {
+  constructor(db: Firestore, client?: Client) {
     this.db = db;
+    this.client = client;
   }
 
   /**
    * Award XP to a user and update their level in Firestore
    *
    * @param userId - Discord user ID
+   * @param serverId - Discord server/guild ID (optional, for role assignment)
    * @param amount - Amount of XP to award
    * @param reason - Reason for XP award (for logging)
    * @returns Object with new XP, level, and level-up information
@@ -27,11 +35,12 @@ export class XPService {
    * @throws Error if user stats not found
    *
    * @example
-   * await xpService.awardXP('123456', 50, 'Session completed');
+   * await xpService.awardXP('123456', '987654', 50, 'Session completed');
    * // Returns: { newXp: 350, newLevel: 2, leveledUp: true, levelsGained: 1 }
    */
   async awardXP(
     userId: string,
+    serverId: string | undefined,
     amount: number,
     reason: string
   ): Promise<{ newXp: number; newLevel: number; leveledUp: boolean; levelsGained: number }> {
@@ -49,6 +58,7 @@ export class XPService {
 
     const stats = doc.data();
     const currentXp = stats?.xp || 0;
+    const oldLevel = calculateLevel(currentXp);
 
     // Calculate new XP and level using utilities
     const result = calculateXP(currentXp, amount);
@@ -59,10 +69,29 @@ export class XPService {
       xp: result.newXp,
     });
 
-    console.log(
-      `[XP] Awarded ${amount} XP to ${userId} for "${reason}". ` +
+    logger.info(
+      `Awarded ${amount} XP to ${userId} for "${reason}". ` +
       `New XP: ${result.newXp}, Level: ${result.newLevel}${result.leveledUp ? ` (LEVEL UP! +${result.levelsGained})` : ''}`
     );
+
+    // Check for role updates if user leveled up and we have Discord client + serverId
+    if (result.leveledUp && this.client && serverId) {
+      try {
+        await checkLevelUpRoles(
+          this.db,
+          this.client,
+          serverId,
+          userId,
+          oldLevel,
+          result.newLevel,
+          result.newXp
+        );
+        logger.info(`Updated roles for ${userId} after level up to ${result.newLevel}`);
+      } catch (error) {
+        logger.error(`Failed to update roles for ${userId} after level up`, error);
+        // Don't throw - role assignment failure shouldn't break XP awarding
+      }
+    }
 
     return result;
   }
