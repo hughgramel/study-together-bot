@@ -42,6 +42,8 @@ import { handleEventBuilderButtons } from '../interactions/eventBuilder/eventBui
 import { handleEventBuilderStudyTypeSelect } from '../interactions/eventBuilder/eventBuilderSelects';
 import { handleTimerEditButton } from '../interactions/buttons/timerButtons';
 import { handleSessionEditButton } from '../interactions/buttons/sessionEditButtons';
+import { handlePomodoroEditButton } from '../interactions/buttons/pomodoroButtons';
+import { handlePomodoroEndSessionModal } from '../interactions/modals/pomodoroEndSessionModal';
 
 const logger = createLogger('InteractionCreate');
 
@@ -153,6 +155,12 @@ export async function handleInteractionCreate(
       await handleSessionEditButton(interaction, db);
       return;
     }
+
+    // Handle Pomodoro edit button
+    if (interaction.customId.startsWith('pomodoro_edit_')) {
+      await handlePomodoroEditButton(interaction, db);
+      return;
+    }
   }
 
   // Handle select menu interactions
@@ -236,6 +244,11 @@ export async function handleInteractionCreate(
 
     if (interaction.customId === 'manualSessionModal') {
       await handleManualSessionModal(interaction, db, client);
+      return;
+    }
+
+    if (interaction.customId === 'pomodoroEndSessionModal') {
+      await handlePomodoroEndSessionModal(interaction, db, client);
       return;
     }
 

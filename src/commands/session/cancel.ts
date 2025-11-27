@@ -2,6 +2,7 @@
  * /cancel Command
  *
  * Cancels the active session without saving or posting to feed.
+ * Also handles cancelling Pomodoro timer sessions.
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -37,6 +38,34 @@ export const command: Command = {
         return;
       }
 
+      // Check if this is a Pomodoro session and cancel it
+      try {
+        const { cancelPomodoroSession } = await import('./pomodoro');
+        const wasPomodoroSession = await cancelPomodoroSession(user.id, db);
+
+        if (wasPomodoroSession) {
+          logger.info(`Pomodoro session cancelled for user ${user.id}`);
+          await interaction.reply({
+            content:
+              '❌ Pomodoro session cancelled. No stats were updated and nothing was posted to the feed.',
+            ephemeral: false,
+          });
+          return;
+        }
+      } catch (error) {
+        // If pomodoro module doesn't exist or fails, continue with normal cancellation
+        logger.warn(`Could not check for Pomodoro session:`, error);
+      }
+
+      // Check if this is a timed session and cancel the timer
+      try {
+        const { cancelTimer } = await import('./start');
+        cancelTimer(user.id);
+      } catch (error) {
+        logger.warn(`Could not cancel timer:`, error);
+      }
+
+      // Normal session cancellation
       await sessionService.deleteActiveSession(user.id);
 
       logger.info(`Session cancelled for user ${user.id}`);

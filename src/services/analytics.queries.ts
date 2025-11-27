@@ -22,19 +22,52 @@ export class AnalyticsQueries {
   }
 
   /**
-   * Get date string for N days ago
+   * Get date string for N days ago (in Pacific Time)
    */
   private getDateNDaysAgo(n: number): string {
-    const date = new Date();
-    date.setDate(date.getDate() - n);
-    return date.toISOString().split('T')[0];
+    const now = new Date();
+
+    // Convert to Pacific Time
+    const pacificTimeStr = now.toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+
+    // Parse the Pacific time string (MM/DD/YYYY)
+    const [month, day, year] = pacificTimeStr.split('/');
+    const pacificDate = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+
+    // Subtract N days
+    pacificDate.setDate(pacificDate.getDate() - n);
+
+    // Return YYYY-MM-DD format
+    const yyyy = pacificDate.getFullYear();
+    const mm = String(pacificDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(pacificDate.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   }
 
   /**
-   * Get today's date string
+   * Get today's date string (in Pacific Time)
    */
   private getTodayDateString(): string {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+
+    // Convert to Pacific Time
+    const pacificTimeStr = now.toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+
+    // Parse the Pacific time string (MM/DD/YYYY)
+    const [month, day, year] = pacificTimeStr.split('/');
+
+    // Return YYYY-MM-DD format
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
 
   // ==================== COMMAND ANALYTICS ====================

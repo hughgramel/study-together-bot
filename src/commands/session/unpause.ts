@@ -47,6 +47,14 @@ export const command: Command = {
         return;
       }
 
+      // Cancel any active break timer (if user is manually unpausing)
+      try {
+        const { cancelBreakTimer } = await import('./break');
+        cancelBreakTimer(user.id);
+      } catch (error) {
+        logger.warn(`Could not cancel break timer:`, error);
+      }
+
       // Calculate paused duration
       const pausedDuration = session.pausedDuration || 0;
       const pauseTime = session.pausedAt
@@ -58,6 +66,22 @@ export const command: Command = {
         pausedDuration: pausedDuration + pauseTime,
         pausedAt: FieldValue.delete() as any, // Remove pausedAt field
       });
+
+      // Resume the timed session timer if applicable
+      try {
+        const { resumeTimer } = await import('./start');
+        await resumeTimer(user.id, context.client, db);
+      } catch (error) {
+        logger.warn(`Could not resume timer (may not be a timed session):`, error);
+      }
+
+      // Resume the Pomodoro timer if applicable
+      try {
+        const { resumePomodoroTimer } = await import('./pomodoro');
+        await resumePomodoroTimer(user.id, context.client, db);
+      } catch (error) {
+        logger.warn(`Could not resume Pomodoro timer (may not be a Pomodoro session):`, error);
+      }
 
       logger.info(`Session resumed for user ${user.id}`);
 

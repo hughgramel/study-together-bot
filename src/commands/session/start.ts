@@ -6,11 +6,12 @@
  * Activity is no longer required - it will be filled in at /stop.
  *
  * Usage:
- * /start                  - Start open-ended session
- * /start hours:2          - Start 2-hour timed session
- * /start minutes:30       - Start 30-minute timed session
- * /start seconds:30       - Start 30-second timed session (testing only)
- * /start hours:1.5        - Start 1.5-hour timed session
+ * /start                     - Start open-ended session
+ * /start hours:2             - Start 2-hour timed session
+ * /start minutes:30          - Start 30-minute timed session
+ * /start hours:1 minutes:30  - Start 1-hour 30-minute timed session
+ * /start hours:1.5           - Start 1.5-hour timed session
+ * /start seconds:30          - Start 30-second timed session (testing only)
  */
 
 import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
@@ -24,8 +25,14 @@ const logger = createLogger('StartCommand');
 // Store active timers: userId -> timeout ID
 const activeTimers = new Map<string, NodeJS.Timeout>();
 
-// Store timer metadata: userId -> { duration, startTime, guildId }
-const timerMetadata = new Map<string, { duration: number; startTime: Date; guildId: string }>();
+// Store timer metadata: userId -> { duration, startTime, guildId, remainingSeconds, lastPauseTime }
+const timerMetadata = new Map<string, {
+  duration: number;
+  startTime: Date;
+  guildId: string;
+  remainingSeconds: number; // Time remaining when paused
+  lastPauseTime?: Date; // When the timer was last paused
+}>();
 
 /**
  * Format duration in seconds to readable text (always singular form)
@@ -37,12 +44,16 @@ function formatDurationText(seconds: number): string {
     const minutes = Math.floor(seconds / 60);
     return `${minutes}-minute`;
   } else {
-    const hours = seconds / 3600;
-    // Show decimal for fractional hours (e.g., 1.5-hour, 2.5-hour)
-    if (hours % 1 !== 0) {
-      return `${hours.toFixed(1)}-hour`;
+    const totalHours = Math.floor(seconds / 3600);
+    const remainingMinutes = Math.floor((seconds % 3600) / 60);
+
+    if (remainingMinutes > 0) {
+      // Combined format: "1-hour 30-minute" or "2-hour 15-minute"
+      return `${totalHours}-hour ${remainingMinutes}-minute`;
+    } else {
+      // Just hours: "1-hour", "2-hour", etc.
+      return `${totalHours}-hour`;
     }
-    return `${hours}-hour`;
   }
 }
 
@@ -61,10 +72,10 @@ export const command: Command = {
     .addNumberOption((option) =>
       option
         .setName('minutes')
-        .setDescription('Duration in minutes (optional - for timed sessions)')
+        .setDescription('Additional minutes (can combine with hours)')
         .setRequired(false)
         .setMinValue(1)
-        .setMaxValue(1440)
+        .setMaxValue(59)
     )
     .addNumberOption((option) =>
       option
@@ -91,11 +102,10 @@ export const command: Command = {
       return;
     }
 
-    // Check if multiple time parameters were provided
-    const timeParamsProvided = [hours, minutes, seconds].filter(v => v !== null).length;
-    if (timeParamsProvided > 1) {
+    // Validate: cannot combine seconds with hours/minutes
+    if (seconds !== null && (hours !== null || minutes !== null)) {
       await interaction.reply({
-        content: '❌ Please specify only one time parameter (hours, minutes, OR seconds).',
+        content: '❌ Cannot combine seconds with hours or minutes. Use seconds for testing only.',
         ephemeral: true,
       });
       return;
@@ -106,14 +116,16 @@ export const command: Command = {
     let durationText: string | null = null;
     const isTimedSession = hours !== null || minutes !== null || seconds !== null;
 
-    if (hours !== null) {
-      durationSeconds = Math.floor(hours * 3600);
-      durationText = formatDurationText(durationSeconds);
-    } else if (minutes !== null) {
-      durationSeconds = Math.floor(minutes * 60);
-      durationText = formatDurationText(durationSeconds);
-    } else if (seconds !== null) {
+    if (seconds !== null) {
+      // Seconds only (testing mode)
       durationSeconds = Math.floor(seconds);
+      durationText = formatDurationText(durationSeconds);
+    } else if (hours !== null || minutes !== null) {
+      // Combine hours and minutes
+      const totalHours = hours ?? 0;
+      const totalMinutes = minutes ?? 0;
+
+      durationSeconds = Math.floor(totalHours * 3600 + totalMinutes * 60);
       durationText = formatDurationText(durationSeconds);
     }
 
@@ -186,6 +198,7 @@ export const command: Command = {
           duration: durationSeconds,
           startTime: new Date(),
           guildId,
+          remainingSeconds: durationSeconds, // Initially, full duration remains
         });
 
         // Set timer to notify user when complete
@@ -290,6 +303,94 @@ async function handleTimerComplete(
       }
     }, 10 * 1000);
   }
+}
+
+/**
+ * Pause a timed session - clears the timer and stores remaining time
+ */
+export function pauseTimer(userId: string): boolean {
+  const timerId = activeTimers.get(userId);
+  const metadata = timerMetadata.get(userId);
+
+  if (!timerId || !metadata) {
+    return false; // No active timer
+  }
+
+  // Clear the current timeout
+  clearTimeout(timerId);
+  activeTimers.delete(userId);
+
+  // Calculate remaining time
+  const now = new Date();
+  const elapsed = (now.getTime() - metadata.startTime.getTime()) / 1000;
+  const remaining = Math.max(0, metadata.duration - elapsed);
+
+  // Update metadata with remaining time
+  metadata.remainingSeconds = remaining;
+  metadata.lastPauseTime = now;
+  timerMetadata.set(userId, metadata);
+
+  logger.info(`Timer paused for user ${userId}. Remaining: ${remaining}s`);
+  return true;
+}
+
+/**
+ * Resume a paused timed session - reschedules the timer with remaining time
+ */
+export async function resumeTimer(userId: string, client: any, db: any): Promise<boolean> {
+  const metadata = timerMetadata.get(userId);
+
+  if (!metadata || activeTimers.has(userId)) {
+    return false; // No paused timer or already running
+  }
+
+  if (metadata.remainingSeconds <= 0) {
+    // Timer already expired, complete immediately
+    await handleTimerComplete(userId, client, db);
+    activeTimers.delete(userId);
+    timerMetadata.delete(userId);
+    return true;
+  }
+
+  // Update start time to now (for future pause calculations)
+  metadata.startTime = new Date();
+  metadata.duration = metadata.remainingSeconds; // Reset duration to remaining time
+  delete metadata.lastPauseTime;
+
+  // Reschedule timer with remaining time
+  const timerId = setTimeout(async () => {
+    try {
+      await handleTimerComplete(userId, client, db);
+    } catch (error) {
+      logger.error(`Error handling timer completion for user ${userId}:`, error);
+    } finally {
+      activeTimers.delete(userId);
+      timerMetadata.delete(userId);
+    }
+  }, metadata.remainingSeconds * 1000);
+
+  activeTimers.set(userId, timerId);
+  timerMetadata.set(userId, metadata);
+
+  logger.info(`Timer resumed for user ${userId}. Remaining: ${metadata.remainingSeconds}s`);
+  return true;
+}
+
+/**
+ * Cancel a timed session timer
+ */
+export function cancelTimer(userId: string): boolean {
+  const timerId = activeTimers.get(userId);
+
+  if (timerId) {
+    clearTimeout(timerId);
+    activeTimers.delete(userId);
+    timerMetadata.delete(userId);
+    logger.info(`Timer cancelled for user ${userId}`);
+    return true;
+  }
+
+  return false;
 }
 
 // Export timer management for other modules

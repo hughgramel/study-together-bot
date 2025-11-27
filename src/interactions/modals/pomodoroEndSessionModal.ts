@@ -1,8 +1,7 @@
 /**
- * Timer End Session Modal Handler
+ * Pomodoro End Session Modal Handler
  *
- * Handles the modal submission when users complete a timer session via the edit button.
- * This is similar to endSessionModal but specifically for timer-based sessions.
+ * Handles the modal submission when users complete a Pomodoro session via the edit button.
  */
 
 import { ModalSubmitInteraction, Client } from 'discord.js';
@@ -22,12 +21,12 @@ import {
 } from '../../utils/feedHelpers';
 import { createLogger } from '../../utils/logger';
 
-const logger = createLogger('TimerEndSessionModal');
+const logger = createLogger('PomodoroEndSessionModal');
 
 /**
- * Handle timer end session modal submission
+ * Handle Pomodoro end session modal submission
  */
-export async function handleTimerEndSessionModal(
+export async function handlePomodoroEndSessionModal(
   interaction: ModalSubmitInteraction,
   db: Firestore,
   client: Client
@@ -41,7 +40,7 @@ export async function handleTimerEndSessionModal(
       const timeout = autoPostTimeouts.get(user.id);
       clearTimeout(timeout);
       autoPostTimeouts.delete(user.id);
-      logger.info(`Cancelled auto-post for user ${user.id} (manual submission)`);
+      logger.info(`Cancelled auto-post for user ${user.id} (manual Pomodoro submission)`);
     }
 
     // Get modal inputs
@@ -79,7 +78,7 @@ export async function handleTimerEndSessionModal(
       return;
     }
 
-    // Calculate final duration
+    // Calculate final duration (this is the focus time for Pomodoro)
     const duration = calculateDuration(
       session.startTime,
       session.pausedDuration,
@@ -96,7 +95,7 @@ export async function handleTimerEndSessionModal(
       userId: user.id,
       username: user.username,
       serverId: session.serverId, // Use serverId from session (works from DMs)
-      activity, // Now from modal input
+      activity,
       title,
       description,
       duration,
@@ -114,7 +113,6 @@ export async function handleTimerEndSessionModal(
     try {
       const userGroupData = await groupService.getUserGroup(user.id);
       if (userGroupData) {
-        // Calculate group XP bonus based on group level
         const groupLevel = userGroupData.group.level || 1;
         groupXpBonus = Math.min(0.5, groupLevel * 0.01);
       }
@@ -122,12 +120,12 @@ export async function handleTimerEndSessionModal(
       logger.error('Error fetching group for XP bonus:', error);
     }
 
-    // Update stats and award XP (with user level and group bonuses)
+    // Update stats and award XP
     const statsUpdate = await statsService.updateUserStats(
       user.id,
       user.username,
       duration,
-      session.activity,
+      activity,
       intensity,
       groupXpBonus,
       userLevelBonus
@@ -136,12 +134,11 @@ export async function handleTimerEndSessionModal(
     // Update completed session with XP gained
     await sessionService.updateCompletedSessionXP(sessionId, statsUpdate.xpGained);
 
-    // Update group stats if user is in a group
+    // Update group stats if applicable
     try {
       const userGroupData = await groupService.getUserGroup(user.id);
       if (userGroupData) {
         await groupService.updateGroupStats(userGroupData.group.groupId);
-        logger.info(`Updated group stats for ${userGroupData.group.name}`);
       }
     } catch (error) {
       logger.error('Error updating group stats:', error);
@@ -153,44 +150,13 @@ export async function handleTimerEndSessionModal(
       .map((id) => getAchievement(id))
       .filter((a) => a !== null) as Array<{ id: string; name: string; description?: string }>;
 
+    // Reply to user with success message
     const durationStr = formatDuration(duration);
-
-    // Calculate total bonus percentage for display
-    const totalBonusPercent = Math.round((groupXpBonus + userLevelBonus) * 100);
-    const bonusText = totalBonusPercent > 0 ? ` (+${totalBonusPercent}% bonus)` : '';
-
-    let xpMessage = '';
-    if (statsUpdate.leveledUp) {
-      xpMessage = `\n\n🎉 **LEVEL UP!** You're now Level ${statsUpdate.newLevel}!\n⚡ +${statsUpdate.xpGained} XP earned${bonusText}`;
-    } else {
-      xpMessage = `\n\n⚡ +${statsUpdate.xpGained} XP earned${bonusText}`;
-    }
-
     await interaction.editReply({
-      content: `✅ Session completed! (${durationStr})${xpMessage}\n\nYour session has been saved and posted to the feed.`,
+      content: `✅ **Pomodoro session completed!**\n\nYou focused for **${durationStr}** and earned **${statsUpdate.xpGained} XP**!\n\nYour session has been posted to the feed.`,
     });
 
-    // Update the timer DM message to remove the button and show completion
-    try {
-      const dmChannel = await user.createDM();
-      const messages = await dmChannel.messages.fetch({ limit: 10 });
-      const timerMessage = messages.find(msg =>
-        msg.author.id === client.user?.id &&
-        msg.content.includes('⏰ **Timer Complete!**')
-      );
-
-      if (timerMessage) {
-        await timerMessage.edit({
-          content: `✅ **Session Completed!**\n\nYou've successfully posted your session to the feed with custom details.`,
-          components: [], // Remove the edit button
-        });
-      }
-    } catch (error) {
-      logger.error('Failed to update timer DM message:', error);
-      // Non-critical, don't fail the whole operation
-    }
-
-    // Get user's avatar URL
+    // Get user's avatar
     const avatarUrl = user.displayAvatarURL({ size: 128 });
 
     // Get guild for feed posting (since interaction might be from DM)
@@ -211,7 +177,7 @@ export async function handleTimerEndSessionModal(
       user.id,
       user.username,
       avatarUrl,
-      activity, // Now from modal input
+      activity,
       title,
       description,
       duration,
@@ -231,7 +197,6 @@ export async function handleTimerEndSessionModal(
     // Get updated stats to check for streak milestones
     const updatedStats = await statsService.getUserStats(user.id);
     if (updatedStats) {
-      // Post streak milestone celebration if applicable
       await postStreakMilestoneToFeed(
         db,
         mockInteraction as any,
@@ -254,7 +219,6 @@ export async function handleTimerEndSessionModal(
 
     // Post level-up celebration if applicable
     if (statsUpdate.leveledUp && statsUpdate.newLevel) {
-      // Calculate old level from XP
       const currentXP = statsUpdate.stats.xp || 0;
       const oldXP = currentXP - statsUpdate.xpGained;
       const oldLevel = calculateLevel(oldXP);
@@ -269,17 +233,13 @@ export async function handleTimerEndSessionModal(
       );
     }
 
-    logger.info(`Timer session completed successfully for user ${user.username} (${user.id})`);
+    logger.info(`Pomodoro session completed successfully for user ${user.id}`);
   } catch (error) {
-    logger.error('Error handling timer end session modal:', error);
-
-    const errorMessage = 'An error occurred while completing your session. Please try again.';
-
-    try {
-      // We always defer at the start, so use editReply
-      await interaction.editReply({ content: errorMessage });
-    } catch (replyError) {
-      logger.error('Could not send error message to user:', replyError);
-    }
+    logger.error('Error completing Pomodoro session:', error);
+    await interaction.editReply({
+      content: 'Failed to complete Pomodoro session. Please try again later.',
+    }).catch(() => {
+      // Ignore if reply fails
+    });
   }
 }

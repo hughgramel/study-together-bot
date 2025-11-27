@@ -47,6 +47,22 @@ export const command: Command = {
         return;
       }
 
+      // Pause the timed session timer if applicable
+      try {
+        const { pauseTimer } = await import('./start');
+        pauseTimer(user.id);
+      } catch (error) {
+        logger.warn(`Could not pause timer (may not be a timed session):`, error);
+      }
+
+      // Pause the Pomodoro timer if applicable
+      try {
+        const { pausePomodoroTimer } = await import('./pomodoro');
+        pausePomodoroTimer(user.id);
+      } catch (error) {
+        logger.warn(`Could not pause Pomodoro timer (may not be a Pomodoro session):`, error);
+      }
+
       await sessionService.updateActiveSession(user.id, {
         isPaused: true,
         pausedAt: Timestamp.now(),
