@@ -173,6 +173,12 @@ export async function syncAllRoles(
     throw new Error('No level roles configured. Use /setup-level-roles first.');
   }
 
+  // Log configured roles for debugging
+  logger.info(`[ROLE SYNC] Configured roles (sorted by level DESC):`);
+  levelRoles.forEach(role => {
+    logger.info(`  - Level ${role.level}+: ${role.roleName} (${role.roleId})`);
+  });
+
   // Fetch all members from Discord
   await guild.members.fetch();
   const members = Array.from(guild.members.cache.values());
@@ -217,6 +223,15 @@ export async function syncAllRoles(
 
     try {
       const userXp = userStatsMap.get(member.id) || 0;
+      const userLevel = calculateLevel(userXp);
+      const targetRole = getRoleForLevel(userLevel, levelRoles);
+
+      // Console log for debugging
+      logger.info(
+        `[ROLE SYNC] User: ${member.user.username} | Level: ${userLevel} | XP: ${userXp} | ` +
+        `Target Role: ${targetRole ? `${targetRole.roleName} (Level ${targetRole.level}+)` : 'None'}`
+      );
+
       const roleChanges = await syncUserRoles(db, client, serverId, member.id, userXp, dryRun);
       results.synced++;
       results.details.push({
