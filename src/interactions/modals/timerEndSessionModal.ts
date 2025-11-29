@@ -45,20 +45,24 @@ export async function handleTimerEndSessionModal(
       logger.info(`Cancelled auto-post for user ${user.id} (manual submission)`);
     }
 
-    // Get modal inputs
-    const activity = interaction.fields.getTextInputValue('activity');
-    const title = interaction.fields.getTextInputValue('title');
-    const description = interaction.fields.getTextInputValue('description');
+    // Get modal inputs (all fields now optional with defaults)
+    const activity = interaction.fields.getTextInputValue('activity') || 'Studying';
+    const title = interaction.fields.getTextInputValue('title') || '';
+    const description = interaction.fields.getTextInputValue('description') || '';
     const intensityStr = interaction.fields.getTextInputValue('intensity');
 
-    // Validate and parse intensity (1-5 scale)
-    const intensity = parseInt(intensityStr, 10);
-    if (isNaN(intensity) || intensity < 1 || intensity > 5) {
-      await interaction.reply({
-        content: '❌ Invalid intensity value. Please enter a number between 1 and 5.',
-        ephemeral: true,
-      });
-      return;
+    // Parse intensity with default of 3 (Normal)
+    let intensity = 3;
+    if (intensityStr && intensityStr.trim() !== '') {
+      const parsed = parseInt(intensityStr, 10);
+      if (isNaN(parsed) || parsed < 1 || parsed > 5) {
+        await interaction.reply({
+          content: '❌ Invalid intensity value. Please enter a number between 1 and 5.',
+          ephemeral: true,
+        });
+        return;
+      }
+      intensity = parsed;
     }
 
     // Defer reply immediately to prevent timeout

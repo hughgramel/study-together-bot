@@ -55,41 +55,40 @@ export async function handlePomodoroEditButton(
       .setCustomId('pomodoroEndSessionModal')
       .setTitle(`Complete Pomodoro (${durationStr})`);
 
-    // Activity input (what you worked on)
+    // Activity input (optional, defaults to "Studying")
     const activityInput = new TextInputBuilder()
       .setCustomId('activity')
-      .setLabel('What were you working on?')
+      .setLabel('What were you working on? (default: Studying)')
       .setStyle(TextInputStyle.Short)
       .setPlaceholder('e.g., Math homework, Reading, Coding project')
-      .setRequired(true)
+      .setRequired(false)
       .setMaxLength(100);
 
-    // Title input
+    // Title input (optional)
     const titleInput = new TextInputBuilder()
       .setCustomId('title')
-      .setLabel('Session Title')
+      .setLabel('Session Title (optional)')
       .setStyle(TextInputStyle.Short)
       .setPlaceholder('e.g., Finished chapter 5, Fixed login bug')
-      .setRequired(true)
+      .setRequired(false)
       .setMaxLength(100);
 
-    // Description input
+    // Description input (optional)
     const descriptionInput = new TextInputBuilder()
       .setCustomId('description')
-      .setLabel('What did you accomplish?')
+      .setLabel('What did you accomplish? (optional)')
       .setStyle(TextInputStyle.Paragraph)
       .setPlaceholder('Share what you worked on and what you achieved...')
-      .setRequired(true)
+      .setRequired(false)
       .setMaxLength(1000);
 
-    // Intensity input (1-5 scale)
+    // Intensity input (optional, defaults to 3)
     const intensityInput = new TextInputBuilder()
       .setCustomId('intensity')
-      .setLabel('Session Intensity (1-5)')
+      .setLabel('Session Intensity 1-5 (default: 3)')
       .setStyle(TextInputStyle.Short)
       .setPlaceholder('1=Light, 2=Easy, 3=Normal, 4=Hard, 5=Max Effort')
-      .setRequired(true)
-      .setMinLength(1)
+      .setRequired(false)
       .setMaxLength(1);
 
     // Add inputs to action rows

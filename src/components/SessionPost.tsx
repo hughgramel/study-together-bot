@@ -133,8 +133,8 @@ export const SessionPost: React.FC<SessionPostProps> = ({
           </p>
         )}
 
-        {/* Stats grid - 2x2 */}
-        <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+        {/* Stats grid - 2x2 (with extra margin when no title/description) */}
+        <div className={`grid grid-cols-2 gap-4 flex-shrink-0 ${!title && !description ? 'mt-4' : ''}`}>
         {/* Duration card */}
         <div className="bg-[#1F2B31] rounded-xl p-4 border-2 border-[#2E3D44]">
           <div className="flex items-center gap-3">

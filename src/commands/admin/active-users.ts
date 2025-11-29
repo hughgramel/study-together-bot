@@ -22,7 +22,7 @@ export const command: Command = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction, context) {
-    const { db } = context;
+    const { db, client } = context;
 
     // Check if user has admin permission
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
@@ -56,7 +56,7 @@ export const command: Command = {
       }
 
       // Filter users by minimum hours and collect data
-      const activeUsers = snapshot.docs
+      const filteredUsers = snapshot.docs
         .filter((doc) => {
           const data = doc.data();
           return (data.totalDuration || 0) >= minimumSeconds;
@@ -80,6 +80,30 @@ export const command: Command = {
             xp,
           };
         });
+
+      // Fetch Discord display names for all users
+      const activeUsers = await Promise.all(
+        filteredUsers.map(async (user) => {
+          try {
+            const discordUser = await client.users.fetch(user.userId);
+            const displayName = discordUser.displayName || discordUser.username;
+            const username = discordUser.username;
+
+            return {
+              ...user,
+              displayName,
+              actualUsername: username,
+            };
+          } catch (error) {
+            // If we can't fetch the Discord user, use stored username
+            return {
+              ...user,
+              displayName: user.username,
+              actualUsername: user.username,
+            };
+          }
+        })
+      );
 
       if (activeUsers.length === 0) {
         await interaction.editReply({
@@ -124,8 +148,12 @@ export const command: Command = {
         // Add users as fields
         chunk.forEach((user) => {
           const streakEmoji = user.currentStreak >= 7 ? '🔥' : '';
+          const displayInfo = user.displayName !== user.actualUsername
+            ? `${user.displayName} (@${user.actualUsername})`
+            : `@${user.actualUsername}`;
+
           embed.addFields({
-            name: `${user.rank}. ${user.username}`,
+            name: `${user.rank}. ${displayInfo}`,
             value:
               `**${user.totalHours}h** | ${user.totalSessions} sessions | Lvl ${user.level}\n` +
               `Streak: ${user.currentStreak} days ${streakEmoji}`,

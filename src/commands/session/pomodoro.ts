@@ -14,8 +14,10 @@
  */
 
 import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Timestamp } from 'firebase-admin/firestore';
 import type { Command } from '../types';
 import { SessionService } from '../../services/sessions';
+import { postTimedSessionStartToFeed } from '../../utils/serverHelpers';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('PomodoroCommand');
@@ -53,6 +55,7 @@ async function sendNotification(client: any, userId: string, message: string): P
 
 /**
  * Handle the transition between focus and break phases
+ * Also pauses/unpauses the session timer so break time doesn't count
  */
 async function handlePhaseTransition(
   pomodoroSession: PomodoroSession,
@@ -60,10 +63,25 @@ async function handlePhaseTransition(
   db: any
 ): Promise<void> {
   const { userId, focusLength, breakLength, totalCycles, currentCycle, phase } = pomodoroSession;
+  const sessionService = new SessionService(db);
 
   if (phase === 'focus') {
     // Focus period just ended - start break
     pomodoroSession.phase = 'break';
+
+    // Pause the session during break so break time doesn't count toward study time
+    try {
+      const session = await sessionService.getActiveSession(userId);
+      if (session && !session.isPaused) {
+        await sessionService.updateActiveSession(userId, {
+          isPaused: true,
+          pausedAt: Timestamp.now(),
+        });
+        logger.info(`Session auto-paused for break for user ${userId}`);
+      }
+    } catch (error) {
+      logger.error(`Error auto-pausing session for break:`, error);
+    }
 
     await sendNotification(
       client,
@@ -82,6 +100,25 @@ async function handlePhaseTransition(
       // More cycles remaining - start next focus period
       pomodoroSession.currentCycle += 1;
       pomodoroSession.phase = 'focus';
+
+      // Unpause the session when focus period starts
+      try {
+        const session = await sessionService.getActiveSession(userId);
+        if (session && session.isPaused && session.pausedAt) {
+          // Calculate additional paused duration
+          const pausedAtDate = session.pausedAt.toDate();
+          const now = new Date();
+          const additionalPausedDuration = Math.floor((now.getTime() - pausedAtDate.getTime()) / 1000);
+
+          await sessionService.updateActiveSession(userId, {
+            isPaused: false,
+            pausedDuration: (session.pausedDuration || 0) + additionalPausedDuration,
+          });
+          logger.info(`Session auto-unpaused for focus for user ${userId}`);
+        }
+      } catch (error) {
+        logger.error(`Error auto-unpausing session for focus:`, error);
+      }
 
       await sendNotification(
         client,
@@ -502,14 +539,30 @@ export const command: Command = {
       return;
     }
 
-    // Calculate total session time
-    const totalDuration = cycles * (focusLength + breakLength);
-    const totalMinutes = Math.floor(totalDuration / 60);
-    const totalSeconds = totalDuration % 60;
+    // Calculate total focus time (not including breaks)
+    const totalFocusTime = cycles * focusLength;
+    const totalFocusMinutes = Math.floor(totalFocusTime / 60);
+    const totalFocusSeconds = totalFocusTime % 60;
+
+    // Format duration text for feed (like /start does)
+    let durationText: string;
+    if (totalFocusTime < 60) {
+      durationText = `${totalFocusTime}-second`;
+    } else if (totalFocusTime < 3600) {
+      durationText = `${totalFocusMinutes}-minute`;
+    } else {
+      const hours = Math.floor(totalFocusTime / 3600);
+      const remainingMinutes = Math.floor((totalFocusTime % 3600) / 60);
+      if (remainingMinutes > 0) {
+        durationText = `${hours}-hour ${remainingMinutes}-minute`;
+      } else {
+        durationText = `${hours}-hour`;
+      }
+    }
 
     logger.info(
       `User ${user.username} (${user.id}) starting Pomodoro: ` +
-      `${focusLength}s focus, ${breakLength}s break, ${cycles} cycles (${totalDuration}s total)`
+      `${focusLength}s focus, ${breakLength}s break, ${cycles} cycles (${totalFocusTime}s focus time)`
     );
 
     try {
@@ -560,10 +613,10 @@ export const command: Command = {
       // Store the Pomodoro session
       activePomodoroSessions.set(user.id, pomodoroSession);
 
-      // Reply to user
-      const durationText = totalMinutes > 0
-        ? `${totalMinutes}m ${totalSeconds}s`
-        : `${totalSeconds}s`;
+      // Format display text for user reply
+      const displayText = totalFocusMinutes > 0
+        ? (totalFocusSeconds > 0 ? `${totalFocusMinutes}m ${totalFocusSeconds}s` : `${totalFocusMinutes}m`)
+        : `${totalFocusSeconds}s`;
 
       await interaction.reply({
         content:
@@ -572,13 +625,27 @@ export const command: Command = {
           `• Focus: ${focusLength}s\n` +
           `• Break: ${breakLength}s\n` +
           `• Cycles: ${cycles}\n` +
-          `• Total time: ${durationText}\n\n` +
+          `• Total focus time: ${displayText}\n\n` +
           `💪 Starting cycle 1/${cycles}. Focus time!\n\n` +
           `_I'll send you DM notifications for breaks and focus periods._`,
         ephemeral: true,
       });
 
-      logger.info(`Pomodoro timer scheduled for user ${user.id}`);
+      // Get user's avatar URL and post to feed
+      const avatarUrl = user.displayAvatarURL({ size: 128 });
+
+      await postTimedSessionStartToFeed(
+        db,
+        client,
+        interaction,
+        user.username,
+        user.id,
+        avatarUrl,
+        'Pomodoro Session',
+        durationText
+      );
+
+      logger.info(`Pomodoro timer scheduled and posted to feed for user ${user.id}`);
 
     } catch (error) {
       logger.error('Error starting Pomodoro session:', error);
