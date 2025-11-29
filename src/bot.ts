@@ -12,6 +12,7 @@ import { loadCommands, registerCommands } from './commands';
 import { handleReady } from './events/ready';
 import { handleInteractionCreate } from './events/interactionCreate';
 import { handleMessageCreate } from './events/messageCreate';
+import { handleGuildMemberAdd } from './events/guildMemberAdd';
 import { validateEnvironment } from './middleware/errorHandler';
 import { createLogger } from './utils/logger';
 import { browserPool } from './services/browserPool';
@@ -76,6 +77,10 @@ async function main(): Promise<void> {
 
     client.on('messageCreate', async (message) => {
       await handleMessageCreate(message, db, client);
+    });
+
+    client.on('guildMemberAdd', async (member) => {
+      await handleGuildMemberAdd(member);
     });
 
     // Login to Discord
