@@ -334,6 +334,59 @@ export class AnalyticsDashboard {
 
     return embed;
   }
+
+  /**
+   * Create active users embed showing users from the last 7 days
+   */
+  async createActiveUsersEmbed(): Promise<EmbedBuilder> {
+    const activeUsers = await this.queries.getActiveUsersWithNames(7);
+
+    const embed = new EmbedBuilder()
+      .setTitle('Active Users - Last 7 Days')
+      .setColor(0x00ff00)
+      .setTimestamp();
+
+    if (activeUsers.length === 0) {
+      embed.setDescription('No active users in the last 7 days.');
+      return embed;
+    }
+
+    embed.setDescription(`Total active users: **${activeUsers.length}**\n\n`);
+
+    // Split users into chunks to fit within Discord's field limits
+    // Discord allows up to 1024 characters per field value
+    const userListChunks: string[] = [];
+    let currentChunk = '';
+
+    activeUsers.forEach((user, index) => {
+      const userLine = `${index + 1}. ${user.username}\n`;
+
+      // If adding this line would exceed the limit, start a new chunk
+      if (currentChunk.length + userLine.length > 1024) {
+        userListChunks.push(currentChunk);
+        currentChunk = userLine;
+      } else {
+        currentChunk += userLine;
+      }
+    });
+
+    // Add the last chunk if it has content
+    if (currentChunk.length > 0) {
+      userListChunks.push(currentChunk);
+    }
+
+    // Add chunks as fields (Discord allows up to 25 fields per embed)
+    userListChunks.forEach((chunk, index) => {
+      const fieldName = index === 0 ? 'Users' : `Users (continued ${index + 1})`;
+      embed.addFields({
+        name: fieldName,
+        value: chunk,
+        inline: false,
+      });
+    });
+
+    return embed;
+  }
 }
 
 /**
@@ -364,6 +417,9 @@ export async function handleAnalyticsCommand(
     switch (type) {
       case 'overview':
         embed = await dashboard.createDashboardEmbed();
+        break;
+      case 'users':
+        embed = await dashboard.createActiveUsersEmbed();
         break;
       case 'commands':
         embed = await dashboard.createCommandHealthEmbed();

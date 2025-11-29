@@ -377,6 +377,105 @@ export class AnalyticsQueries {
     }
   }
 
+  /**
+   * Get active users from the last N days with their usernames
+   *
+   * @param days - Number of days to look back (default: 7)
+   * @returns Array of objects with userId and username
+   */
+  async getActiveUsersWithNames(days: number = 7): Promise<Array<{ userId: string; username: string }>> {
+    const startDate = this.getDateNDaysAgo(days);
+    console.log(`[Analytics] Fetching active users since ${startDate} (last ${days} days)`);
+
+    try {
+      // Try getting from daily analytics first
+      console.log('[Analytics] Checking daily analytics collection...');
+      const analyticsSnapshot = await this.db
+        .collection('discord-data')
+        .doc('analytics')
+        .collection('daily')
+        .where('date', '>=', startDate)
+        .get();
+
+      console.log(`[Analytics] Found ${analyticsSnapshot.size} daily analytics documents`);
+
+      const userIds = new Set<string>();
+      analyticsSnapshot.forEach((doc) => {
+        console.log(`[Analytics] Daily doc ID: ${doc.id}`);
+        const userId = doc.id.split('_')[0]; // Extract userId from doc ID (userId_date)
+        userIds.add(userId);
+      });
+
+      console.log(`[Analytics] Extracted ${userIds.size} unique user IDs from daily analytics`);
+
+      // If no users found in daily analytics, fall back to completed sessions
+      if (userIds.size === 0) {
+        console.log('[Analytics] No users in daily analytics, checking completed sessions...');
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - days);
+
+        const sessionsSnapshot = await this.db
+          .collection('discord-data')
+          .doc('sessions')
+          .collection('completed')
+          .where('startTime', '>=', sevenDaysAgo)
+          .get();
+
+        console.log(`[Analytics] Found ${sessionsSnapshot.size} completed sessions in last ${days} days`);
+
+        sessionsSnapshot.forEach((doc) => {
+          const sessionData = doc.data();
+          if (sessionData.userId) {
+            userIds.add(sessionData.userId);
+          }
+        });
+
+        console.log(`[Analytics] Total unique users from sessions: ${userIds.size}`);
+      }
+
+      if (userIds.size === 0) {
+        console.log('[Analytics] No active users found');
+        return [];
+      }
+
+      // Get user stats to fetch usernames
+      console.log(`[Analytics] Fetching usernames for ${userIds.size} users...`);
+      const userDataPromises = Array.from(userIds).map(async (userId) => {
+        try {
+          const userDoc = await this.db
+            .collection('discord-data')
+            .doc('userStats')
+            .collection('stats')
+            .doc(userId)
+            .get();
+
+          const userData = userDoc.data();
+          const username = userData?.username || 'Unknown User';
+          console.log(`[Analytics] User ${userId}: ${username}`);
+          return {
+            userId,
+            username,
+          };
+        } catch (error) {
+          console.error(`[Analytics] Error fetching user data for ${userId}:`, error);
+          return {
+            userId,
+            username: 'Unknown User',
+          };
+        }
+      });
+
+      const activeUsers = await Promise.all(userDataPromises);
+      console.log(`[Analytics] Returning ${activeUsers.length} active users`);
+
+      // Sort alphabetically by username
+      return activeUsers.sort((a, b) => a.username.localeCompare(b.username));
+    } catch (error) {
+      console.error('[Analytics] Active users with names query error:', error);
+      return [];
+    }
+  }
+
   // ==================== SESSION ANALYTICS ====================
 
   /**
