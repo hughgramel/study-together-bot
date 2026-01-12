@@ -30,34 +30,7 @@ export const command: Command = {
         .setCustomId('manualSessionModal')
         .setTitle('Log Manual Session');
 
-      // Activity input
-      const activityInput = new TextInputBuilder()
-        .setCustomId('activity')
-        .setLabel('Activity')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g., Studying math, Writing essay')
-        .setRequired(true)
-        .setMaxLength(100);
-
-      // Title input
-      const titleInput = new TextInputBuilder()
-        .setCustomId('title')
-        .setLabel('Session Title')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g., Finished chapter 5, Fixed login bug')
-        .setRequired(true)
-        .setMaxLength(100);
-
-      // Description input
-      const descriptionInput = new TextInputBuilder()
-        .setCustomId('description')
-        .setLabel('What did you accomplish?')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Share what you worked on and what you achieved...')
-        .setRequired(true)
-        .setMaxLength(1000);
-
-      // Duration input (combined hours and minutes)
+      // Duration input (combined hours and minutes) - REQUIRED
       const durationInput = new TextInputBuilder()
         .setCustomId('duration')
         .setLabel('Duration (format: "2h 30m" or "90m")')
@@ -66,24 +39,50 @@ export const command: Command = {
         .setRequired(true)
         .setMaxLength(20);
 
-      // Intensity input (1-5 scale)
+      // Activity input - optional, defaults to "Studying"
+      const activityInput = new TextInputBuilder()
+        .setCustomId('activity')
+        .setLabel('Activity (optional, default: Studying)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g., Studying math, Writing essay')
+        .setRequired(false)
+        .setMaxLength(100);
+
+      // Title input - optional
+      const titleInput = new TextInputBuilder()
+        .setCustomId('title')
+        .setLabel('Session Title (optional)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g., Finished chapter 5, Fixed login bug')
+        .setRequired(false)
+        .setMaxLength(100);
+
+      // Description input - optional
+      const descriptionInput = new TextInputBuilder()
+        .setCustomId('description')
+        .setLabel('What did you accomplish? (optional)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Share what you worked on and what you achieved...')
+        .setRequired(false)
+        .setMaxLength(1000);
+
+      // Intensity input (1-5 scale) - optional, defaults to 3
       const intensityInput = new TextInputBuilder()
         .setCustomId('intensity')
-        .setLabel('Session Intensity (1-5)')
+        .setLabel('Session Intensity 1-5 (optional, default: 3)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('1=Light, 2=Easy, 3=Normal, 4=Hard, 5=Max Effort')
-        .setRequired(true)
-        .setMinLength(1)
+        .setRequired(false)
         .setMaxLength(1);
 
-      // Add inputs to action rows
+      // Add inputs to action rows (duration first since it's required)
+      const durationRow = new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput);
       const activityRow = new ActionRowBuilder<TextInputBuilder>().addComponents(activityInput);
       const titleRow = new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput);
       const descriptionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
-      const durationRow = new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput);
       const intensityRow = new ActionRowBuilder<TextInputBuilder>().addComponents(intensityInput);
 
-      modal.addComponents(activityRow, titleRow, descriptionRow, durationRow, intensityRow);
+      modal.addComponents(durationRow, activityRow, titleRow, descriptionRow, intensityRow);
 
       await interaction.showModal(modal);
 

@@ -332,6 +332,51 @@ export class TaskService {
   }
 
   /**
+   * Clears all active (incomplete) tasks for a user
+   *
+   * @param userId - Discord user ID
+   * @returns Number of tasks cleared
+   */
+  async clearActiveTasks(userId: string): Promise<number> {
+    try {
+      const docRef = this.db
+        .collection('discord-data')
+        .doc('userTasks')
+        .collection('tasks')
+        .doc(userId);
+
+      const doc = await docRef.get();
+
+      if (!doc.exists) {
+        return 0;
+      }
+
+      const data = doc.data() as UserTasks;
+      const tasks = data.tasks || [];
+
+      // Keep only completed tasks
+      const completedTasks = tasks.filter((t) => t.isCompleted);
+      const clearedCount = tasks.length - completedTasks.length;
+
+      if (clearedCount === 0) {
+        return 0;
+      }
+
+      await docRef.update({
+        tasks: completedTasks,
+        lastUpdatedAt: Timestamp.now(),
+      });
+
+      logger.info(`Cleared ${clearedCount} active tasks for user ${userId}`);
+
+      return clearedCount;
+    } catch (error) {
+      logger.error('Error clearing active tasks:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Gets the base XP awarded per task (before group bonuses)
    */
   static getTaskXP(): number {

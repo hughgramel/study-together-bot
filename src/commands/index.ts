@@ -53,6 +53,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/goals/goal',
     '../commands/goals/goals',
     '../commands/goals/complete',
+    '../commands/goals/cleargoals',
   ];
 
   // Events commands
