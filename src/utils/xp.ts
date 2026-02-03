@@ -15,7 +15,9 @@
  * - Level 10: 3,162 XP
  * - Level 20: 8,944 XP
  * - Level 50: 35,355 XP
- * - Level 100: 100,000 XP (max level)
+ * - Level 100: 100,000 XP
+ * - Level 200: 282,843 XP
+ * - (no max level)
  */
 
 /**
@@ -23,7 +25,7 @@
  * Uses an exponential curve to make early levels faster and later levels harder
  *
  * @param xp - Total XP earned
- * @returns Current level (1-100)
+ * @returns Current level (minimum 1, no maximum)
  *
  * @example
  * calculateLevel(0)    // Returns 1
@@ -38,14 +40,13 @@ export function calculateLevel(xp: number): number {
   // Use Math.round to handle floating point precision issues
   const level = Math.round(Math.pow(xp / 100, 2 / 3));
 
-  // Cap at level 100 (max level)
-  return Math.max(1, Math.min(100, level));
+  return Math.max(1, level);
 }
 
 /**
  * Calculate the total XP required to reach a specific level
  *
- * @param level - Target level (1-100)
+ * @param level - Target level (1+)
  * @returns Total XP needed to reach that level
  *
  * @example

@@ -40,7 +40,8 @@ assertApprox(calculateLevel(1118), 5, 1, 'Level ~5 at ~1118 XP');
 assertApprox(calculateLevel(3162), 10, 1, 'Level ~10 at ~3162 XP');
 assertApprox(calculateLevel(8944), 20, 1, 'Level ~20 at ~8944 XP');
 assert(calculateLevel(100000) === 100, 'Level 100 at 100,000 XP');
-assert(calculateLevel(999999) === 100, 'Level capped at 100');
+assert(calculateLevel(999999) > 100, 'No level cap - high XP gives high level');
+assertApprox(calculateLevel(282843), 200, 1, 'Level ~200 at ~282,843 XP');
 console.log('');
 
 // ===== xpForLevel Tests =====
@@ -111,8 +112,8 @@ console.log('');
 console.log('📊 Example XP Progression:');
 console.log('Level | XP Required | XP to Next');
 console.log('------|-------------|------------');
-for (const level of [1, 2, 5, 10, 20, 30, 50, 75, 100]) {
+for (const level of [1, 2, 5, 10, 20, 30, 50, 75, 100, 150, 200]) {
   const xp = xpForLevel(level);
-  const toNext = level < 100 ? xpForLevel(level + 1) - xp : 0;
+  const toNext = xpForLevel(level + 1) - xp;
   console.log(`${level.toString().padStart(5)} | ${xp.toString().padStart(11)} | ${toNext.toString().padStart(10)}`);
 }
