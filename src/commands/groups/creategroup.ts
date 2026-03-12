@@ -90,9 +90,10 @@ export const command: Command = {
 
       logger.info(`Group created successfully: ${group.name} (${group.groupId})`);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Error creating group:', error);
       await interaction.editReply({
-        content: '❌ Failed to create group. Please try again later.',
+        content: `❌ Failed to create group: \`${errorMessage}\``,
       });
     }
   },

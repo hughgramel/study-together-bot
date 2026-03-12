@@ -189,7 +189,7 @@ export class GroupService {
       return group;
     } catch (error) {
       logger.error('Error creating group:', error);
-      throw new Error('Failed to create group');
+      throw error;
     }
   }
 
