@@ -7,10 +7,18 @@
 
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import type { Command } from '../types';
-import { TaskService } from '../../services/tasks';
+import { TaskService, TaskDifficulty } from '../../services/tasks';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('GoalsCommand');
+
+const DIFFICULTY_LABELS: Record<TaskDifficulty, string> = {
+  1: 'Trivial',
+  2: 'Easy',
+  3: 'Medium',
+  4: 'Hard',
+  5: 'Brutal',
+};
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -39,7 +47,12 @@ export const command: Command = {
 
       // Build goal list
       const goalList = activeTasks
-        .map((task, index) => `**${index + 1}.** ${task.description}`)
+        .map((task, index) => {
+          const difficulty = (task.difficulty ?? 3) as TaskDifficulty;
+          const xp = TaskService.getXpForDifficulty(difficulty);
+          const label = DIFFICULTY_LABELS[difficulty];
+          return `**${index + 1}.** ${task.description} — *${label} (${difficulty}/5, ${xp} XP)*`;
+        })
         .join('\n');
 
       const embed = new EmbedBuilder()
@@ -47,7 +60,7 @@ export const command: Command = {
         .setTitle('📋 Your Active Goals')
         .setDescription(goalList)
         .setFooter({
-          text: `${activeTasks.length} active goal${activeTasks.length !== 1 ? 's' : ''} • Use /complete [numbers] to complete goals`
+          text: `${activeTasks.length} active goal${activeTasks.length !== 1 ? 's' : ''} • /complete [numbers] to finish • /cancelgoal [n] to remove`
         });
 
       await interaction.reply({
