@@ -15,17 +15,31 @@ import { createLogger } from '../utils/logger';
 const logger = createLogger('TaskService');
 
 /**
+ * Difficulty level (1-5). 1 is easiest, 5 is hardest. Defaults to 3.
+ */
+export type TaskDifficulty = 1 | 2 | 3 | 4 | 5;
+
+/**
  * Individual task interface
  */
 export interface Task {
   id: string;
   description: string;
+  difficulty: TaskDifficulty;
   createdAt: Timestamp;
   completedAt?: Timestamp;
   isCompleted: boolean;
   xpAwarded?: number;
   messageId: string;
   channelId: string;
+}
+
+/**
+ * Task description plus optional difficulty (defaults to 3 if omitted)
+ */
+export interface TaskInput {
+  description: string;
+  difficulty?: TaskDifficulty;
 }
 
 /**
@@ -44,11 +58,40 @@ export interface UserTasks {
 export class TaskService {
   private db: Firestore;
 
-  // XP awarded per completed task (uniform difficulty)
-  private static readonly TASK_XP = 75;
+  // Linear difficulty weights (1-5) applied to BASE_XP_POOL.
+  // Tuned so difficulty 3 (the default) = 75 XP, matching the previous
+  // uniform per-task XP. Bumps/halves cleanly per level.
+  private static readonly DIFFICULTY_XP_WEIGHTS: Record<TaskDifficulty, number> = {
+    1: 0.01,
+    2: 0.02,
+    3: 0.03,
+    4: 0.04,
+    5: 0.05,
+  };
+  private static readonly BASE_XP_POOL = 2500;
+  private static readonly DEFAULT_DIFFICULTY: TaskDifficulty = 3;
 
   constructor(db: Firestore) {
     this.db = db;
+  }
+
+  /**
+   * Coerce arbitrary input into a valid TaskDifficulty, falling back to default.
+   */
+  private static coerceDifficulty(value: unknown): TaskDifficulty {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isInteger(n) && n >= 1 && n <= 5) {
+      return n as TaskDifficulty;
+    }
+    return TaskService.DEFAULT_DIFFICULTY;
+  }
+
+  /**
+   * Compute XP awarded for a task at the given difficulty.
+   */
+  static getXpForDifficulty(difficulty: TaskDifficulty): number {
+    const weight = TaskService.DIFFICULTY_XP_WEIGHTS[difficulty];
+    return Math.ceil(TaskService.BASE_XP_POOL * weight);
   }
 
   /**
@@ -99,11 +142,12 @@ export class TaskService {
   }
 
   /**
-   * Creates tasks from a numbered list
+   * Creates tasks. Each input is a description and optional difficulty (1-5);
+   * unspecified difficulty falls back to the default (3).
    *
    * @param userId - Discord user ID
    * @param username - Discord username
-   * @param taskDescriptions - Array of task descriptions
+   * @param inputs - Array of task descriptions or {description, difficulty} objects
    * @param messageId - Discord message ID where tasks were posted
    * @param channelId - Discord channel ID
    * @returns Array of created tasks
@@ -111,7 +155,7 @@ export class TaskService {
   async createTasks(
     userId: string,
     username: string,
-    taskDescriptions: string[],
+    inputs: Array<string | TaskInput>,
     messageId: string,
     channelId: string
   ): Promise<Task[]> {
@@ -126,14 +170,19 @@ export class TaskService {
       const now = Timestamp.now();
 
       // Create new tasks
-      const newTasks: Task[] = taskDescriptions.map((description) => ({
-        id: randomUUID(),
-        description,
-        createdAt: now,
-        isCompleted: false,
-        messageId,
-        channelId,
-      }));
+      const newTasks: Task[] = inputs.map((input) => {
+        const { description, difficulty } =
+          typeof input === 'string' ? { description: input, difficulty: undefined } : input;
+        return {
+          id: randomUUID(),
+          description,
+          difficulty: TaskService.coerceDifficulty(difficulty),
+          createdAt: now,
+          isCompleted: false,
+          messageId,
+          channelId,
+        };
+      });
 
       let existingTasks: Task[] = [];
       if (doc.exists) {
@@ -198,10 +247,14 @@ export class TaskService {
         throw new Error('Task already completed');
       }
 
+      const difficulty = TaskService.coerceDifficulty(task.difficulty);
+      const xp = TaskService.getXpForDifficulty(difficulty);
+
       // Mark as completed
+      task.difficulty = difficulty;
       task.isCompleted = true;
       task.completedAt = Timestamp.now();
-      task.xpAwarded = TaskService.TASK_XP;
+      task.xpAwarded = xp;
 
       // Update the tasks array
       tasks[taskIndex] = task;
@@ -211,9 +264,9 @@ export class TaskService {
         lastUpdatedAt: Timestamp.now()
       });
 
-      logger.info(`Task ${taskId} completed by user ${userId}, awarded ${TaskService.TASK_XP} XP`);
+      logger.info(`Task ${taskId} completed by user ${userId} at difficulty ${difficulty}, awarded ${xp} XP`);
 
-      return { task, xpAwarded: TaskService.TASK_XP };
+      return { task, xpAwarded: xp };
     } catch (error) {
       logger.error('Error completing task:', error);
       throw error;
@@ -265,14 +318,18 @@ export class TaskService {
           continue;
         }
 
+        const difficulty = TaskService.coerceDifficulty(task.difficulty);
+        const xp = TaskService.getXpForDifficulty(difficulty);
+
         // Mark as completed
+        task.difficulty = difficulty;
         task.isCompleted = true;
         task.completedAt = Timestamp.now();
-        task.xpAwarded = TaskService.TASK_XP;
+        task.xpAwarded = xp;
 
         tasks[taskIndex] = task;
         completedTasks.push(task);
-        totalXp += TaskService.TASK_XP;
+        totalXp += xp;
       }
 
       if (completedTasks.length > 0) {
@@ -377,9 +434,56 @@ export class TaskService {
   }
 
   /**
-   * Gets the base XP awarded per task (before group bonuses)
+   * Cancels (deletes) a single active task by its 1-indexed position in the
+   * user's active task list — same numbering shown by /goals and accepted by
+   * /complete. Returns the deleted task, or null if the index is out of range.
+   *
+   * @param userId - Discord user ID
+   * @param oneIndexedNumber - Goal number as displayed to the user (1-based)
    */
-  static getTaskXP(): number {
-    return TaskService.TASK_XP;
+  async cancelActiveTaskByIndex(
+    userId: string,
+    oneIndexedNumber: number
+  ): Promise<Task | null> {
+    try {
+      const docRef = this.db
+        .collection('discord-data')
+        .doc('userTasks')
+        .collection('tasks')
+        .doc(userId);
+
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return null;
+      }
+
+      const data = doc.data() as UserTasks;
+      const tasks = data.tasks || [];
+
+      // Active goals are what the user sees numbered 1..N in /goals.
+      const activeTasks = tasks.filter((t) => !t.isCompleted);
+      const zeroIndexed = oneIndexedNumber - 1;
+
+      if (zeroIndexed < 0 || zeroIndexed >= activeTasks.length) {
+        return null;
+      }
+
+      const target = activeTasks[zeroIndexed];
+      const remaining = tasks.filter((t) => t.id !== target.id);
+
+      await docRef.update({
+        tasks: remaining,
+        lastUpdatedAt: Timestamp.now(),
+      });
+
+      logger.info(
+        `Cancelled active task ${target.id} (#${oneIndexedNumber}) for user ${userId}`
+      );
+
+      return target;
+    } catch (error) {
+      logger.error('Error cancelling task by index:', error);
+      throw error;
+    }
   }
 }

@@ -160,7 +160,13 @@ export const command: Command = {
 
         // Build response message
         let message = `✅ **Completed ${completedTasks.length} goal${completedTasks.length !== 1 ? 's' : ''}!**\n\n`;
-        message += completedTasks.map((task) => `• ${task.description}`).join('\n');
+        message += completedTasks
+          .map((task) => {
+            const difficulty = task.difficulty ?? 3;
+            const xp = task.xpAwarded ?? 0;
+            return `• ${task.description} *(diff ${difficulty}/5, ${xp} XP)*`;
+          })
+          .join('\n');
         message += `\n\n**+${finalXP} XP**`;
 
         if (userLevelBonus > 0 || groupXpBonus > 0) {
