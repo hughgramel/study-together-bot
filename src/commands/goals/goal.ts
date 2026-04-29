@@ -180,7 +180,7 @@ export const command: Command = {
         .setTitle('✅ Goals Added!')
         .setDescription(goalList)
         .setFooter({
-          text: `${goals.length} goal${goals.length !== 1 ? 's' : ''} created • /goals to view • /complete [numbers] to finish • /cancelgoal [n] to remove one`,
+          text: `${goals.length} goal${goals.length !== 1 ? 's' : ''} created • /goals to view • /complete [numbers] to finish • /cancelgoal to remove`,
         })
         .setTimestamp();
 

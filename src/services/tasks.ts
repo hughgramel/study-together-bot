@@ -434,17 +434,18 @@ export class TaskService {
   }
 
   /**
-   * Cancels (deletes) a single active task by its 1-indexed position in the
-   * user's active task list — same numbering shown by /goals and accepted by
-   * /complete. Returns the deleted task, or null if the index is out of range.
+   * Cancels (deletes) one or more active tasks by their 1-indexed positions in
+   * the user's active task list — same numbering shown by /goals and accepted
+   * by /complete. Out-of-range numbers are returned in `invalid` and skipped.
    *
    * @param userId - Discord user ID
-   * @param oneIndexedNumber - Goal number as displayed to the user (1-based)
+   * @param oneIndexedNumbers - Goal numbers as displayed to the user (1-based)
+   * @returns Cancelled tasks and any invalid numbers
    */
-  async cancelActiveTaskByIndex(
+  async cancelActiveTasksByIndices(
     userId: string,
-    oneIndexedNumber: number
-  ): Promise<Task | null> {
+    oneIndexedNumbers: number[]
+  ): Promise<{ cancelled: Task[]; invalid: number[]; activeCount: number }> {
     try {
       const docRef = this.db
         .collection('discord-data')
@@ -454,7 +455,7 @@ export class TaskService {
 
       const doc = await docRef.get();
       if (!doc.exists) {
-        return null;
+        return { cancelled: [], invalid: oneIndexedNumbers, activeCount: 0 };
       }
 
       const data = doc.data() as UserTasks;
@@ -462,14 +463,34 @@ export class TaskService {
 
       // Active goals are what the user sees numbered 1..N in /goals.
       const activeTasks = tasks.filter((t) => !t.isCompleted);
-      const zeroIndexed = oneIndexedNumber - 1;
 
-      if (zeroIndexed < 0 || zeroIndexed >= activeTasks.length) {
-        return null;
+      const cancelled: Task[] = [];
+      const cancelledIds = new Set<string>();
+      const invalid: number[] = [];
+
+      // Dedupe before processing — a user typing "1,1" or "1-3,2" should
+      // only delete each goal once.
+      const uniqueNumbers = Array.from(new Set(oneIndexedNumbers));
+
+      for (const n of uniqueNumbers) {
+        const zeroIndexed = n - 1;
+        if (zeroIndexed < 0 || zeroIndexed >= activeTasks.length) {
+          invalid.push(n);
+          continue;
+        }
+        const target = activeTasks[zeroIndexed];
+        if (cancelledIds.has(target.id)) {
+          continue;
+        }
+        cancelledIds.add(target.id);
+        cancelled.push(target);
       }
 
-      const target = activeTasks[zeroIndexed];
-      const remaining = tasks.filter((t) => t.id !== target.id);
+      if (cancelled.length === 0) {
+        return { cancelled, invalid, activeCount: activeTasks.length };
+      }
+
+      const remaining = tasks.filter((t) => !cancelledIds.has(t.id));
 
       await docRef.update({
         tasks: remaining,
@@ -477,12 +498,68 @@ export class TaskService {
       });
 
       logger.info(
-        `Cancelled active task ${target.id} (#${oneIndexedNumber}) for user ${userId}`
+        `Cancelled ${cancelled.length} active task${cancelled.length !== 1 ? 's' : ''} for user ${userId}`
       );
 
-      return target;
+      return { cancelled, invalid, activeCount: activeTasks.length };
     } catch (error) {
-      logger.error('Error cancelling task by index:', error);
+      logger.error('Error cancelling tasks by index:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancels (deletes) one or more active tasks by their IDs. Skips tasks that
+   * are already completed or not found. Used by the select-menu cancel flow,
+   * where the menu hands back stable IDs rather than positional numbers.
+   *
+   * @param userId - Discord user ID
+   * @param taskIds - Task IDs to cancel
+   * @returns Cancelled tasks
+   */
+  async cancelActiveTasksByIds(
+    userId: string,
+    taskIds: string[]
+  ): Promise<Task[]> {
+    try {
+      const docRef = this.db
+        .collection('discord-data')
+        .doc('userTasks')
+        .collection('tasks')
+        .doc(userId);
+
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return [];
+      }
+
+      const data = doc.data() as UserTasks;
+      const tasks = data.tasks || [];
+
+      const idSet = new Set(taskIds);
+      const cancelled = tasks.filter(
+        (t) => idSet.has(t.id) && !t.isCompleted
+      );
+
+      if (cancelled.length === 0) {
+        return [];
+      }
+
+      const cancelledIds = new Set(cancelled.map((t) => t.id));
+      const remaining = tasks.filter((t) => !cancelledIds.has(t.id));
+
+      await docRef.update({
+        tasks: remaining,
+        lastUpdatedAt: Timestamp.now(),
+      });
+
+      logger.info(
+        `Cancelled ${cancelled.length} active task${cancelled.length !== 1 ? 's' : ''} by id for user ${userId}`
+      );
+
+      return cancelled;
+    } catch (error) {
+      logger.error('Error cancelling tasks by id:', error);
       throw error;
     }
   }
