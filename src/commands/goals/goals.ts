@@ -60,7 +60,7 @@ export const command: Command = {
         .setTitle('📋 Your Active Goals')
         .setDescription(goalList)
         .setFooter({
-          text: `${activeTasks.length} active goal${activeTasks.length !== 1 ? 's' : ''} • /complete [numbers] to finish • /cancelgoal [n] to remove`
+          text: `${activeTasks.length} active goal${activeTasks.length !== 1 ? 's' : ''} • /complete [numbers] to finish • /cancelgoal [numbers] to remove`
         });
 
       await interaction.reply({
