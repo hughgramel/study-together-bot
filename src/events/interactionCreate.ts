@@ -26,6 +26,7 @@ import {
   handleViewStatsButton,
 } from '../interactions/buttons/statsButtons';
 import { handleGoalCompleteSelect } from '../interactions/selects/goalSelect';
+import { handleCancelGoalsSelect } from '../interactions/selects/cancelGoalsSelect';
 import { handleAchievementFilterSelect } from '../interactions/selects/achievementSelect';
 import {
   handleLeaderboardTimeframeSelect,
@@ -178,6 +179,12 @@ export async function handleInteractionCreate(
     // Goal completion select menu
     if (interaction.customId.startsWith('goal_complete:')) {
       await handleGoalCompleteSelect(interaction, db);
+      return;
+    }
+
+    // Cancel-goals multi-select menu
+    if (interaction.customId.startsWith('cancelgoal_select:')) {
+      await handleCancelGoalsSelect(interaction, db);
       return;
     }
 

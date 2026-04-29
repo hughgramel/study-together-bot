@@ -507,4 +507,60 @@ export class TaskService {
       throw error;
     }
   }
+
+  /**
+   * Cancels (deletes) one or more active tasks by their IDs. Skips tasks that
+   * are already completed or not found. Used by the select-menu cancel flow,
+   * where the menu hands back stable IDs rather than positional numbers.
+   *
+   * @param userId - Discord user ID
+   * @param taskIds - Task IDs to cancel
+   * @returns Cancelled tasks
+   */
+  async cancelActiveTasksByIds(
+    userId: string,
+    taskIds: string[]
+  ): Promise<Task[]> {
+    try {
+      const docRef = this.db
+        .collection('discord-data')
+        .doc('userTasks')
+        .collection('tasks')
+        .doc(userId);
+
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return [];
+      }
+
+      const data = doc.data() as UserTasks;
+      const tasks = data.tasks || [];
+
+      const idSet = new Set(taskIds);
+      const cancelled = tasks.filter(
+        (t) => idSet.has(t.id) && !t.isCompleted
+      );
+
+      if (cancelled.length === 0) {
+        return [];
+      }
+
+      const cancelledIds = new Set(cancelled.map((t) => t.id));
+      const remaining = tasks.filter((t) => !cancelledIds.has(t.id));
+
+      await docRef.update({
+        tasks: remaining,
+        lastUpdatedAt: Timestamp.now(),
+      });
+
+      logger.info(
+        `Cancelled ${cancelled.length} active task${cancelled.length !== 1 ? 's' : ''} by id for user ${userId}`
+      );
+
+      return cancelled;
+    } catch (error) {
+      logger.error('Error cancelling tasks by id:', error);
+      throw error;
+    }
+  }
 }
