@@ -7,11 +7,10 @@
  *   /goal (do math, 3), (take out trash, 1)
  *   /goal do math, take out trash         (defaults difficulty to 3)
  *   /goal 1. Study 2. Exercise            (numbered list, defaults to 3)
- *   /goal write essay : 5, code : 4       (single tuple-ish form also works)
+ *   /goal Run 5k - 3⏎ Read book - 1       (one goal per line, trailing - N)
  *
- * Tuple form is preferred over a parallel difficulty list because it pairs
- * each goal with its difficulty explicitly — there's no way to misalign the
- * two and you can mix difficulties freely.
+ * Tuple form pairs each goal with its difficulty explicitly. The line form is
+ * easier to read for many goals and accepts the trailing difficulty marker.
  */
 
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
@@ -78,13 +77,62 @@ function parseTupleList(text: string): TaskInput[] | null {
   return inputs.length > 0 ? inputs : null;
 }
 
+// Trailing " - N" where N is 1-5, anchored to end of line.
+const LINE_DIFFICULTY_REGEX = /^(.+?)\s+-\s*([1-5])\s*$/;
+// Leading "1.", "1)", "1:", "1 -" — same shape parseNumberedList accepts.
+const NUMBERED_PREFIX_REGEX = /^\s*\d+[\.\)\:\-]\s+/;
+
 /**
- * Parse goals from text. Tries tuple syntax first, then numbered list, then
+ * Parse text formatted as one goal per line, where each line is
+ * `description` or `description - N` (N is 1-5). Returns null if the input
+ * is single-line and lacks any difficulty marker — that case is left to the
+ * other parsers so single-line comma input still works.
+ */
+function parseLineList(text: string): TaskInput[] | null {
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (lines.length === 0) return null;
+
+  const inputs: TaskInput[] = [];
+  let foundMarker = false;
+
+  for (const rawLine of lines) {
+    // Strip leading "1." / "1)" / "1 -" so numbered+difficulty combos work.
+    const line = rawLine.replace(NUMBERED_PREFIX_REGEX, '').trim();
+    if (!line) continue;
+
+    const match = line.match(LINE_DIFFICULTY_REGEX);
+    if (match) {
+      foundMarker = true;
+      inputs.push({
+        description: match[1].trim(),
+        difficulty: parseInt(match[2], 10) as TaskDifficulty,
+      });
+    } else {
+      inputs.push({ description: line, difficulty: DEFAULT_DIFFICULTY });
+    }
+  }
+
+  if (inputs.length === 0) return null;
+  // Single-line input without an explicit marker is ambiguous with the
+  // comma-separated fallback ("a, b") — let later parsers handle it.
+  if (lines.length === 1 && !foundMarker) return null;
+  return inputs;
+}
+
+/**
+ * Parse goals from text. Order: tuples → line list → numbered list →
  * comma-separated. Goals without an explicit difficulty get the default.
  */
 function parseGoals(text: string): TaskInput[] {
   const tuples = parseTupleList(text);
   if (tuples) return tuples;
+
+  const lines = parseLineList(text);
+  if (lines) return lines;
 
   const numbered = parseNumberedList(text);
   if (numbered && numbered.length > 0) {
@@ -114,7 +162,7 @@ export const command: Command = {
       option
         .setName('text')
         .setDescription(
-          'Goals: "(math, 3), (run, 2)" or "math, run" (defaults to 3)'
+          'Goals: "(math, 3), (run, 2)", one-per-line "Run - 3", or "math, run" (defaults to 3)'
         )
         .setRequired(true)
     ),
@@ -147,6 +195,7 @@ export const command: Command = {
             '❌ Could not parse any goals from your text.\n\n' +
             'Try:\n' +
             '• Tuples: `/goal (do math, 3), (take out trash, 1)`\n' +
+            '• One per line: `Run 5k - 3` ⏎ `Read book - 1`\n' +
             '• Comma-separated: `/goal do math, take out trash`\n' +
             '• Numbered list: `/goal 1. Study 2. Exercise`\n\n' +
             'Difficulty is 1-5 (1 = trivial, 5 = brutal). Defaults to 3.',
