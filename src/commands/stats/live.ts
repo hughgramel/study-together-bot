@@ -42,7 +42,11 @@ export const command: Command = {
     const sessionService = new SessionService(db);
 
     // Get active sessions for this server
-    const activeSessions = await sessionService.getActiveSessionsByServer(guildId);
+    const BANNED_USERNAMES = ['punkquant'];
+    const allSessions = await sessionService.getActiveSessionsByServer(guildId);
+    const activeSessions = allSessions.filter(
+      (s) => !BANNED_USERNAMES.includes(s.username.toLowerCase())
+    );
     const totalLive = activeSessions.length;
 
     if (totalLive === 0) {
