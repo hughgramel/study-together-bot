@@ -74,6 +74,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/admin/setup-goal-channel',
     '../commands/admin/admin-delete-xp',
     '../commands/admin/admin-delete-time',
+    '../commands/admin/admin-cancel-session',
     '../commands/admin/setup-level-roles',
     '../commands/admin/sync-roles',
     '../commands/admin/analytics',
