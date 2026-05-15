@@ -79,6 +79,8 @@ export async function loadCommands(): Promise<void> {
     '../commands/admin/sync-roles',
     '../commands/admin/analytics',
     '../commands/admin/active-users',
+    '../commands/admin/auditlog',
+    '../commands/admin/setup-start-here',
   ];
 
   // Group commands

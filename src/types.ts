@@ -162,8 +162,10 @@ export interface UserStats {
 export interface ServerConfig {
   feedChannelId?: string;   // Discord channel ID for feed posts
   welcomeChannelId?: string; // Discord channel ID for welcome messages
+  startHereChannelId?: string; // Discord channel ID for the start-here/onboarding guide
   eventsChannelId?: string; // Discord channel ID for study events
   goalChannelId?: string;   // Discord channel ID for goal/task parsing
+  modRoleId?: string;       // Discord role ID for moderators (used in start-here guide)
   timezone?: string;        // IANA timezone (e.g., 'America/New_York', 'America/Los_Angeles')
   setupAt: Timestamp;       // When configuration was last updated
   setupBy: string;          // Discord user ID of admin who set it up

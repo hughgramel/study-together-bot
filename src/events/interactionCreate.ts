@@ -163,6 +163,7 @@ export async function handleInteractionCreate(
       await handlePomodoroEditButton(interaction, db);
       return;
     }
+
   }
 
   // Handle select menu interactions
