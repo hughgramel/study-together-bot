@@ -7,7 +7,9 @@
  * Tier order (highest → lowest XP threshold):
  *   san+   > san  > 1/2 san > 1/3 san > … > 1/16 san
  *
- * Colors: OKLCH with L=0.3, C=0.1, H evenly spaced across 360°.
+ * Colors: OKLCH L=0.4, H evenly spaced across 360°.
+ * Chroma: 0.10 for hues near sRGB primaries (red ≈29°, green ≈142°, blue ≈264°,
+ *         within 35°) to avoid gamut clipping; 0.15 everywhere else.
  */
 
 import { Client, Guild } from 'discord.js';
@@ -91,9 +93,28 @@ export function oklchToDiscordColor(L: number, C: number, H: number): number {
   return (R << 16) | (G << 8) | B;
 }
 
+/**
+ * Returns the appropriate OKLCH chroma for a given hue.
+ * Hues within 35° of an sRGB primary (red ≈29°, green ≈142°, blue ≈264°)
+ * use C=0.10 to stay safely inside the sRGB gamut.
+ * All other hues use C=0.15 for more vivid colour.
+ */
+export function getChromaForHue(hue: number): number {
+  function angDist(h1: number, h2: number): number {
+    const d = Math.abs(h1 - h2) % 360;
+    return Math.min(d, 360 - d);
+  }
+  const nearPrimary =
+    angDist(hue, 29)  <= 35 ||   // near red
+    angDist(hue, 142) <= 35 ||   // near green
+    angDist(hue, 264) <= 35;     // near blue
+  return nearPrimary ? 0.10 : 0.15;
+}
+
 // Pre-compute Discord colours for all tiers once at module load
+// L=0.4, chroma varies per hue (see getChromaForHue)
 export const SAN_TIER_COLORS: number[] = SAN_TIERS.map(t =>
-  oklchToDiscordColor(0.3, 0.1, t.hue)
+  oklchToDiscordColor(0.4, getChromaForHue(t.hue), t.hue)
 );
 
 // ─── Tier determination ───────────────────────────────────────────────────────
@@ -143,6 +164,40 @@ async function saveSanConfig(
 }
 
 // ─── Role creation / sync ─────────────────────────────────────────────────────
+
+/**
+ * Position all san roles in the guild hierarchy.
+ * Places them as a block immediately below `belowRoleId` (e.g. "study monarch").
+ * san+ ends up closest to the top, 1/16 san furthest down.
+ */
+export async function positionSanRoles(
+  guild: Guild,
+  roleMap: { [tierName: string]: string },
+  belowRoleId: string
+): Promise<void> {
+  await guild.roles.fetch();
+  const anchor = guild.roles.cache.get(belowRoleId);
+  if (!anchor) {
+    logger.warn(`Anchor role ${belowRoleId} not found — skipping position update`);
+    return;
+  }
+
+  // Build position list: san+ gets anchorPos-1, san gets anchorPos-2, …
+  const positionUpdates = SAN_TIERS
+    .map((tier, i) => {
+      const roleId = roleMap[tier.name];
+      if (!roleId) return null;
+      return { role: roleId, position: Math.max(1, anchor.position - 1 - i) };
+    })
+    .filter(Boolean) as { role: string; position: number }[];
+
+  try {
+    await guild.roles.setPositions(positionUpdates);
+    logger.info(`Positioned ${positionUpdates.length} san roles below "${anchor.name}"`);
+  } catch (err) {
+    logger.error('Failed to set san role positions', err);
+  }
+}
 
 /**
  * Create (or update) all 17 san-level roles in the guild.

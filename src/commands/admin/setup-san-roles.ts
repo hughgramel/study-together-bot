@@ -2,10 +2,10 @@
  * /setup-san-roles Command
  *
  * Create or sync the 17 san-level Discord roles.
- * Each role has a unique OKLCH colour (L=0.3, C=0.1, evenly-spaced hue).
+ * Each role has a unique OKLCH colour (L=0.4, C=0.10-0.15, evenly-spaced hue).
  *
  * Subcommands:
- *   create  – Create/update roles in Discord and store config
+ *   create  – Create/update roles, optionally position them, then auto-sync all members
  *   sync    – Re-assign every member's san role based on current XP
  *   info    – Show current configuration and tier colours
  */
@@ -14,6 +14,7 @@ import {
   SlashCommandBuilder,
   PermissionFlagsBits,
   EmbedBuilder,
+  Role,
 } from 'discord.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import type { Command } from '../types';
@@ -22,8 +23,10 @@ import {
   SAN_TIERS,
   SAN_TIER_COLORS,
   createSanRoles,
+  positionSanRoles,
   syncAllSanRoles,
   getCurrentSanXp,
+  getChromaForHue,
 } from '../../services/sanRoles';
 import { createLogger } from '../../utils/logger';
 
@@ -37,10 +40,15 @@ export const command: Command = {
     .addSubcommand(sub =>
       sub
         .setName('create')
-        .setDescription('Create/update the 17 san-level roles with OKLCH colours')
+        .setDescription('Create/update the 17 san-level roles, position them, then sync all members')
         .addUserOption(o =>
           o.setName('san')
             .setDescription('The user to use as the "san" reference (defaults to current #1 XP user)')
+            .setRequired(false)
+        )
+        .addRoleOption(o =>
+          o.setName('below_role')
+            .setDescription('Place san roles just below this role in the hierarchy (e.g. @study monarch)')
             .setRequired(false)
         )
     )
@@ -88,7 +96,6 @@ export const command: Command = {
 
       const sanUserOption = interaction.options.getUser('san');
       if (sanUserOption) {
-        // Look up XP for specified user
         const statsDoc = await db
           .collection('discord-data')
           .doc('userStats')
@@ -98,7 +105,6 @@ export const command: Command = {
         sanXp = (statsDoc.exists ? (statsDoc.data()?.xp as number) : 0) || 0;
         sanUserId = sanUserOption.id;
       } else {
-        // Use current global max XP
         const top = await getCurrentSanXp(db);
         sanXp = top.xp;
         sanUserId = top.userId;
@@ -111,33 +117,57 @@ export const command: Command = {
 
       logger.info(`Creating san roles for guild ${guildId}, sanXp=${sanXp}`);
 
+      // 1. Create / update the roles
       const roleMap = await createSanRoles(guild, existing);
 
+      // 2. Position them if a reference role was given
+      const belowRole = interaction.options.getRole('below_role') as Role | null;
+      if (belowRole) {
+        await positionSanRoles(guild, roleMap, belowRole.id);
+      }
+
+      // 3. Save config
       const sanConfig: SanRoleConfig = {
         sanXp,
         sanUserId,
         updatedAt: Timestamp.now(),
         roles: roleMap,
       };
-
       await configRef.set({ sanRoleConfig: sanConfig }, { merge: true });
+
+      // 4. Auto-sync all current members
+      await interaction.editReply('Roles created — syncing all members now…');
+
+      let lastUpdate = Date.now();
+      const syncResults = await syncAllSanRoles(db, client, guildId, (cur, total, name) => {
+        const now = Date.now();
+        if (now - lastUpdate > 2000) {
+          lastUpdate = now;
+          interaction.editReply(`Syncing members… ${cur}/${total} (${name})`).catch(() => {});
+        }
+      });
 
       const tierLines = SAN_TIERS.map((t, i) => {
         const roleId = roleMap[t.name];
         const hex = '#' + SAN_TIER_COLORS[i].toString(16).padStart(6, '0');
+        const C = getChromaForHue(t.hue).toFixed(2);
         return roleId
-          ? `<@&${roleId}> — \`oklch(0.3 0.1 ${t.hue.toFixed(1)}°)\` ${hex}`
+          ? `<@&${roleId}> \`oklch(0.4 ${C} ${t.hue.toFixed(1)}°)\` ${hex}`
           : `${t.name} — failed to create`;
       });
 
       await interaction.editReply({
+        content: '',
         embeds: [
           new EmbedBuilder()
-            .setTitle('San Roles Created')
+            .setTitle('San Roles Created & Synced')
             .setColor(0x00ff00)
             .setDescription(
               `**Reference XP (san):** ${sanXp.toLocaleString()} XP` +
               (sanUserId ? ` (<@${sanUserId}>)` : '') +
+              (belowRole ? `\n**Positioned below:** ${belowRole.name}` : '') +
+              `\n**Members synced:** ${syncResults.synced}` +
+              (syncResults.errors > 0 ? ` (${syncResults.errors} errors)` : '') +
               '\n\n' +
               tierLines.join('\n')
             ),
@@ -168,11 +198,7 @@ export const command: Command = {
             .addFields(
               { name: 'Synced', value: String(results.synced), inline: true },
               { name: 'Errors', value: String(results.errors), inline: true },
-              {
-                name: 'Current san XP',
-                value: results.newSanXp.toLocaleString() + ' XP',
-                inline: true,
-              }
+              { name: 'Current san XP', value: results.newSanXp.toLocaleString() + ' XP', inline: true }
             ),
         ],
       });
@@ -206,7 +232,10 @@ export const command: Command = {
       const tierLines = SAN_TIERS.map((t, i) => {
         const roleId = sanConfig.roles[t.name];
         const hex = '#' + SAN_TIER_COLORS[i].toString(16).padStart(6, '0');
-        return roleId ? `<@&${roleId}> (${hex})` : `${t.name} — not configured`;
+        const C = getChromaForHue(t.hue).toFixed(2);
+        return roleId
+          ? `<@&${roleId}> \`oklch(0.4 ${C} ${t.hue.toFixed(1)}°)\` ${hex}`
+          : `${t.name} — not configured`;
       });
 
       await interaction.reply({
