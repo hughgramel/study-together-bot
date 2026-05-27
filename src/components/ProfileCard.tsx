@@ -216,7 +216,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             </div>
             <div className="flex flex-col justify-center">
               <div className="text-5xl font-extrabold text-[#EFEFEF] leading-none mb-2">{achievementCount}</div>
-              <div className="text-xl font-semibold text-[#DBDEE1]">Achievements</div>
+              <div className="text-xl font-semibold text-[#DBDEE1]">Ach. levels</div>
             </div>
           </div>
         </div>

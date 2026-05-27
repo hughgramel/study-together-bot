@@ -170,6 +170,36 @@ export interface ServerConfig {
   setupAt: Timestamp;       // When configuration was last updated
   setupBy: string;          // Discord user ID of admin who set it up
   levelRoles?: LevelRoleConfig[]; // Role assignments based on user level
+  reactionRoles?: ReactionRoleConfig[]; // Reaction-based role assignments
+  sanRoleConfig?: SanRoleConfig; // San-level role system configuration
+}
+
+/**
+ * Reaction role configuration
+ *
+ * Maps a specific emoji reaction on a specific message to a Discord role.
+ * When a user reacts, they receive the role; when they remove the reaction, it is revoked.
+ */
+export interface ReactionRoleConfig {
+  messageId: string;        // Discord message ID to watch for reactions
+  channelId: string;        // Discord channel ID where the message lives
+  emoji: string;            // Emoji (Unicode or custom emoji ID string)
+  roleId: string;           // Discord role ID to assign
+  roleName: string;         // Role name (cached for display)
+}
+
+/**
+ * San-level role system configuration
+ *
+ * Stores role IDs for the san-relative XP tiers and the reference XP snapshot.
+ */
+export interface SanRoleConfig {
+  sanXp: number;            // Reference XP snapshot (current #1 user's XP)
+  sanUserId?: string;       // Discord user ID of "san" (the reference user)
+  updatedAt: Timestamp;     // When reference was last updated
+  roles: {                  // Map of tier name -> role ID
+    [tierName: string]: string; // e.g. "san+": "123456789"
+  };
 }
 
 /**

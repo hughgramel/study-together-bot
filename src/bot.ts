@@ -13,6 +13,8 @@ import { handleReady } from './events/ready';
 import { handleInteractionCreate } from './events/interactionCreate';
 import { handleMessageCreate } from './events/messageCreate';
 import { handleGuildMemberAdd } from './events/guildMemberAdd';
+import { handleMessageReactionAdd } from './events/messageReactionAdd';
+import { handleMessageReactionRemove } from './events/messageReactionRemove';
 import {
   handleMessageLogCreate,
   handleMessageLogDelete,
@@ -95,6 +97,14 @@ async function main(): Promise<void> {
 
     client.on('guildMemberAdd', async (member) => {
       await handleGuildMemberAdd(member, db);
+    });
+
+    client.on('messageReactionAdd', async (reaction, user) => {
+      await handleMessageReactionAdd(reaction, user, db, client);
+    });
+
+    client.on('messageReactionRemove', async (reaction, user) => {
+      await handleMessageReactionRemove(reaction, user, db, client);
     });
 
     // Login to Discord

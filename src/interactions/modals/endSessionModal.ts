@@ -19,6 +19,7 @@ import {
   postStreakMilestoneToFeed,
 } from '../../utils/feedHelpers';
 import { checkLevelUpRoles } from '../../services/levelRoles';
+import { syncUserSanRole } from '../../services/sanRoles';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('EndSessionModal');
@@ -240,6 +241,14 @@ export async function handleEndSessionModal(
           // Don't fail the session completion if role update fails
         }
       }
+    }
+
+    // Update san-level role for the user (non-blocking)
+    if (guildId) {
+      const currentXP = statsUpdate.stats.xp || 0;
+      syncUserSanRole(db, client, guildId, user.id, currentXP).catch(err =>
+        logger.error(`Failed to sync san role for ${user.id}`, err)
+      );
     }
 
     logger.info(`Session completed successfully for user ${user.username} (${user.id})`);

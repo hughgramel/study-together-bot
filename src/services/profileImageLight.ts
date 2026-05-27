@@ -61,7 +61,12 @@ export class ProfileImageLightService {
       const level = calculateLevel(xp);
       const currentStreak = stats?.currentStreak || 0;
       const totalSessions = stats?.totalSessions || 0;
-      const achievementCount = stats?.achievements?.length || 0;
+      // Sum total levels across all leveled achievements (max 40)
+      const leveledAchs = stats?.leveledAchievements || {};
+      const achievementCount = Object.values(leveledAchs).reduce(
+        (sum: number, a: any) => sum + ((a?.currentLevel as number) || 0),
+        0
+      );
       const longestStreak = stats?.longestStreak || 0;
       const totalHours = Math.floor((stats?.totalDuration || 0) / 3600);
 

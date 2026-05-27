@@ -21,6 +21,7 @@ import {
   postAchievementUnlockToFeed,
 } from '../../utils/feedHelpers';
 import { checkLevelUpRoles } from '../../services/levelRoles';
+import { syncUserSanRole } from '../../services/sanRoles';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('TimerEndSessionModal');
@@ -295,6 +296,14 @@ export async function handleTimerEndSessionModal(
         logger.error(`Failed to update roles for user ${user.id} on level up:`, error);
         // Don't fail the session completion if role update fails
       }
+    }
+
+    // Update san-level role (non-blocking)
+    if (session?.serverId) {
+      const currentXP = statsUpdate.stats.xp || 0;
+      syncUserSanRole(db, client, session.serverId, user.id, currentXP).catch(err =>
+        logger.error(`Failed to sync san role for ${user.id}`, err)
+      );
     }
 
     logger.info(`Timer session completed successfully for user ${user.username} (${user.id})`);
