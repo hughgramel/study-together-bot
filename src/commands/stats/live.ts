@@ -38,25 +38,25 @@ export const command: Command = {
 
     logger.info(`Displaying live sessions for guild ${guildId}`);
 
-    // Initialize services
-    const sessionService = new SessionService(db);
-
-    // Get active sessions for this server
-    const BANNED_USERNAMES = ['punkquant'];
-    const allSessions = await sessionService.getActiveSessionsByServer(guildId);
-    const activeSessions = allSessions.filter(
-      (s) => !BANNED_USERNAMES.includes(s.username.toLowerCase())
-    );
-    const totalLive = activeSessions.length;
-
-    if (totalLive === 0) {
-      await interaction.editReply({
-        content: 'Nobody is studying right now. Be the first! Use /start to begin.',
-      });
-      return;
-    }
-
     try {
+      // Initialize services
+      const sessionService = new SessionService(db);
+
+      // Get active sessions for this server
+      const BANNED_USERNAMES = ['punkquant'];
+      const allSessions = await sessionService.getActiveSessionsByServer(guildId);
+      const activeSessions = allSessions.filter(
+        (s) => !BANNED_USERNAMES.includes(s.username.toLowerCase())
+      );
+      const totalLive = activeSessions.length;
+
+      if (totalLive === 0) {
+        await interaction.editReply({
+          content: 'Nobody is studying right now. Be the first! Use /start to begin.',
+        });
+        return;
+      }
+
       // Build user list with avatars and durations
       const usersWithDurations = await Promise.all(
         activeSessions.map(async (session) => {
@@ -74,18 +74,17 @@ export const command: Command = {
             return {
               username: session.username,
               avatarUrl,
-              activity: session.activity || 'Studying', // Default if no activity
+              activity: session.activity || 'Studying',
               duration: elapsedStr,
               isPaused: session.isPaused,
-              durationMinutes: elapsed, // Keep raw minutes for sorting
+              durationMinutes: elapsed,
             };
           } catch (error) {
             logger.error(`Error fetching user ${session.userId}`, error);
-            // Fallback with default avatar
             return {
               username: session.username,
               avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
-              activity: session.activity || 'Studying', // Default if no activity
+              activity: session.activity || 'Studying',
               duration: elapsedStr,
               isPaused: session.isPaused,
               durationMinutes: elapsed,
@@ -121,9 +120,9 @@ export const command: Command = {
 
       logger.info(`Live sessions displayed for guild ${guildId} (${totalLive} active)`);
     } catch (error) {
-      logger.error('Error generating live notification image', error);
+      logger.error('Error in live command', error);
       await interaction.editReply({
-        content: 'Failed to generate live sessions image.',
+        content: 'Failed to display live sessions. Please try again later.',
       });
     }
   },

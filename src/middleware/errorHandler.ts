@@ -49,7 +49,10 @@ export async function handleCommandError(
       ephemeral: true,
     };
 
-    if (interaction.replied || interaction.deferred) {
+    if (interaction.deferred && !interaction.replied) {
+      // editReply replaces the "thinking..." indicator; followUp would leave it stuck
+      await interaction.editReply(errorPayload);
+    } else if (interaction.replied) {
       await interaction.followUp(errorPayload);
     } else {
       await interaction.reply(errorPayload);
