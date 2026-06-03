@@ -122,7 +122,8 @@ export class ProfileImageLightService {
       `;
 
       // Load the HTML
-      await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+      await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 10000 });
+      await page.evaluate('document.fonts.ready');
 
       // Take screenshot
       const screenshot = await page.screenshot({
@@ -194,7 +195,8 @@ export class ProfileImageLightService {
       `;
 
       // Load the HTML
-      await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+      await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 10000 });
+      await page.evaluate('document.fonts.ready');
 
       // Wait for Tailwind to fully process and render
       await new Promise(resolve => setTimeout(resolve, 1000));

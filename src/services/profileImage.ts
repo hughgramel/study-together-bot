@@ -127,8 +127,9 @@ export class ProfileImageService {
         </html>
       `;
 
-      // Load the HTML
-      await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+      // Load the HTML - domcontentloaded is when Tailwind runs; networkidle0 hangs on avatar images
+      await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 10000 });
+      await page.evaluate('document.fonts.ready');
 
       // Take screenshot
       const screenshot = await page.screenshot({
@@ -199,11 +200,9 @@ export class ProfileImageService {
         </html>
       `;
 
-      // Load the HTML
-      await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
-
-      // Wait for Tailwind to fully process and render
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Load the HTML - domcontentloaded is when Tailwind runs; networkidle0 hangs on avatar images
+      await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 10000 });
+      await page.evaluate('document.fonts.ready');
 
       // Get the actual height of the rendered content - try multiple methods
       const contentHeight = await page.evaluate(`

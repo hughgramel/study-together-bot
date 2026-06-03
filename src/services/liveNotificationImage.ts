@@ -94,7 +94,11 @@ class LiveNotificationImageService {
         </html>
       `;
 
-      await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+      // domcontentloaded is when Tailwind CDN script runs; don't wait for networkidle0
+      // because 10 avatar images + CDN keep connections open indefinitely
+      await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 10000 });
+      // Wait for fonts (Google Fonts), but not for images
+      await page.evaluate('document.fonts.ready');
 
       // Set viewport to match card size
       await page.setViewport({ width: 500, height: totalHeight, deviceScaleFactor: 2 });
