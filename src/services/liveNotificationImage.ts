@@ -98,7 +98,7 @@ class LiveNotificationImageService {
       // because 10 avatar images + CDN keep connections open indefinitely
       await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 10000 });
       // Wait for fonts (Google Fonts), but not for images
-      await page.evaluate('document.fonts.ready');
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Set viewport to match card size
       await page.setViewport({ width: 500, height: totalHeight, deviceScaleFactor: 2 });

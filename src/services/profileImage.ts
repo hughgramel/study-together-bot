@@ -129,7 +129,7 @@ export class ProfileImageService {
 
       // Load the HTML - domcontentloaded is when Tailwind runs; networkidle0 hangs on avatar images
       await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 10000 });
-      await page.evaluate('document.fonts.ready');
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Take screenshot
       const screenshot = await page.screenshot({
@@ -202,7 +202,7 @@ export class ProfileImageService {
 
       // Load the HTML - domcontentloaded is when Tailwind runs; networkidle0 hangs on avatar images
       await page.setContent(fullHtml, { waitUntil: 'domcontentloaded', timeout: 10000 });
-      await page.evaluate('document.fonts.ready');
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Get the actual height of the rendered content - try multiple methods
       const contentHeight = await page.evaluate(`
