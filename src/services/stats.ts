@@ -262,7 +262,8 @@ export class StatsService {
       // We need to check each day between last session and today
       let streakBroken = false;
       const lastActivityDate = new Date(stats.lastSessionAt.toMillis());
-      const today = new Date(now.toMillis());
+      const today = new Date(now.toDate());
+      today.setUTCHours(0, 0, 0, 0); // normalize to UTC midnight so we don't check today before it's recorded
 
       // Check each day between last session and today (exclusive)
       for (let d = new Date(lastActivityDate); d < today; d.setDate(d.getDate() + 1)) {
