@@ -83,6 +83,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/admin/setup-start-here',
     '../commands/admin/setup-reaction-role',
     '../commands/admin/setup-san-roles',
+    '../commands/admin/setup-role-restriction',
   ];
 
   // Group commands

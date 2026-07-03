@@ -1,12 +1,12 @@
 /**
  * Message Create Event Handler
  *
- * Handles incoming Discord messages to parse numbered goal lists
- * in designated goal channels. Automatically creates goals when
- * users post numbered lists.
+ * Handles incoming Discord messages to:
+ * 1. Enforce role mention restrictions (delete messages that ping restricted roles outside allowed channels)
+ * 2. Parse numbered goal lists in designated goal channels
  */
 
-import { Message, Client } from 'discord.js';
+import { Message, Client, TextChannel } from 'discord.js';
 import { Firestore } from 'firebase-admin/firestore';
 import { parseNumberedList } from '../utils/taskParser';
 import { TaskService } from '../services/tasks';
@@ -34,7 +34,7 @@ export async function handleMessageCreate(
       return;
     }
 
-    // Get server config to check goal channel
+    // Get server config
     const configDoc = await db
       .collection('discord-data')
       .doc('serverConfig')
@@ -48,6 +48,39 @@ export async function handleMessageCreate(
 
     const config = configDoc.data() as ServerConfig;
 
+    // ── Role mention restrictions ──────────────────────────────────────────────
+    if (config.roleMentionRestrictions && config.roleMentionRestrictions.length > 0) {
+      const mentionedRoles = message.mentions.roles;
+
+      for (const restriction of config.roleMentionRestrictions) {
+        if (
+          mentionedRoles.has(restriction.roleId) &&
+          message.channel.id !== restriction.allowedChannelId
+        ) {
+          // Delete the offending message (best-effort)
+          await message.delete().catch(() => {});
+
+          // Warn the user with a self-deleting message
+          const channel = message.channel as TextChannel;
+          const warning = await channel
+            .send(
+              `${message.author}, the <@&${restriction.roleId}> role can only be mentioned in <#${restriction.allowedChannelId}>.`
+            )
+            .catch(() => null);
+
+          if (warning) {
+            setTimeout(() => warning.delete().catch(() => {}), 8000);
+          }
+
+          logger.info(
+            `Deleted restricted role mention by ${message.author.username} (${message.author.id}) in channel ${message.channel.id}`
+          );
+          return;
+        }
+      }
+    }
+
+    // ── Goal channel parsing ───────────────────────────────────────────────────
     // Check if message is in the goal channel
     if (!config.goalChannelId || message.channel.id !== config.goalChannelId) {
       return;

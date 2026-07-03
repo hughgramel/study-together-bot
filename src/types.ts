@@ -172,6 +172,20 @@ export interface ServerConfig {
   levelRoles?: LevelRoleConfig[]; // Role assignments based on user level
   reactionRoles?: ReactionRoleConfig[]; // Reaction-based role assignments
   sanRoleConfig?: SanRoleConfig; // San-level role system configuration
+  roleMentionRestrictions?: RoleMentionRestriction[]; // Roles restricted to specific channels
+}
+
+/**
+ * Role mention restriction configuration
+ *
+ * Restricts a role mention (@role) to a specific channel only.
+ * Messages that mention the role outside the allowed channel are deleted.
+ */
+export interface RoleMentionRestriction {
+  roleId: string;             // Discord role ID
+  roleName: string;           // Role name (cached for display)
+  allowedChannelId: string;   // Channel ID where this role may be mentioned
+  allowedChannelName: string; // Channel name (cached for display)
 }
 
 /**
