@@ -107,6 +107,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/utility/manual',
     '../commands/utility/help',
     '../commands/utility/lightmode',
+    '../commands/utility/studyping',
   ];
 
   // Combine all command paths
