@@ -57,14 +57,27 @@ export async function handleMessageCreate(
           mentionedRoles.has(restriction.roleId) &&
           message.channel.id !== restriction.allowedChannelId
         ) {
-          // Delete the offending message (best-effort)
-          await message.delete().catch(() => {});
-
-          // Warn the user with a self-deleting message
           const channel = message.channel as TextChannel;
+
+          // Delete the offending message — check deletable first to surface permission issues
+          if (message.deletable) {
+            try {
+              await message.delete();
+            } catch (deleteErr) {
+              logger.error(
+                `Failed to delete restricted role mention by ${message.author.username} (${message.author.id}): ${deleteErr}`
+              );
+            }
+          } else {
+            logger.warn(
+              `Cannot delete message by ${message.author.username} (${message.author.id}) in #${channel.name} — bot is missing Manage Messages permission or message is already deleted`
+            );
+          }
+
+          // Warn the user — use plain role name, NOT <@&roleId>, to avoid a second ghost ping
           const warning = await channel
             .send(
-              `${message.author}, the <@&${restriction.roleId}> role can only be mentioned in <#${restriction.allowedChannelId}>.`
+              `${message.author}, **@${restriction.roleName}** can only be mentioned in <#${restriction.allowedChannelId}>.`
             )
             .catch(() => null);
 
@@ -73,7 +86,7 @@ export async function handleMessageCreate(
           }
 
           logger.info(
-            `Deleted restricted role mention by ${message.author.username} (${message.author.id}) in channel ${message.channel.id}`
+            `Restricted role mention by ${message.author.username} (${message.author.id}) in #${channel.name} — message deleted: ${message.deletable}`
           );
           return;
         }
