@@ -50,13 +50,30 @@ export async function handleMessageCreate(
 
     // ── Role mention restrictions ──────────────────────────────────────────────
     if (config.roleMentionRestrictions && config.roleMentionRestrictions.length > 0) {
+      // Discord only populates message.mentions.roles for mentionable roles (or users
+      // with Mention Everyone). As a fallback, also parse raw <@&roleId> patterns
+      // from the message content so we catch manually-typed mentions too.
       const mentionedRoles = message.mentions.roles;
+      const rawContentRoleIds = new Set(
+        [...message.content.matchAll(/<@&(\d+)>/g)].map(m => m[1])
+      );
+
+      // If the message is inside a thread, also allow pings in the parent channel
+      const parentChannelId =
+        'parentId' in message.channel
+          ? (message.channel as { parentId: string | null }).parentId
+          : null;
 
       for (const restriction of config.roleMentionRestrictions) {
-        if (
-          mentionedRoles.has(restriction.roleId) &&
-          message.channel.id !== restriction.allowedChannelId
-        ) {
+        const isRoleMentioned =
+          mentionedRoles.has(restriction.roleId) ||
+          rawContentRoleIds.has(restriction.roleId);
+
+        const isInAllowedChannel =
+          message.channel.id === restriction.allowedChannelId ||
+          parentChannelId === restriction.allowedChannelId;
+
+        if (isRoleMentioned && !isInAllowedChannel) {
           const channel = message.channel as TextChannel;
 
           // Delete the offending message — check deletable first to surface permission issues

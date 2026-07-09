@@ -122,14 +122,18 @@ export const command: Command = {
       logger.info(`Role restriction added: @${role.name} → #${channel.name} in guild ${guildId}`);
 
       // ── Discord-native enforcement: make the role non-mentionable ──────────
-      // This prevents any user or spambot from directly pinging the role.
-      // Members ping it via /studyping, which uses allowedMentions to bypass this.
+      // Fetch the full Role object via guild so setMentionable() is available.
+      // interaction.options.getRole() can return APIRole (no methods) when the
+      // role isn't in cache, which caused a silent TypeError here.
       let nativeNote = '✅ Role set as non-mentionable — no user or bot can directly ping it.';
       try {
-        if (role.mentionable) {
-          await role.setMentionable(false, `Restricted to #${channel.name} via /setup-role-restriction`);
-        } else {
+        const fetchedRole = await interaction.guild!.roles.fetch(role.id);
+        if (!fetchedRole) {
+          nativeNote = '⚠️ Could not fetch role — it may have been deleted. Remove and re-add this restriction.';
+        } else if (!fetchedRole.mentionable) {
           nativeNote = '✅ Role was already non-mentionable.';
+        } else {
+          await fetchedRole.setMentionable(false, `Restricted to #${channel.name} via /setup-role-restriction`);
         }
       } catch {
         nativeNote = '⚠️ Could not set role as non-mentionable — make sure the bot role is positioned **above** this role in Server Settings → Roles. Bot-based deletion is still active.';

@@ -50,6 +50,9 @@ export const command: Command = {
       return;
     }
 
+    // Defer immediately — Firestore read + channel fetch can exceed the 3s timeout
+    await interaction.deferReply({ ephemeral: true });
+
     const role = interaction.options.getRole('role', true) as Role;
     const customMessage = interaction.options.getString('message');
 
@@ -62,9 +65,8 @@ export const command: Command = {
       .get();
 
     if (!configDoc.exists) {
-      await interaction.reply({
+      await interaction.editReply({
         content: 'No role restrictions are configured for this server. Ask an admin to run `/setup-role-restriction add` first.',
-        ephemeral: true,
       });
       return;
     }
@@ -73,9 +75,8 @@ export const command: Command = {
     const restriction = config.roleMentionRestrictions?.find(r => r.roleId === role.id);
 
     if (!restriction) {
-      await interaction.reply({
+      await interaction.editReply({
         content: `**@${role.name}** is not set up as a restricted study role. Ask an admin to configure it with \`/setup-role-restriction add\`.`,
-        ephemeral: true,
       });
       return;
     }
@@ -83,9 +84,8 @@ export const command: Command = {
     // Fetch the target channel
     const targetChannel = await interaction.guild!.channels.fetch(restriction.allowedChannelId).catch(() => null);
     if (!targetChannel || !targetChannel.isTextBased()) {
-      await interaction.reply({
+      await interaction.editReply({
         content: `The configured target channel <#${restriction.allowedChannelId}> could not be found. Ask an admin to check the restriction config.`,
-        ephemeral: true,
       });
       return;
     }
@@ -106,9 +106,8 @@ export const command: Command = {
       });
     } catch (err) {
       logger.error(`Failed to send study ping for @${role.name}: ${err}`);
-      await interaction.reply({
+      await interaction.editReply({
         content: `Failed to send the ping. Make sure the bot has **Send Messages** permission in <#${restriction.allowedChannelId}>.`,
-        ephemeral: true,
       });
       return;
     }
@@ -117,9 +116,8 @@ export const command: Command = {
       `Study ping sent by ${interaction.user.username} (${interaction.user.id}) for @${role.name} → #${restriction.allowedChannelName}`
     );
 
-    await interaction.reply({
+    await interaction.editReply({
       content: `Ping sent to <#${restriction.allowedChannelId}>!`,
-      ephemeral: true,
     });
   },
 };
