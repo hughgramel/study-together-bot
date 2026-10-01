@@ -11,6 +11,7 @@ import { handleCommandError } from '../middleware/errorHandler';
 import type { CommandContext } from '../commands/types';
 import { createLogger } from '../utils/logger';
 import { handleGroupButtons } from '../interactions/buttons/groupButtons';
+import { handleHistoryPagination } from '../interactions/buttons/historyPaginationButtons';
 import {
   handleFindGroupsPagination,
   handleGroupLeaderboardPagination,
@@ -100,6 +101,12 @@ export async function handleInteractionCreate(
     // Handle group-related buttons
     if (interaction.customId.startsWith('groupadmin_delete_')) {
       await handleGroupButtons(interaction, db, client);
+      return;
+    }
+
+    // Handle history pagination buttons
+    if (interaction.customId.startsWith('history_page:')) {
+      await handleHistoryPagination(interaction, db);
       return;
     }
 

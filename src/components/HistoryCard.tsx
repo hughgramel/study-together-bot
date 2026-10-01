@@ -1,28 +1,23 @@
 /**
- * History Card - Per-period XP and hours breakdown
+ * History Card - Per-period XP and hours breakdown (paginated)
  *
- * Renders a user's full reset history as a visual card, matching the dark
- * Duolingo-style aesthetic used by ProfileCard and LeaderboardCard.
- *
- * Layout (top → bottom):
- *   Header: avatar + username + period count
- *   All-Time Cumulative: XP / hours / sessions summary (gold-bordered)
- *   Current Period: in-progress stats (green-bordered)
- *   Past Periods: newest-first, each with 5 stats
+ * Renders one page of a user's reset history. Pages are:
+ *   Page 0: cumulative totals + current period + 1 past period
+ *   Page 1+: 3 past periods (no cumulative header)
  *
  * @module components/HistoryCard
  */
 
 import React from 'react';
-import { User, Zap, Timer, BookOpen, Flame, TrendingUp, Clock } from 'lucide-react';
+import { User, Zap, Timer, BookOpen, Flame, TrendingUp, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // ── Data shapes ────────────────────────────────────────────────────────────────
 
 export interface ResetPeriodData {
   resetNumber: number;
-  resetDateStr: string;       // pre-formatted: "Oct 1, 2026"
+  resetDateStr: string;
   periodXp: number;
-  periodHours: number;        // decimal hours
+  periodHours: number;
   periodSessions: number;
   longestStreakInPeriod: number;
   longestSessionInPeriod: number;  // seconds
@@ -31,10 +26,20 @@ export interface ResetPeriodData {
 interface HistoryCardProps {
   username: string;
   avatarUrl?: string;
-  resetPeriods: ResetPeriodData[];   // past completed periods (all of them, newest first)
+
+  // Page control
+  showCumulative: boolean;
+  showCurrentPeriod: boolean;
+  periodsToShow: ResetPeriodData[];   // past completed periods for this page only
+  pageInfo: { current: number; total: number };
+
+  // Current period data (used when showCurrentPeriod = true)
+  currentPeriodNumber: number;
   currentXp: number;
   currentHours: number;
   currentSessions: number;
+
+  // Cumulative data (used when showCumulative = true)
   cumulativeXp: number;
   cumulativeHours: number;
   cumulativeSessions: number;
@@ -57,7 +62,7 @@ function fmtSeconds(sec: number): string {
   return `${m}m`;
 }
 
-// ── Sub-component: compact stat tile ─────────────────────────────────────────
+// ── StatTile ──────────────────────────────────────────────────────────────────
 
 interface StatTileProps {
   gradient: string;
@@ -78,7 +83,7 @@ const StatTile: React.FC<StatTileProps> = ({ gradient, icon, value, label }) => 
   </div>
 );
 
-// ── Sub-component: individual period card ────────────────────────────────────
+// ── PeriodCard ────────────────────────────────────────────────────────────────
 
 interface PeriodCardProps {
   period: ResetPeriodData;
@@ -94,7 +99,7 @@ const PeriodCard: React.FC<PeriodCardProps> = ({ period, isCurrent, isInProgress
 
   return (
     <div className={`bg-[#1F2B31] rounded-2xl p-5 border-2 ${borderColor}`}>
-      {/* Period header row */}
+      {/* Header row */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className={`w-7 h-7 rounded-full ${badgeBg} flex items-center justify-center flex-shrink-0`}>
@@ -109,8 +114,14 @@ const PeriodCard: React.FC<PeriodCardProps> = ({ period, isCurrent, isInProgress
         </span>
       </div>
 
-      {/* Top row: XP / Hours / Sessions */}
-      <div className="grid grid-cols-3 gap-3 mb-3">
+      {/*
+        All 5 stats share the same 3-column grid so the icons stay vertically
+        aligned:
+          Row 1:  [XP]         [Hours]          [Sessions]
+          Row 2:  [Best Streak] [Longest Session] [empty]
+        This puts "Hours" and "Longest Session" in the same column.
+      */}
+      <div className="grid grid-cols-3 gap-3">
         <StatTile
           gradient="from-[#CE82FF] to-[#A855F7]"
           icon={<Zap className="w-4 h-4 text-white" fill="white" />}
@@ -129,25 +140,27 @@ const PeriodCard: React.FC<PeriodCardProps> = ({ period, isCurrent, isInProgress
           value={String(period.periodSessions)}
           label="Sessions"
         />
-      </div>
 
-      {/* Bottom row: Best Streak / Longest Session (only for past periods) */}
-      {!isInProgress && (
-        <div className="grid grid-cols-2 gap-3">
-          <StatTile
-            gradient="from-[#FF9600] to-[#FF6B00]"
-            icon={<Flame className="w-4 h-4 text-white" fill="white" />}
-            value={period.longestStreakInPeriod > 0 ? `${period.longestStreakInPeriod}d` : '—'}
-            label="Best Streak"
-          />
-          <StatTile
-            gradient="from-[#FF6B6B] to-[#EE5A6F]"
-            icon={<Clock className="w-4 h-4 text-white" />}
-            value={fmtSeconds(period.longestSessionInPeriod)}
-            label="Longest Session"
-          />
-        </div>
-      )}
+        {/* Second row — only for completed past periods */}
+        {!isInProgress && (
+          <>
+            <StatTile
+              gradient="from-[#FF9600] to-[#FF6B00]"
+              icon={<Flame className="w-4 h-4 text-white" fill="white" />}
+              value={period.longestStreakInPeriod > 0 ? `${period.longestStreakInPeriod}d` : '—'}
+              label="Best Streak"
+            />
+            <StatTile
+              gradient="from-[#1CB0F6] to-[#0088CC]"
+              icon={<Clock className="w-4 h-4 text-white" />}
+              value={fmtSeconds(period.longestSessionInPeriod)}
+              label="Longest Session"
+            />
+            {/* Empty cell to keep grid tidy */}
+            <div />
+          </>
+        )}
+      </div>
     </div>
   );
 };
@@ -157,7 +170,11 @@ const PeriodCard: React.FC<PeriodCardProps> = ({ period, isCurrent, isInProgress
 export const HistoryCard: React.FC<HistoryCardProps> = ({
   username,
   avatarUrl,
-  resetPeriods,
+  showCumulative,
+  showCurrentPeriod,
+  periodsToShow,
+  pageInfo,
+  currentPeriodNumber,
   currentXp,
   currentHours,
   currentSessions,
@@ -166,11 +183,11 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
   cumulativeSessions,
 }) => {
   const displayName = username.length > 12 ? username.substring(0, 12) + '…' : username;
-  const totalPeriods = resetPeriods.length + 1;
+  const isMultiPage = pageInfo.total > 1;
 
-  // Virtual "current period" object for PeriodCard
+  // Virtual period object for the current in-progress period
   const currentPeriod: ResetPeriodData = {
-    resetNumber: totalPeriods,
+    resetNumber: currentPeriodNumber,
     resetDateStr: '',
     periodXp: currentXp,
     periodHours: currentHours,
@@ -181,15 +198,12 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
 
   return (
     <div className="w-[700px] bg-[#131F24] flex flex-col p-8 gap-4">
+
       {/* ── Header ── */}
       <div className="flex items-center gap-4">
         {avatarUrl ? (
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#58CC02] to-[#4CAF00] p-[3px] flex-shrink-0">
-            <img
-              src={avatarUrl}
-              alt={username}
-              className="w-full h-full rounded-full object-cover border-4 border-[#1F2B31]"
-            />
+            <img src={avatarUrl} alt={username} className="w-full h-full rounded-full object-cover border-4 border-[#1F2B31]" />
           </div>
         ) : (
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#58CC02] to-[#4CAF00] flex items-center justify-center flex-shrink-0">
@@ -200,50 +214,61 @@ export const HistoryCard: React.FC<HistoryCardProps> = ({
           <span className="text-[#EFEFEF] text-2xl font-extrabold leading-tight">{displayName}</span>
           <span className="text-[#AFAFAF] text-base font-semibold">Study History</span>
         </div>
-        <div className="ml-auto flex-shrink-0 bg-[#1F2B31] border border-[#2E3D44] rounded-xl px-3 py-1.5">
-          <span className="text-[#DBDEE1] text-sm font-bold">
-            {totalPeriods} period{totalPeriods !== 1 ? 's' : ''}
-          </span>
-        </div>
+
+        {/* Page indicator (only shown when multi-page) */}
+        {isMultiPage && (
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            <ChevronLeft className={`w-5 h-5 ${pageInfo.current > 1 ? 'text-[#DBDEE1]' : 'text-[#2E3D44]'}`} />
+            <div className="bg-[#1F2B31] border border-[#2E3D44] rounded-xl px-3 py-1.5">
+              <span className="text-[#DBDEE1] text-sm font-bold">
+                {pageInfo.current} / {pageInfo.total}
+              </span>
+            </div>
+            <ChevronRight className={`w-5 h-5 ${pageInfo.current < pageInfo.total ? 'text-[#DBDEE1]' : 'text-[#2E3D44]'}`} />
+          </div>
+        )}
       </div>
 
-      {/* ── All-Time Cumulative ── */}
-      <div className="bg-[#1F2B31] rounded-2xl p-5 border-2 border-[#FFD700]/40">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-5 h-5 text-[#FFD700]" />
-          <span className="text-[#FFD700] text-sm font-extrabold uppercase tracking-widest">All-Time Cumulative</span>
+      {/* ── Cumulative totals (page 0 only) ── */}
+      {showCumulative && (
+        <div className="bg-[#1F2B31] rounded-2xl p-5 border-2 border-[#FFD700]/40">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-[#FFD700]" />
+            <span className="text-[#FFD700] text-sm font-extrabold uppercase tracking-widest">All-Time Cumulative</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <StatTile
+              gradient="from-[#CE82FF] to-[#A855F7]"
+              icon={<Zap className="w-5 h-5 text-white" fill="white" />}
+              value={cumulativeXp.toLocaleString()}
+              label="Total XP"
+            />
+            <StatTile
+              gradient="from-[#1CB0F6] to-[#0088CC]"
+              icon={<Timer className="w-5 h-5 text-white" />}
+              value={fmtHours(cumulativeHours)}
+              label="Total Hours"
+            />
+            <StatTile
+              gradient="from-[#58CC02] to-[#45A000]"
+              icon={<BookOpen className="w-5 h-5 text-white" />}
+              value={cumulativeSessions.toLocaleString()}
+              label="Total Sessions"
+            />
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          <StatTile
-            gradient="from-[#CE82FF] to-[#A855F7]"
-            icon={<Zap className="w-5 h-5 text-white" fill="white" />}
-            value={cumulativeXp.toLocaleString()}
-            label="Total XP"
-          />
-          <StatTile
-            gradient="from-[#1CB0F6] to-[#0088CC]"
-            icon={<Timer className="w-5 h-5 text-white" />}
-            value={fmtHours(cumulativeHours)}
-            label="Total Hours"
-          />
-          <StatTile
-            gradient="from-[#58CC02] to-[#45A000]"
-            icon={<BookOpen className="w-5 h-5 text-white" />}
-            value={cumulativeSessions.toLocaleString()}
-            label="Total Sessions"
-          />
-        </div>
-      </div>
+      )}
 
-      {/* ── Current Period ── */}
-      <PeriodCard period={currentPeriod} isCurrent isInProgress />
+      {/* ── Current period (page 0 only) ── */}
+      {showCurrentPeriod && (
+        <PeriodCard period={currentPeriod} isCurrent isInProgress />
+      )}
 
-      {/* ── Past Periods (newest → oldest) ── */}
-      {resetPeriods.map(p => (
+      {/* ── Past periods for this page ── */}
+      {periodsToShow.map(p => (
         <PeriodCard key={p.resetNumber} period={p} />
       ))}
 
-      {/* Bottom breathing room */}
       <div className="h-2" />
     </div>
   );
