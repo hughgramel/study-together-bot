@@ -86,6 +86,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/admin/setup-san-roles',
     '../commands/admin/setup-role-restriction',
     '../commands/admin/admin-reset-xp',
+    '../commands/admin/admin-revert-reset',
   ];
 
   // Group commands
