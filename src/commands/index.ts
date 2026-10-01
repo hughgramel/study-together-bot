@@ -46,6 +46,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/stats/leaderboard',
     '../commands/stats/live',
     '../commands/stats/graph',
+    '../commands/stats/history',
   ];
 
   // Goals commands
@@ -84,6 +85,7 @@ export async function loadCommands(): Promise<void> {
     '../commands/admin/setup-reaction-role',
     '../commands/admin/setup-san-roles',
     '../commands/admin/setup-role-restriction',
+    '../commands/admin/admin-reset-xp',
   ];
 
   // Group commands

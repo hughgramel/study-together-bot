@@ -68,6 +68,26 @@ export interface CompletedSession {
 }
 
 // ============================================================================
+// XP RESET HISTORY
+// ============================================================================
+
+/**
+ * Snapshot saved before an XP reset
+ *
+ * Captures a user's stats for one "period" (start → reset). Stored in the
+ * resetHistory array on UserStats so users can review past periods with /history.
+ */
+export interface XpResetSnapshot {
+  resetNumber: number;              // 1, 2, 3... (increments per reset)
+  resetAt: Timestamp;               // When the reset was performed
+  periodXp: number;                 // XP earned in this period
+  periodHours: number;              // Hours studied in this period (decimal)
+  periodSessions: number;           // Sessions completed in this period
+  longestStreakInPeriod: number;    // Best streak (days) during this period
+  longestSessionInPeriod: number;   // Longest single session (seconds) during this period
+}
+
+// ============================================================================
 // USER STATISTICS
 // ============================================================================
 
@@ -147,6 +167,9 @@ export interface UserStats {
 
   // User Preferences
   lightMode?: boolean;                 // Whether user prefers light mode for generated images (default: false)
+
+  // XP Reset History
+  resetHistory?: XpResetSnapshot[];    // Snapshots saved before each XP reset — viewable with /history
 }
 
 // ============================================================================
