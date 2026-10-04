@@ -430,7 +430,7 @@ Create a new study group.
 
 **Parameters:**
 - `name` (required, max 50 characters)
-- `public` (optional) — Whether group appears in `/findgroups` (default: false)
+- `public` (optional) — Whether the group is public (default: true). Private groups are hidden from `/findgroups` and `/joinrandom`, and can only be joined by invitation (`/invitegroup`). The owner can switch a group between public and private at any time with `/groupsettings public:True/False`.
 
 **Group benefits:**
 - 1% XP bonus per group level (max 50% at level 50)
@@ -561,8 +561,8 @@ Update your group's settings. Requires at least one parameter.
 
 **Parameters:**
 - `name` (optional, max 50 chars)
-- `public` (optional)
-- `maxmembers` (optional, 1–50)
+- `public` (optional) — `True` makes the group public (listed in `/findgroups`, joinable with `/joingroup` and `/joinrandom`); `False` makes it private (invitation only). Can be changed back and forth at any time.
+- `maxmembers` (optional, 1–50) — Cannot be lower than the current member count
 
 **Permissions:** Group owner only.
 
