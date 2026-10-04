@@ -158,22 +158,10 @@ export const command: Command = {
       // Get all group members
       const members = await groupService.getGroupMembers(groupId);
 
-      // Calculate group rank (query all groups sorted by level)
-      const allGroupsSnapshot = await db
-        .collection('discord-data')
-        .doc('groups')
-        .collection('active')
-        .where('serverId', '==', guildId)
-        .orderBy('level', 'desc')
-        .get();
-
-      let groupRank = 1;
-      for (const doc of allGroupsSnapshot.docs) {
-        if (doc.id === groupId) {
-          break;
-        }
-        groupRank++;
-      }
+      // Calculate group rank (same ordering as /group_leaderboard: level, then total hours)
+      const rankedGroups = await groupService.getAllServerGroups(guildId);
+      const rankIndex = rankedGroups.findIndex(g => g.groupId === groupId);
+      const groupRank = rankIndex === -1 ? rankedGroups.length + 1 : rankIndex + 1;
 
       // Get start of current week (Sunday at midnight)
       const now = new Date();

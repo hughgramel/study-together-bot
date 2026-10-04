@@ -749,7 +749,10 @@ export class GroupService {
         return [];
       }
 
-      return snapshot.docs.map((doc) => doc.data() as Group);
+      // Level is coarse (1 per 25h), so break ties by total hours
+      return snapshot.docs
+        .map((doc) => doc.data() as Group)
+        .sort((a, b) => b.level - a.level || (b.totalHours || 0) - (a.totalHours || 0));
     } catch (error) {
       logger.error('Error getting server groups:', error);
       return [];
