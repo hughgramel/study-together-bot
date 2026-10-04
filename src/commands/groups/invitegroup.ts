@@ -107,7 +107,7 @@ export const command: Command = {
       const maxMembers = group?.maxMembers || 5;
       const memberCount = group?.memberCount || 0;
       const groupLevel = group?.level || 1;
-      const isPrivate = group?.isPrivate || false;
+      const isPrivate = group?.isPublic === false;
 
       // Check if group is full
       if (memberCount >= maxMembers) {

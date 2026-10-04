@@ -99,7 +99,10 @@ export async function handleInteractionCreate(
     }
 
     // Handle group-related buttons
-    if (interaction.customId.startsWith('groupadmin_delete_')) {
+    if (
+      interaction.customId.startsWith('groupadmin_delete_') ||
+      interaction.customId.startsWith('group_invite_')
+    ) {
       await handleGroupButtons(interaction, db, client);
       return;
     }
