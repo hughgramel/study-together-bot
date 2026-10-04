@@ -537,10 +537,16 @@ Group owner administration.
 **Syntax:**
 ```
 /groupadmin delete
+/groupadmin kick user:@member [groupid: A1B2]
+/groupadmin transfer user:@member [groupid: A1B2]
 ```
 
 Subcommands:
 - `delete` — Permanently delete your group (confirmation required)
+- `kick` — Remove a member from a group. The current leader can't be kicked; transfer leadership first
+- `transfer` — Change the group leader
+
+**Server administrators** (Discord Administrator permission) can use `kick` and `transfer` on any group by passing `groupid`. Without `groupid`, the commands act on your own group (owner or server admin).
 
 ---
 

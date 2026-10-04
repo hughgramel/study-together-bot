@@ -18,6 +18,7 @@ interface GroupMember {
   avatarUrl: string;
   hours: number;
   rank: number;
+  isOwner?: boolean;
 }
 
 interface GroupLeaderboardEntry {

@@ -25,13 +25,14 @@
  */
 
 import React from 'react';
-import { Trophy, Shield, Zap } from 'lucide-react';
+import { Trophy, Shield, Zap, Crown } from 'lucide-react';
 
 interface GroupMember {
   username: string;
   avatarUrl: string;
   hours: number;
   rank: number;
+  isOwner?: boolean;
 }
 
 interface GroupOverviewProps {
@@ -145,7 +146,7 @@ export const GroupOverview: React.FC<GroupOverviewProps> = ({
           {members.map((member) => (
             <div
               key={member.rank}
-              className="rounded-xl p-3 border-2 bg-[#1F2B31] border-[#2E3D44] flex items-center gap-4"
+              className={`rounded-xl p-3 border-2 flex items-center gap-4 ${member.isOwner ? 'bg-[#3A3220] border-[#FFC800]' : 'bg-[#1F2B31] border-[#2E3D44]'}`}
             >
               {/* Rank */}
               <div className="w-10 flex items-center justify-center">
@@ -167,9 +168,16 @@ export const GroupOverview: React.FC<GroupOverviewProps> = ({
 
               {/* Username */}
               <div className="flex-1">
-                <h3 className="text-2xl font-bold text-[#EFEFEF] truncate max-w-[250px]">
-                  {member.username}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-2xl font-bold text-[#EFEFEF] truncate max-w-[190px]">
+                    {member.username}
+                  </h3>
+                  {member.isOwner && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FFC800] text-[#3C3C3C] text-sm font-extrabold">
+                      <Crown size={14} /> LEADER
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Hours */}

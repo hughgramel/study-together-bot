@@ -196,6 +196,7 @@ export const command: Command = {
             avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
             hours: 0,
             rank: 0,
+            isOwner: !!member.membership?.isOwner,
           };
         }
 
@@ -227,6 +228,7 @@ export const command: Command = {
           avatarUrl,
           hours: totalHours,
           rank: 0, // Will be assigned after sorting
+          isOwner: !!member.membership?.isOwner,
         };
       });
 
@@ -290,7 +292,8 @@ export const command: Command = {
 
       // Send the group overview with join instructions
       await interaction.editReply({
-        content: `To join this group, use:\n\`/joingroup ${groupIdDisplay}\``,
+        content: `👑 Group leader: **${group?.ownerUsername || 'Unknown'}**
+To join this group, use:\n\`/joingroup ${groupIdDisplay}\``,
         files: [attachment],
       });
 

@@ -3,14 +3,70 @@
  *
  * Group owner administration commands.
  * Subcommands: delete, kick, transfer
+ * Server administrators can use kick and transfer on any group via the groupid option.
  */
 
-import { SlashCommandBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { SlashCommandBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, PermissionFlagsBits } from 'discord.js';
 import type { Command } from '../types';
-import { GroupService } from '../../services/groups';
+import { GroupService, Group } from '../../services/groups';
 import { createLogger } from '../../utils/logger';
 
 const logger = createLogger('GroupAdminCommand');
+
+const GROUP_ID_OPTION_DESCRIPTION = 'Group ID (server admins only, e.g., A1B2). Defaults to your own group';
+
+type GroupAdminInteraction = Parameters<Command['execute']>[0];
+
+/**
+ * Resolve the group a kick/transfer applies to and check permission.
+ * The group owner manages their own group; server administrators may manage
+ * any group by passing groupid. Replies to the (deferred) interaction and
+ * returns null when the action isn't allowed.
+ */
+async function resolveManagedGroup(
+  interaction: GroupAdminInteraction,
+  groupService: GroupService,
+  action: string
+): Promise<{ group: Group; isAdminOverride: boolean } | null> {
+  const user = interaction.user;
+  const isServerAdmin = !!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+  const groupIdOption = interaction.options.getString('groupid')?.toUpperCase();
+
+  if (groupIdOption) {
+    if (!isServerAdmin) {
+      await interaction.editReply({
+        content: `❌ Only server administrators can ${action} in another group.`,
+      });
+      return null;
+    }
+    const group = await groupService.getGroup(groupIdOption);
+    if (!group) {
+      await interaction.editReply({ content: `❌ Group with ID "${groupIdOption}" not found.` });
+      return null;
+    }
+    logger.info(`Server admin ${user.username} (${user.id}) acting on group ${group.name} (${group.groupId})`);
+    return { group, isAdminOverride: true };
+  }
+
+  const userGroupData = await groupService.getUserGroup(user.id);
+  if (!userGroupData) {
+    await interaction.editReply({
+      content: isServerAdmin
+        ? '❌ You are not in a group. Provide a `groupid` to manage another group.'
+        : '❌ You are not in a group.',
+    });
+    return null;
+  }
+
+  if (!userGroupData.membership.isOwner && !isServerAdmin) {
+    await interaction.editReply({
+      content: `❌ Only the group owner or a server administrator can ${action}.`,
+    });
+    return null;
+  }
+
+  return { group: userGroupData.group, isAdminOverride: !userGroupData.membership.isOwner };
+}
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -24,23 +80,35 @@ export const command: Command = {
     .addSubcommand(subcommand =>
       subcommand
         .setName('kick')
-        .setDescription('Remove a member from your group')
+        .setDescription('Remove a member from a group (owner, or server admin with groupid)')
         .addUserOption(option =>
           option
             .setName('user')
-            .setDescription('The user to remove from your group')
+            .setDescription('The user to remove from the group')
             .setRequired(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('groupid')
+            .setDescription(GROUP_ID_OPTION_DESCRIPTION)
+            .setRequired(false)
         )
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('transfer')
-        .setDescription('Transfer group ownership to another member')
+        .setDescription('Change a group leader (owner, or server admin with groupid)')
         .addUserOption(option =>
           option
             .setName('user')
             .setDescription('The member to transfer ownership to')
             .setRequired(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('groupid')
+            .setDescription(GROUP_ID_OPTION_DESCRIPTION)
+            .setRequired(false)
         )
     ),
 
@@ -115,30 +183,16 @@ export const command: Command = {
 
         logger.info(`User ${user.username} (${user.id}) attempting to kick ${targetUser.username} (${targetUser.id})`);
 
-        // Check if command user is in a group
-        const userGroupData = await groupService.getUserGroup(user.id);
+        const managed = await resolveManagedGroup(interaction, groupService, 'kick members');
+        if (!managed) return;
+        const { group } = managed;
 
-        if (!userGroupData) {
+        // The leader can't be kicked; ownership must be moved first
+        if (targetUser.id === group.ownerId) {
           await interaction.editReply({
-            content: '❌ You are not in a group.',
-          });
-          return;
-        }
-
-        const { membership, group } = userGroupData;
-
-        // Verify user is the group owner
-        if (!membership.isOwner) {
-          await interaction.editReply({
-            content: '❌ Only the group owner can kick members.',
-          });
-          return;
-        }
-
-        // Check if target user is the owner
-        if (targetUser.id === user.id) {
-          await interaction.editReply({
-            content: '❌ You cannot kick yourself from the group.\n\nUse `/leavegroup` to leave or `/groupadmin delete` to delete the group.',
+            content: targetUser.id === user.id
+              ? '❌ You cannot kick yourself from the group.\n\nUse `/leavegroup` to leave or `/groupadmin delete` to delete the group.'
+              : `❌ ${targetUser.username} is the group leader.\n\nUse \`/groupadmin transfer\` to change the leader first.`,
           });
           return;
         }
@@ -163,7 +217,7 @@ export const command: Command = {
         // Verify target is in the same group
         if (targetMembership?.groupId !== group.groupId) {
           await interaction.editReply({
-            content: `❌ ${targetUser.username} is not in your group.`,
+            content: `❌ ${targetUser.username} is not in **${group.name}**.`,
           });
           return;
         }
@@ -191,30 +245,16 @@ export const command: Command = {
 
         logger.info(`User ${user.username} (${user.id}) attempting to transfer ownership to ${targetUser.username} (${targetUser.id})`);
 
-        // Check if command user is in a group
-        const userGroupData = await groupService.getUserGroup(user.id);
+        const managed = await resolveManagedGroup(interaction, groupService, 'change the group leader');
+        if (!managed) return;
+        const { group } = managed;
 
-        if (!userGroupData) {
+        // Check if target user is already the leader
+        if (targetUser.id === group.ownerId) {
           await interaction.editReply({
-            content: '❌ You are not in a group.',
-          });
-          return;
-        }
-
-        const { membership, group } = userGroupData;
-
-        // Verify user is the group owner
-        if (!membership.isOwner) {
-          await interaction.editReply({
-            content: '❌ Only the group owner can transfer ownership.',
-          });
-          return;
-        }
-
-        // Check if target user is trying to transfer to themselves
-        if (targetUser.id === user.id) {
-          await interaction.editReply({
-            content: '❌ You are already the owner of this group.',
+            content: targetUser.id === user.id
+              ? '❌ You are already the owner of this group.'
+              : `❌ ${targetUser.username} is already the leader of this group.`,
           });
           return;
         }
@@ -239,7 +279,7 @@ export const command: Command = {
         // Verify target is in the same group
         if (targetMembership?.groupId !== group.groupId) {
           await interaction.editReply({
-            content: `❌ ${targetUser.username} is not in your group.`,
+            content: `❌ ${targetUser.username} is not in **${group.name}**.`,
           });
           return;
         }
